@@ -1,5 +1,7 @@
-const { Client, LocalAuth } = require("whatsapp-web.js");
+const { Client, LocalAuth, Poll } = require("whatsapp-web.js");
 const CommandHandler = require("./commandHandler");
+const ReminderScheduler = require("./reminderScheduler");
+const ReminderStore = require("./reminderStore");
 
 process.on("unhandledRejection", (reason) => {
   console.error("UNHANDLED REJECTION:");
@@ -18,11 +20,19 @@ const client = new Client({
   },
 });
 
-async function sendMessage(chatId, message) {
-  return client.sendMessage(chatId, message);
+async function sendMessage(chatId, message, options) {
+  return client.sendMessage(chatId, message, options);
 }
 
-const commandHandler = new CommandHandler(sendMessage);
+async function sendPoll(chatId, title, options, allowMultipleAnswers) {
+  return sendMessage(chatId, new Poll(title, options, { allowMultipleAnswers }));
+}
+
+const reminderStore = new ReminderStore();
+const reminderScheduler = new ReminderScheduler(reminderStore, sendMessage);
+const commandHandler = new CommandHandler(sendMessage, undefined, reminderStore, reminderScheduler, sendPoll);
+
+reminderScheduler.start();
 
 client.on("qr", (qr) => {
   console.log("QR received");
@@ -58,10 +68,13 @@ client.on("message_create", async (message) => {
     // Get the quoted message if it exists
     const quotedMessage = await getQuotedMessage(message);
 
+    // Get the sender information
+    const sender = await getSender(message);
+
     // Print the received message and its quoted message (if any) for debugging purposes
     //printReceivedMessage(message);
 
-    await commandHandler.handleCommand(message, chatId, quotedMessage);
+    await commandHandler.handleCommand(message, chatId, quotedMessage, sender);
   } catch (error) {
     console.error("Message handler error:", error);
   }
@@ -73,6 +86,27 @@ function getQuotedMessage(message) {
   }
 
   return message._data?.quotedMsg;
+}
+
+async function getSender(message) {
+  try {
+    const contact = await message.getContact();
+    const userName = contact.pushname || contact.name || contact.shortName;
+    const mentionId = contact.id?._serialized || message.author || message.id.participant;
+
+    if (!mentionId) {
+      return userName ? { tag: userName } : undefined;
+    }
+
+    return {
+      name: userName,
+      tag: `@${mentionId.split("@")[0]}`,
+      mentionId,
+    };
+  } catch (error) {
+    console.warn("Could not retrieve sender contact:", error.message);
+    return undefined;
+  }
 }
 
 function printReceivedMessage(message) {

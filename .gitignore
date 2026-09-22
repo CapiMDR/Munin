@@ -24,6 +24,7 @@ certs/*
 *.sqlite3
 *.db
 notes.json
+reminders.json
 # Logs
 logs/
 *.log
