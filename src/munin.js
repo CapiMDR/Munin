@@ -34,7 +34,16 @@ const reminderStore = new ReminderStore();
 const reminderScheduler = new ReminderScheduler(reminderStore, sendMessage);
 const classStore = new ClassStore();
 const classScheduler = new ClassScheduler(classStore, sendMessage);
-const commandHandler = new CommandHandler(sendMessage, undefined, reminderStore, reminderScheduler, sendPoll, classStore, classScheduler, scheduleTimer);
+const commandHandler = new CommandHandler(
+  sendMessage,
+  undefined,
+  reminderStore,
+  reminderScheduler,
+  sendPoll,
+  classStore,
+  classScheduler,
+  scheduleTimer,
+);
 
 reminderScheduler.start();
 classScheduler.start();
@@ -83,7 +92,7 @@ client.on("message_create", async (message) => {
     const sender = await getSender(message);
 
     // Print the received message and its quoted message (if any) for debugging purposes
-    //printReceivedMessage(message);
+    printReceivedMessage(message);
 
     await commandHandler.handleCommand(message, chatId, quotedMessage, sender);
   } catch (error) {
@@ -122,6 +131,7 @@ async function getSender(message) {
 
 function printReceivedMessage(message) {
   console.log("\n--- MESSAGE ---");
+  console.log("chatId:", message.id.remote);
   console.log("body:", message.body);
   console.log("hasQuotedMsg:", message.hasQuotedMsg);
   if (message.hasQuotedMsg) {
