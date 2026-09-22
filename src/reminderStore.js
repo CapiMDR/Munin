@@ -28,14 +28,21 @@ class ReminderStore {
   }
 
   add(chatId, content, dueAt) {
+    return this.addReminder(chatId, { content, dueAt });
+  }
+
+  addRecurring(chatId, content, dueAt, intervalMs, remaining) {
+    return this.addReminder(chatId, { content, dueAt, intervalMs, remaining });
+  }
+
+  addReminder(chatId, reminderData) {
     if (!this.remindersByChat[chatId]) {
       this.remindersByChat[chatId] = [];
     }
 
     const reminder = {
       id: crypto.randomUUID(),
-      content,
-      dueAt,
+      ...reminderData,
     };
 
     this.remindersByChat[chatId].push(reminder);
@@ -73,6 +80,14 @@ class ReminderStore {
     const index = reminders?.findIndex((reminder) => reminder.id === reminderId) ?? -1;
 
     return index === -1 ? undefined : this.remove(chatId, index);
+  }
+
+  updateById(chatId, reminderId, fields) {
+    const reminder = this.remindersByChat[chatId]?.find((item) => item.id === reminderId);
+    if (!reminder) return undefined;
+    Object.assign(reminder, fields);
+    this.save();
+    return reminder;
   }
 
   save() {

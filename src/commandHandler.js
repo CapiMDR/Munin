@@ -3,7 +3,16 @@ const ReminderStore = require("./reminderStore");
 const ClassStore = require("./classStore");
 const { DAYS_ORDER, capitalize } = require("./classStore");
 const { COIN_SIDES, COMMANDS, EIGHT_BALL_RESPONSES, MESSAGES } = require("./commandConstants");
-const { formatDuration, formatReminder, formatTimerDuration, getMexicoCityTime, parseDuration, parseTimeRange, parseTimerDuration, timeToMinutes } = require("./timeUtils");
+const {
+  formatDuration,
+  formatReminder,
+  formatTimerDuration,
+  getMexicoCityTime,
+  parseDuration,
+  parseTimeRange,
+  parseTimerDuration,
+  timeToMinutes,
+} = require("./timeUtils");
 
 class CommandHandler {
   /** Inputs: injected messaging, storage, and scheduler dependencies. Initializes the handler. Output: a configured instance. */
@@ -37,6 +46,7 @@ class CommandHandler {
       [COMMANDS.LIST_NOTES]: this.handleListNotes,
       [COMMANDS.DELETE_NOTE]: this.handleDeleteNote,
       [COMMANDS.ADD_REMINDER]: this.handleAddReminder,
+      [COMMANDS.ADD_RECURRING_REMINDER]: this.handleAddRecurringReminder,
       [COMMANDS.LIST_REMINDERS]: this.handleListReminders,
       [COMMANDS.DELETE_REMINDER]: this.handleDeleteReminder,
       [COMMANDS.COIN]: this.handleCoin,
@@ -112,6 +122,19 @@ class CommandHandler {
       MESSAGES.REMINDER_ADDED(sender?.tag, formatDuration(durationText), content),
       sender?.mentionId ? { mentions: [sender.mentionId] } : undefined,
     );
+  }
+  /** Inputs: chat ID, interval/repetition/content arguments, and an optional quote. Creates a recurring reminder. Output: confirmation or usage response. */
+  async handleAddRecurringReminder(chatId, args, quotedMessage) {
+    const intervalText = args[0],
+      interval = parseDuration(intervalText),
+      repetitionText = args[1]?.toLowerCase();
+    const content = args.slice(2).join(" ").trim() || quotedMessage?.body?.trim();
+    const remaining = repetitionText === "inf" ? null : Number(repetitionText);
+    if (!content || !interval || interval < 600000 || (remaining !== null && (!Number.isInteger(remaining) || remaining < 1)))
+      return this.sendMessage(chatId, MESSAGES.ADD_RECURRING_REMINDER_USAGE);
+    const reminder = this.reminderStore.addRecurring(chatId, content, Date.now() + interval, interval, remaining);
+    this.reminderScheduler?.schedule({ chatId, ...reminder });
+    await this.sendMessage(chatId, MESSAGES.RECURRING_REMINDER_ADDED(formatDuration(intervalText), repetitionText, content));
   }
 
   /** Inputs: chat ID. Lists reminders for that chat. Output: the sent-message promise. */

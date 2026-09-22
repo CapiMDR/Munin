@@ -39,8 +39,16 @@ class ReminderScheduler {
 
     try {
       await this.sendMessage(reminder.chatId, `⏰ Recordatorio: ${reminder.content}`);
-      this.reminderStore.removeById(reminder.chatId, reminder.id);
-      this.timers.delete(reminder.id);
+      if (reminder.intervalMs && (reminder.remaining === null || reminder.remaining > 1)) {
+        const nextReminder = this.reminderStore.updateById(reminder.chatId, reminder.id, {
+          dueAt: Date.now() + reminder.intervalMs,
+          remaining: reminder.remaining === null ? null : reminder.remaining - 1,
+        });
+        this.schedule({ chatId: reminder.chatId, ...nextReminder });
+      } else {
+        this.reminderStore.removeById(reminder.chatId, reminder.id);
+        this.timers.delete(reminder.id);
+      }
     } catch (error) {
       console.error("Could not deliver reminder:", error);
       const timer = setTimeout(() => this.handleTimeout(reminder), RETRY_DELAY);

@@ -26,7 +26,6 @@ certs/*
 notes.json
 reminders.json
 classes.json
-classes.json
 # Logs
 logs/
 *.log
