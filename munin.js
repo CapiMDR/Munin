@@ -18,7 +18,11 @@ const client = new Client({
   },
 });
 
-const commandHandler = new CommandHandler(client);
+async function sendMessage(chatId, message) {
+  return client.sendMessage(chatId, message);
+}
+
+const commandHandler = new CommandHandler(sendMessage);
 
 client.on("qr", (qr) => {
   console.log("QR received");
@@ -51,10 +55,34 @@ client.on("message_create", async (message) => {
     // Ignore non-command messages
     if (!message.body.startsWith("!")) return;
 
-    await commandHandler.handleCommand(message, chatId);
+    // Get the quoted message if it exists
+    const quotedMessage = await getQuotedMessage(message);
+
+    // Print the received message and its quoted message (if any) for debugging purposes
+    //printReceivedMessage(message);
+
+    await commandHandler.handleCommand(message, chatId, quotedMessage);
   } catch (error) {
     console.error("Message handler error:", error);
   }
 });
+
+function getQuotedMessage(message) {
+  if (!message.hasQuotedMsg) {
+    return undefined;
+  }
+
+  return message._data?.quotedMsg;
+}
+
+function printReceivedMessage(message) {
+  console.log("\n--- MESSAGE ---");
+  console.log("body:", message.body);
+  console.log("hasQuotedMsg:", message.hasQuotedMsg);
+  if (message.hasQuotedMsg) {
+    console.log("QUOTED DATA:");
+    console.dir(message._data?.quotedMsg, { depth: 10 });
+  }
+}
 
 client.initialize();
