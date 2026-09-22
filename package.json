@@ -1,0 +1,24 @@
+{
+  "name": "munin",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CapiMDR/Munin.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/CapiMDR/Munin/issues"
+  },
+  "homepage": "https://github.com/CapiMDR/Munin#readme",
+  "dependencies": {
+    "whatsapp-web.js": "^1.34.7"
+  }
+}
