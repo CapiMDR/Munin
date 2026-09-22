@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 
 class NotesStore {
-  constructor(filePath = path.join(__dirname, "notes.json")) {
+  constructor(filePath = path.join(__dirname, "..", "notes.json")) {
     this.filePath = filePath;
     this.notesByChat = this.load();
   }
