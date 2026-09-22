@@ -2,6 +2,8 @@ const { Client, LocalAuth, Poll } = require("whatsapp-web.js");
 const CommandHandler = require("./commandHandler");
 const ReminderScheduler = require("./reminderScheduler");
 const ReminderStore = require("./reminderStore");
+const ClassStore = require("./classStore");
+const ClassScheduler = require("./classScheduler");
 
 process.on("unhandledRejection", (reason) => {
   console.error("UNHANDLED REJECTION:");
@@ -30,9 +32,18 @@ async function sendPoll(chatId, title, options, allowMultipleAnswers) {
 
 const reminderStore = new ReminderStore();
 const reminderScheduler = new ReminderScheduler(reminderStore, sendMessage);
-const commandHandler = new CommandHandler(sendMessage, undefined, reminderStore, reminderScheduler, sendPoll);
+const classStore = new ClassStore();
+const classScheduler = new ClassScheduler(classStore, sendMessage);
+const commandHandler = new CommandHandler(sendMessage, undefined, reminderStore, reminderScheduler, sendPoll, classStore, classScheduler, scheduleTimer);
 
 reminderScheduler.start();
+classScheduler.start();
+
+function scheduleTimer(duration, callback) {
+  return setTimeout(() => {
+    callback().catch((error) => console.error("Could not deliver timer:", error));
+  }, duration);
+}
 
 client.on("qr", (qr) => {
   console.log("QR received");
