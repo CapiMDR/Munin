@@ -1,7 +1,7 @@
 const { Client, LocalAuth } = require("whatsapp-web.js");
 const CommandHandler = require("./commandHandler");
 
-process.on("unhandledRejection", (reason, promise) => {
+process.on("unhandledRejection", (reason) => {
   console.error("UNHANDLED REJECTION:");
   console.error(reason);
 });

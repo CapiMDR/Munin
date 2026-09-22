@@ -1,4 +1,10 @@
 const NotesStore = require("./notesStore");
+const {
+  COIN_SIDES,
+  COMMANDS,
+  EIGHT_BALL_RESPONSES,
+  MESSAGES,
+} = require("./commandConstants");
 
 class CommandHandler {
   constructor(sendMessage, notesStore = new NotesStore()) {
@@ -10,20 +16,19 @@ class CommandHandler {
     const [command, ...args] = message.body.trim().split(/\s+/);
 
     switch (command.toLowerCase()) {
-      case "!munin":
-        await this.sendMessage(chatId, "¡Hola! Soy Munin, tu bot asistente de WhatsApp. Escribe !ayuda para ver los comandos disponibles.");
+      case COMMANDS.MUNIN:
+        await this.sendMessage(chatId, MESSAGES.WELCOME);
         break;
 
-      case "!ping":
-        await this.sendMessage(chatId, "pong");
+      case COMMANDS.PING:
+        await this.sendMessage(chatId, MESSAGES.PONG);
         break;
 
-      case "!echo":
+      case COMMANDS.ECHO:
         await this.sendMessage(chatId, args.join(" "));
         break;
 
-      // If no arguments are provided, it will try to use the quoted message as the note. If neither is available, it will send a usage message.
-      case "!agregar": {
+      case COMMANDS.ADD_NOTE: {
         let note = args.join(" ").trim();
 
         if (!note) {
@@ -31,64 +36,64 @@ class CommandHandler {
         }
 
         if (!note) {
-          await this.sendMessage(chatId, "Uso: !agregar <nota> o responde a un mensaje con !agregar");
+          await this.sendMessage(chatId, MESSAGES.ADD_NOTE_USAGE);
           break;
         }
 
         this.notesStore.add(chatId, note);
-        await this.sendMessage(chatId, "Nota agregada.");
+        await this.sendMessage(chatId, MESSAGES.NOTE_ADDED);
         break;
       }
 
-      case "!notas": {
+      case COMMANDS.LIST_NOTES: {
         const notes = this.notesStore.getAll(chatId);
         const notesMessage =
-          notes.length === 0 ? "No hay notas guardadas para este chat." : "Notas:\n" + notes.map((note, index) => `${index + 1}. ${note}`).join("\n");
+          notes.length === 0 ? MESSAGES.NO_NOTES : `${MESSAGES.NOTES_HEADING}\n${notes.map((note, index) => `${index + 1}. ${note}`).join("\n")}`;
 
         await this.sendMessage(chatId, notesMessage);
         break;
       }
 
-      case "!borrar": {
+      case COMMANDS.DELETE_NOTE: {
         const noteNumber = Number(args[0]);
 
         if (args.length !== 1 || !Number.isInteger(noteNumber) || noteNumber < 1) {
-          await this.sendMessage(chatId, "Uso: !borrar <índice>");
+          await this.sendMessage(chatId, MESSAGES.DELETE_NOTE_USAGE);
           break;
         }
 
         const wasDeleted = this.notesStore.remove(chatId, noteNumber - 1);
-        await this.sendMessage(chatId, wasDeleted ? `Nota ${noteNumber} eliminada.` : "No existe una nota con ese índice en este chat.");
+        await this.sendMessage(
+          chatId,
+          wasDeleted ? `${MESSAGES.NOTE_DELETED_PREFIX}${noteNumber}${MESSAGES.NOTE_DELETED_SUFFIX}` : MESSAGES.DELETE_NOTE_NOT_FOUND,
+        );
         break;
       }
 
-      case "!dado":
+      case COMMANDS.COIN: {
+        const coinFlip = COIN_SIDES[Math.floor(Math.random() * COIN_SIDES.length)];
+        await this.sendMessage(chatId, MESSAGES.COIN_RESULT_PREFIX + coinFlip);
+        break;
+      }
+
+      case COMMANDS.DICE: {
         const diceRoll = Math.floor(Math.random() * 6) + 1;
-        await this.sendMessage(chatId, `🎲 Has sacado un ${diceRoll}`);
+        await this.sendMessage(chatId, MESSAGES.DICE_RESULT_PREFIX + diceRoll);
         break;
+      }
 
-      case "!moneda":
-        const coinFlip = Math.random() < 0.5 ? "cara" : "cruz";
-        await this.sendMessage(chatId, `🪙 Ha salido ${coinFlip}`);
+      case COMMANDS.EIGHT_BALL: {
+        const randomResponse = EIGHT_BALL_RESPONSES[Math.floor(Math.random() * EIGHT_BALL_RESPONSES.length)];
+        await this.sendMessage(chatId, MESSAGES.EIGHT_BALL_RESULT_PREFIX + randomResponse);
         break;
+      }
 
-      case "!ayuda":
-        await this.sendMessage(
-          chatId,
-          "Comandos:\n" +
-            "!ping - Probar el bot\n" +
-            "!echo <texto> - Repetir texto\n" +
-            "!agregar <nota> - Guardar una nota\n" +
-            "!borrar <índice> - Eliminar una nota\n" +
-            "!notas - Mostrar las notas del chat\n" +
-            "!dado - Lanzar un dado\n" +
-            "!moneda - Lanzar una moneda\n" +
-            "!ayuda - Mostrar comandos",
-        );
+      case COMMANDS.HELP:
+        await this.sendMessage(chatId, MESSAGES.HELP_LINES.join("\n"));
         break;
 
       default:
-        await this.sendMessage(chatId, "Comando no reconocido. Escribe !ayuda para ver los comandos disponibles.");
+        await this.sendMessage(chatId, MESSAGES.UNKNOWN_COMMAND);
         break;
     }
   }
