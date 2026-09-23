@@ -1,3 +1,8 @@
+require("./envLoader");
+const TEST_MODE = true;
+const TEST_CHAT_ID = process.env.TEST_CHAT_ID?.trim() || "";
+
+const { generateResponse } = require("./muninAI");
 const { Client, LocalAuth, Poll } = require("whatsapp-web.js");
 const CommandHandler = require("./commandHandler");
 const PendingStore = require("./pendingStore");
@@ -106,44 +111,72 @@ if (botLid) {
   console.log("Loaded Munin LID:", botLid);
 }
 
-client.on("message_create", async (message) => {
+client.on("message_create", handleMessageCreate);
+
+async function handleMessageCreate(message) {
   try {
-    // Ignore Munin's own messages, but learn its LID first if necessary.
-    if (message.fromMe || message.id?.fromMe) {
-      if (!botLid) {
-        botLid =
-          message.id?.participant?._serialized ??
-          message.id?.participant ??
-          message._data?.id?.participant?._serialized ??
-          message._data?.id?.participant;
+    if (handleOwnMessage(message)) return;
 
-        if (botLid) {
-          saveBotLid(botLid);
-          console.log("Learned Munin LID:", botLid);
-        }
-      }
+    const chatId = message.id.remote;
+    if (!isEligibleChat(chatId)) return;
 
+    const sender = await getSender(message);
+    if (message.body.startsWith("!")) {
+      await handleFormalCommand(message, chatId, sender);
       return;
     }
 
-    const chatId = message.id.remote;
-
-    if (!chatId?.endsWith("@g.us")) return;
-
-    const commandText = getCommandText(message, botLid);
-    if (!commandText) return;
-
-    const quotedMessage = await getQuotedMessage(message);
-    const sender = await getSender(message);
-    const messageId = getSerializedMessageId(message);
-
-    //printReceivedMessage(message, sender);
-
-    await commandHandler.handleCommand(message, chatId, quotedMessage, sender, messageId, commandText);
+    await handleMention(message, chatId, sender);
   } catch (error) {
     console.error("Message handler error:", error);
   }
-});
+}
+
+// Ignore messages of the bot itself
+function handleOwnMessage(message) {
+  if (!message.fromMe && !message.id?.fromMe) return false;
+  //Learn the bot ID to recognize mentions. It is stored after the first execution run so this won't need to happen again
+  learnBotLid(message);
+  return true;
+}
+
+function learnBotLid(message) {
+  if (botLid) return;
+
+  botLid =
+    message.id?.participant?._serialized ?? message.id?.participant ?? message._data?.id?.participant?._serialized ?? message._data?.id?.participant;
+
+  if (botLid) {
+    saveBotLid(botLid);
+    console.log("Learned Munin LID:", botLid);
+  }
+}
+
+// Only accept group chats and only allow test chat when testing
+function isEligibleChat(chatId) {
+  if (TEST_MODE && chatId !== TEST_CHAT_ID) return false;
+  return chatId?.endsWith("@g.us");
+}
+
+// Exposing old !<command> interface just in case. The idea is to fully replace this with an LLM
+async function handleFormalCommand(message, chatId, sender) {
+  const quotedMessage = getQuotedMessage(message);
+  const messageId = getSerializedMessageId(message);
+
+  printReceivedMessage(message, sender);
+  await commandHandler.handleCommand(message, chatId, quotedMessage, sender, messageId, message.body.trim());
+}
+
+// Mentions trigger the LLM to respond
+async function handleMention(message, chatId, sender) {
+  if (!botLid || !message.mentionedIds?.includes(botLid)) return;
+
+  const prompt = removeMuninMention(message.body);
+  if (!prompt) return;
+
+  const response = await generateResponse(chatId, sender?.name, prompt);
+  if (response) await sendMessage(chatId, response);
+}
 
 function getQuotedMessage(message) {
   if (!message.hasQuotedMsg) {
@@ -152,23 +185,8 @@ function getQuotedMessage(message) {
   return message._data?.quotedMsg;
 }
 
-function getCommandText(message, botLid) {
-  const body = message.body?.trim();
-  if (!body) return undefined;
-
-  // Regular command: !ping
-  if (body.startsWith("!")) return body;
-
-  // Mention command: @Munin ping
-  if (!botLid || !message.mentionedIds?.includes(botLid)) {
-    return undefined;
-  }
-
-  const commandWithoutMention = body.replace(/^@\S+\s*/, "").trim();
-
-  if (!commandWithoutMention) return undefined;
-
-  return commandWithoutMention.startsWith("!") ? commandWithoutMention : `!${commandWithoutMention}`;
+function removeMuninMention(body) {
+  return body.replace(/^@\S+\s*/, "").trim();
 }
 
 function getSerializedMessageId(message) {
