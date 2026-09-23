@@ -93,7 +93,7 @@ client.on("group_join", async (notification) => {
   try {
     const chatId = notification.chatId;
 
-    await client.sendMessage(chatId, "Munin ha llegado 🐦‍⬛.\nUsa !ayuda para ver lo que puedo hacer.");
+    await client.sendMessage(chatId, "🐦‍⬛ Munin ha llegado.\nUsa !ayuda para ver lo que puedo hacer.");
   } catch (error) {
     console.error("Group join error:", error);
   }

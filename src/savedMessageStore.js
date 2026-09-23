@@ -37,6 +37,16 @@ class SavedMessageStore {
     return Object.values(this.messagesByChat[chatId] || {});
   }
 
+  removeAt(chatId, index) {
+    const messages = this.messagesByChat[chatId];
+    const key = Object.keys(messages || {})[index];
+    if (!key) return undefined;
+    const savedMessage = messages[key];
+    delete messages[key];
+    this.save();
+    return savedMessage;
+  }
+
   save() {
     fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
     fs.writeFileSync(this.filePath, JSON.stringify(this.messagesByChat, null, 2));

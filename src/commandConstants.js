@@ -6,6 +6,7 @@ const COMMANDS = Object.freeze({
   SAVE_MESSAGE: "!guardar",
   VIEW_SAVED_MESSAGE: "!ver",
   LIST_SAVED_MESSAGES: "!guardados",
+  DELETE_SAVED_MESSAGE: "!borrar",
   PENDING: "!p",
   REMINDER: "!r",
   COIN: "!moneda",
@@ -58,15 +59,18 @@ const EIGHT_BALL_RESPONSES = Object.freeze([
 ]);
 
 const HELP_PAGE_COUNT = 5;
+const HELP_SECTION_INDEX = [
+  "Secciones:",
+  "1. General",
+  "2. Pendientes y recordatorios",
+  "3. Diversión",
+  "4. Clases",
+  "5. Admin",
+].join("\n");
 const HELP_PAGES = Object.freeze([
   [
     `=== Ayuda 1/${HELP_PAGE_COUNT} ===`,
-    "Secciones:",
-    "1. General",
-    "2. Pendientes y recordatorios",
-    "3. Diversión",
-    "4. Clases",
-    "5. Admin",
+    HELP_SECTION_INDEX,
     "",
     "=== General ===",
     `${COMMANDS.MUNIN} - Saludar al bot`,
@@ -76,15 +80,18 @@ const HELP_PAGES = Object.freeze([
     `${COMMANDS.SAVE_MESSAGE} <título> - Guardar un mensaje respondido`,
     `${COMMANDS.VIEW_SAVED_MESSAGE} <título> - Ver un mensaje guardado`,
     `${COMMANDS.LIST_SAVED_MESSAGES} - Mostrar títulos guardados`,
+    `${COMMANDS.DELETE_SAVED_MESSAGE} <índice> - Eliminar un mensaje guardado`,
     `${COMMANDS.HELP} <página> - Ver una página de ayuda`,
   ].join("\n"),
   [
     `=== Ayuda 2/${HELP_PAGE_COUNT}: Pendientes y recordatorios ===`,
+    HELP_SECTION_INDEX,
     `${COMMANDS.PENDING} [@<dd/mm>] <pendiente> - Guardar un pendiente; sin argumentos, mostrarlos; ${COMMANDS.PENDING} - <índice>, eliminarlo`,
     `${COMMANDS.REMINDER} <cantidad><m/h/d> [x<veces> o x] <contenido> - Crear un recordatorio; sin argumentos, mostrarlos; ${COMMANDS.REMINDER} - <índice>, eliminarlo`,
   ].join("\n"),
   [
     `=== Ayuda 3/${HELP_PAGE_COUNT}: Diversión ===`,
+    HELP_SECTION_INDEX,
     `${COMMANDS.COIN} - Lanzar una moneda`,
     `${COMMANDS.DICE} - Lanzar un dado`,
     `${COMMANDS.EIGHT_BALL} - Preguntar a la bola 8`,
@@ -95,6 +102,7 @@ const HELP_PAGES = Object.freeze([
   ].join("\n"),
   [
     `=== Ayuda 4/${HELP_PAGE_COUNT}: Clases ===`,
+    HELP_SECTION_INDEX,
     `${COMMANDS.CURRENT_CLASS} - Mostrar la clase actual o la siguiente`,
     `${COMMANDS.LIST_CLASSES_TODAY} - Mostrar las clases de hoy`,
     `${COMMANDS.LIST_ALL_CLASSES} - Mostrar todas las clases`,
@@ -105,6 +113,7 @@ const HELP_PAGES = Object.freeze([
   ].join("\n"),
   [
     `=== Ayuda 5/${HELP_PAGE_COUNT}: Admin ===`,
+    HELP_SECTION_INDEX,
     `${COMMANDS.BAN} @usuario <cantidad><m/h/d> o ${INFINITE_TOKEN} - Bloquear comandos de un usuario`,
     `${COMMANDS.BANS} - Mostrar usuarios bloqueados`,
     `${COMMANDS.UNBAN} @usuario - Desbloquear un usuario`,
@@ -126,6 +135,9 @@ const MESSAGES = Object.freeze({
   VIEW_SAVED_MESSAGE_USAGE: `Uso: ${COMMANDS.VIEW_SAVED_MESSAGE} <título>`,
   SAVED_MESSAGE_REPLY: (title) => `Mensaje guardado: ${title}`,
   SAVED_MESSAGE_NOT_FOUND: (title) => `No existe un mensaje guardado con el título: ${title}`,
+  DELETE_SAVED_MESSAGE_USAGE: `Uso: ${COMMANDS.DELETE_SAVED_MESSAGE} <índice>`,
+  SAVED_MESSAGE_INDEX_NOT_FOUND: "No existe un mensaje guardado con ese índice.",
+  SAVED_MESSAGE_DELETED: (title) => `Mensaje guardado eliminado: ${title}`,
   NO_SAVED_MESSAGES: "No hay mensajes guardados en este grupo.",
   SAVED_MESSAGES_LIST: (messages) => `Mensajes guardados:\n${messages.map((message, index) => `${index + 1}. ${message.title}`).join("\n")}`,
 

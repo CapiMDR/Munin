@@ -71,6 +71,7 @@ class CommandHandler {
       [COMMANDS.SAVE_MESSAGE]: this.handleSaveMessage,
       [COMMANDS.VIEW_SAVED_MESSAGE]: this.handleViewSavedMessage,
       [COMMANDS.LIST_SAVED_MESSAGES]: this.handleListSavedMessages,
+      [COMMANDS.DELETE_SAVED_MESSAGE]: this.handleDeleteSavedMessage,
       [COMMANDS.PENDING]: this.handlePending,
       [COMMANDS.REMINDER]: this.handleReminder,
       [COMMANDS.COIN]: this.handleCoin,
@@ -135,28 +136,45 @@ class CommandHandler {
   async handleSaveMessage(chatId, args, quotedMessage, sender, command, message) {
     const title = args.join(" ").trim();
 
-    if (!title || !quotedMessage || !message.id?.$1) {
+    if (!title || !message.hasQuotedMsg || !message._data?.quotedStanzaID || !message._data?.quotedParticipant) {
       return this.sendMessage(chatId, MESSAGES.SAVE_MESSAGE_USAGE);
     }
 
-    const messageId = message.id.$1;
+    const quotedMessageId = `false_${chatId}_${message._data.quotedStanzaID}_${message._data.quotedParticipant}`;
 
-    const alreadyExists = this.savedMessageStore.set(chatId, title, messageId);
+    const alreadyExists = this.savedMessageStore.set(chatId, title, quotedMessageId);
 
     await this.sendMessage(chatId, alreadyExists ? MESSAGES.SAVED_MESSAGE_UPDATED(title) : MESSAGES.SAVED_MESSAGE_CREATED(title));
   }
   /** Inputs: chat ID and title arguments. Sends a bot message quoting the saved command message. Output: confirmation or not-found response. */
   async handleViewSavedMessage(chatId, args) {
     const title = args.join(" ").trim();
-    if (!title) return this.sendMessage(chatId, MESSAGES.VIEW_SAVED_MESSAGE_USAGE);
+
+    if (!title) {
+      return this.sendMessage(chatId, MESSAGES.VIEW_SAVED_MESSAGE_USAGE);
+    }
+
     const savedMessage = this.savedMessageStore.get(chatId, title);
-    if (!savedMessage) return this.sendMessage(chatId, MESSAGES.SAVED_MESSAGE_NOT_FOUND(title));
-    await this.sendMessage(chatId, MESSAGES.SAVED_MESSAGE_REPLY(savedMessage.title), { quotedMessageId: savedMessage.messageId });
+
+    if (!savedMessage) {
+      return this.sendMessage(chatId, MESSAGES.SAVED_MESSAGE_NOT_FOUND(title));
+    }
+
+    await this.sendMessage(chatId, MESSAGES.SAVED_MESSAGE_REPLY(savedMessage.title), {
+      quotedMessageId: savedMessage.messageId,
+    });
   }
   /** Inputs: chat ID. Lists saved message titles for the current group. Output: the sent-message promise. */
   async handleListSavedMessages(chatId) {
     const savedMessages = this.savedMessageStore.getAll(chatId);
     await this.sendMessage(chatId, savedMessages.length ? MESSAGES.SAVED_MESSAGES_LIST(savedMessages) : MESSAGES.NO_SAVED_MESSAGES);
+  }
+  /** Inputs: chat ID and saved-message index. Deletes a saved message from the current group. Output: confirmation, usage, or not-found response. */
+  async handleDeleteSavedMessage(chatId, args) {
+    const index = Number(args[0]);
+    if (args.length !== 1 || !Number.isInteger(index) || index < 1) return this.sendMessage(chatId, MESSAGES.DELETE_SAVED_MESSAGE_USAGE);
+    const savedMessage = this.savedMessageStore.removeAt(chatId, index - 1);
+    await this.sendMessage(chatId, savedMessage ? MESSAGES.SAVED_MESSAGE_DELETED(savedMessage.title) : MESSAGES.SAVED_MESSAGE_INDEX_NOT_FOUND);
   }
   /** Inputs: chat ID and an optional help-page number. Sends the requested help page. Output: the sent-message promise. */
   async handleHelp(chatId, args) {
