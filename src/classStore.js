@@ -9,7 +9,7 @@ function capitalize(value) {
 }
 
 class ClassStore {
-  constructor(filePath = path.join(__dirname, "..", "classes.json")) {
+  constructor(filePath = path.join(__dirname, "..", "data", "classes.json")) {
     this.filePath = filePath;
     this.dataByChat = this.load();
   }
@@ -179,6 +179,7 @@ class ClassStore {
   }
 
   save() {
+    fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
     fs.writeFileSync(this.filePath, JSON.stringify(this.dataByChat, null, 2));
   }
 }

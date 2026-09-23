@@ -3,7 +3,7 @@ const fs = require("fs");
 const path = require("path");
 
 class ReminderStore {
-  constructor(filePath = path.join(__dirname, "..", "reminders.json")) {
+  constructor(filePath = path.join(__dirname, "..", "data", "reminders.json")) {
     this.filePath = filePath;
     this.remindersByChat = this.load();
   }
@@ -91,6 +91,7 @@ class ReminderStore {
   }
 
   save() {
+    fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
     fs.writeFileSync(this.filePath, JSON.stringify(this.remindersByChat, null, 2));
   }
 }

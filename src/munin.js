@@ -1,9 +1,12 @@
 const { Client, LocalAuth, Poll } = require("whatsapp-web.js");
 const CommandHandler = require("./commandHandler");
+const PendingStore = require("./pendingStore");
+const PendingScheduler = require("./pendingScheduler");
 const ReminderScheduler = require("./reminderScheduler");
 const ReminderStore = require("./reminderStore");
 const ClassStore = require("./classStore");
 const ClassScheduler = require("./classScheduler");
+const AdminStore = require("./adminStore");
 
 process.on("unhandledRejection", (reason) => {
   console.error("UNHANDLED REJECTION:");
@@ -30,23 +33,28 @@ async function sendPoll(chatId, title, options, allowMultipleAnswers) {
   return sendMessage(chatId, new Poll(title, options, { allowMultipleAnswers }));
 }
 
+const pendingStore = new PendingStore();
+const pendingScheduler = new PendingScheduler(pendingStore, sendMessage);
 const reminderStore = new ReminderStore();
 const reminderScheduler = new ReminderScheduler(reminderStore, sendMessage);
 const classStore = new ClassStore();
 const classScheduler = new ClassScheduler(classStore, sendMessage);
+const adminStore = new AdminStore();
 const commandHandler = new CommandHandler(
   sendMessage,
-  undefined,
+  pendingStore,
   reminderStore,
   reminderScheduler,
   sendPoll,
   classStore,
   classScheduler,
   scheduleTimer,
+  adminStore,
 );
 
 reminderScheduler.start();
 classScheduler.start();
+pendingScheduler.start();
 
 function scheduleTimer(duration, callback) {
   return setTimeout(() => {
@@ -75,8 +83,21 @@ client.on("disconnected", (reason) => {
   console.log("DISCONNECTED:", reason);
 });
 
+client.on("group_join", async (notification) => {
+  try {
+    const chatId = notification.chatId;
+
+    await client.sendMessage(chatId, "🐦‍⬛ Munin ha llegado.\nUsa !ayuda para ver lo que puedo hacer.");
+  } catch (error) {
+    console.error("Group join error:", error);
+  }
+});
+
 client.on("message_create", async (message) => {
   try {
+    // Ignore messages sent by this bot to prevent command loops.
+    if (message.fromMe || message.id?.fromMe) return;
+
     const chatId = message.id.remote;
 
     // Ignore anything that isn't a group
@@ -92,7 +113,7 @@ client.on("message_create", async (message) => {
     const sender = await getSender(message);
 
     // Print the received message and its quoted message (if any) for debugging purposes
-    printReceivedMessage(message);
+    printReceivedMessage(message, sender);
 
     await commandHandler.handleCommand(message, chatId, quotedMessage, sender);
   } catch (error) {
@@ -104,7 +125,6 @@ function getQuotedMessage(message) {
   if (!message.hasQuotedMsg) {
     return undefined;
   }
-
   return message._data?.quotedMsg;
 }
 
@@ -129,9 +149,11 @@ async function getSender(message) {
   }
 }
 
-function printReceivedMessage(message) {
+function printReceivedMessage(message, sender) {
   console.log("\n--- MESSAGE ---");
   console.log("chatId:", message.id.remote);
+  console.log("userId:", sender?.mentionId || message.author || message.id.participant);
+  console.log("userName:", sender?.name || "Unknown");
   console.log("body:", message.body);
   console.log("hasQuotedMsg:", message.hasQuotedMsg);
   if (message.hasQuotedMsg) {

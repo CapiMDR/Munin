@@ -1,12 +1,16 @@
-const NotesStore = require("./notesStore");
+const PendingStore = require("./pendingStore");
 const ReminderStore = require("./reminderStore");
 const ClassStore = require("./classStore");
+const AdminStore = require("./adminStore");
+const { getPendingContent, groupPendingsByDate, parsePendingDate } = require("./pendingUtils");
 const { DAYS_ORDER, capitalize } = require("./classStore");
-const { COIN_SIDES, COMMANDS, EIGHT_BALL_RESPONSES, MESSAGES } = require("./commandConstants");
+const { COIN_SIDES, COMMANDS, EIGHT_BALL_RESPONSES, INFINITE_TOKEN, MESSAGES } = require("./commandConstants");
 const {
   formatDuration,
   formatReminder,
+  formatRemainingDuration,
   formatTimerDuration,
+  getMexicoCityDate,
   getMexicoCityTime,
   parseDuration,
   parseTimeRange,
@@ -18,22 +22,35 @@ class CommandHandler {
   /** Inputs: injected messaging, storage, and scheduler dependencies. Initializes the handler. Output: a configured instance. */
   constructor(
     sendMessage,
-    notesStore = new NotesStore(),
+    pendingStore = new PendingStore(),
     reminderStore = new ReminderStore(),
     reminderScheduler,
     sendPoll,
     classStore = new ClassStore(),
     classScheduler,
     scheduleTimer,
+    adminStore = new AdminStore(),
   ) {
-    Object.assign(this, { sendMessage, notesStore, reminderStore, reminderScheduler, sendPoll, classStore, classScheduler, scheduleTimer });
+    Object.assign(this, {
+      sendMessage,
+      pendingStore,
+      reminderStore,
+      reminderScheduler,
+      sendPoll,
+      classStore,
+      classScheduler,
+      scheduleTimer,
+      adminStore,
+    });
   }
 
   /** Inputs: WhatsApp message, chat ID, optional quote and sender. Dispatches a command. Output: a resolved command response. */
   async handleCommand(message, chatId, quotedMessage, sender) {
     const [command, ...args] = message.body.trim().split(/\s+/);
+    if (this.adminStore.isBanned(chatId, sender?.mentionId)) return;
+    if (this.adminStore.isPaused(chatId) && !this.adminStore.isAdmin(chatId, sender?.mentionId)) return;
     const handler = this.getHandlers()[command.toLowerCase()] || this.handleUnknown;
-    await handler.call(this, chatId, args, quotedMessage, sender, command);
+    await handler.call(this, chatId, args, quotedMessage, sender, command, message);
   }
 
   /** Inputs: none. Builds command-to-method routing. Output: an object of command handlers. */
@@ -42,13 +59,8 @@ class CommandHandler {
       [COMMANDS.MUNIN]: this.handleMunin,
       [COMMANDS.PING]: this.handlePing,
       [COMMANDS.ECHO]: this.handleEcho,
-      [COMMANDS.ADD_NOTE]: this.handleAddNote,
-      [COMMANDS.LIST_NOTES]: this.handleListNotes,
-      [COMMANDS.DELETE_NOTE]: this.handleDeleteNote,
-      [COMMANDS.ADD_REMINDER]: this.handleAddReminder,
-      [COMMANDS.ADD_RECURRING_REMINDER]: this.handleAddRecurringReminder,
-      [COMMANDS.LIST_REMINDERS]: this.handleListReminders,
-      [COMMANDS.DELETE_REMINDER]: this.handleDeleteReminder,
+      [COMMANDS.PENDING]: this.handlePending,
+      [COMMANDS.REMINDER]: this.handleReminder,
       [COMMANDS.COIN]: this.handleCoin,
       [COMMANDS.DICE]: this.handleDice,
       [COMMANDS.EIGHT_BALL]: this.handleEightBall,
@@ -56,6 +68,13 @@ class CommandHandler {
       [COMMANDS.POLL]: this.handlePoll,
       [COMMANDS.MULTIPLE_POLL]: this.handlePoll,
       [COMMANDS.TIMER]: this.handleTimer,
+      [COMMANDS.BAN]: this.handleBan,
+      [COMMANDS.BANS]: this.handleListBans,
+      [COMMANDS.UNBAN]: this.handleUnban,
+      [COMMANDS.ADMIN]: this.handleAdmin,
+      [COMMANDS.NO_ADMIN]: this.handleNoAdmin,
+      [COMMANDS.PAUSE]: this.handlePause,
+      [COMMANDS.UNPAUSE]: this.handleUnpause,
       [COMMANDS.CURRENT_CLASS]: this.handleCurrentClass,
       [COMMANDS.LIST_CLASSES_TODAY]: this.handleClassesToday,
       [COMMANDS.LIST_ALL_CLASSES]: this.handleAllClasses,
@@ -79,42 +98,82 @@ class CommandHandler {
   async handleEcho(chatId, args) {
     await this.sendMessage(chatId, args.join(" "));
   }
-  /** Inputs: chat ID. Sends command help. Output: the sent-message promise. */
-  async handleHelp(chatId) {
-    await this.sendMessage(chatId, MESSAGES.HELP);
+  /** Inputs: chat ID and an optional help-page number. Sends the requested help page. Output: the sent-message promise. */
+  async handleHelp(chatId, args) {
+    const page = args.length === 0 ? 1 : Number(args[0]);
+    if (args.length > 1 || !Number.isInteger(page) || !MESSAGES.HELP_PAGE(page)) return this.sendMessage(chatId, MESSAGES.HELP_PAGE_USAGE);
+    await this.sendMessage(chatId, MESSAGES.HELP_PAGE(page));
   }
-  /** Inputs: chat ID. Sends unknown-command guidance. Output: the sent-message promise. */
-  async handleUnknown(chatId) {
-    await this.sendMessage(chatId, MESSAGES.UNKNOWN_COMMAND);
-  }
-
-  /** Inputs: chat ID, arguments, optional quote. Stores a note. Output: a confirmation or usage response. */
-  async handleAddNote(chatId, args, quotedMessage) {
-    const note = args.join(" ").trim() || quotedMessage?.body?.trim();
-    if (!note) return this.sendMessage(chatId, MESSAGES.ADD_NOTE_USAGE);
-    this.notesStore.add(chatId, note);
-    await this.sendMessage(chatId, MESSAGES.NOTE_ADDED(note));
+  /** Inputs: chat ID and unknown command name. Sends command-specific guidance. Output: the sent-message promise. */
+  async handleUnknown(chatId, args, quotedMessage, sender, command) {
+    await this.sendMessage(chatId, MESSAGES.UNKNOWN_COMMAND(command));
   }
 
-  /** Inputs: chat ID. Lists notes for that chat. Output: the sent-message promise. */
-  async handleListNotes(chatId) {
-    const notes = this.notesStore.getAll(chatId);
-    await this.sendMessage(chatId, notes.length ? MESSAGES.NOTES_LIST(notes) : MESSAGES.NO_NOTES);
+  /** Inputs: chat ID, arguments, optional quote. Adds, lists, or deletes pending items based on the !p syntax. Output: the sent-message promise. */
+  async handlePending(chatId, args, quotedMessage) {
+    if (args[0] === "-") {
+      return this.handleDeletePending(chatId, args.slice(1));
+    }
+
+    if (args.length === 0 && !quotedMessage?.body?.trim()) {
+      return this.handleListPending(chatId);
+    }
+
+    return this.handleAddPending(chatId, args, quotedMessage);
   }
 
-  /** Inputs: chat ID and note index. Deletes a note. Output: confirmation or validation response. */
-  async handleDeleteNote(chatId, args) {
+  /** Inputs: chat ID, content/date arguments, optional quote. Stores a pending item. Output: a confirmation or usage response. */
+  async handleAddPending(chatId, args, quotedMessage) {
+    const date = parsePendingDate(args[0]);
+    if (args[0]?.startsWith("@") && !date) return this.sendMessage(chatId, MESSAGES.PENDING_USAGE);
+
+    const pending =
+      args
+        .slice(date ? 1 : 0)
+        .join(" ")
+        .trim() || quotedMessage?.body?.trim();
+    if (!pending) return this.sendMessage(chatId, MESSAGES.PENDING_USAGE);
+    this.pendingStore.add(chatId, pending, date);
+    await this.sendMessage(chatId, MESSAGES.PENDING_ADDED(pending, date));
+  }
+
+  /** Inputs: chat ID. Lists pending items for that chat. Output: the sent-message promise. */
+  async handleListPending(chatId) {
+    const pendings = this.pendingStore.getAll(chatId);
+    await this.sendMessage(
+      chatId,
+      pendings.length ? MESSAGES.DAILY_PENDINGS(groupPendingsByDate(pendings, getMexicoCityDate())) : MESSAGES.NO_PENDING,
+    );
+  }
+
+  /** Inputs: chat ID and pending-item index. Deletes a pending item. Output: confirmation or validation response. */
+  async handleDeletePending(chatId, args) {
     const index = Number(args[0]);
-    if (args.length !== 1 || !Number.isInteger(index) || index < 1) return this.sendMessage(chatId, MESSAGES.DELETE_NOTE_USAGE);
-    await this.sendMessage(chatId, this.notesStore.remove(chatId, index - 1) ? MESSAGES.NOTE_DELETED(index) : MESSAGES.DELETE_NOTE_NOT_FOUND);
+    if (args.length !== 1 || !Number.isInteger(index) || index < 1) return this.sendMessage(chatId, MESSAGES.PENDING_USAGE);
+    const pending = this.pendingStore.remove(chatId, index - 1);
+    await this.sendMessage(
+      chatId,
+      pending !== undefined ? MESSAGES.PENDING_DELETED(index, getPendingContent(pending)) : MESSAGES.DELETE_PENDING_NOT_FOUND,
+    );
   }
 
-  /** Inputs: chat ID, duration/content arguments, optional quote and sender. Stores and schedules a reminder. Output: confirmation or usage response. */
-  async handleAddReminder(chatId, args, quotedMessage, sender) {
-    const durationText = args[0],
-      duration = parseDuration(durationText),
-      content = args.slice(1).join(" ").trim() || quotedMessage?.body?.trim();
-    if (!content || !duration) return this.sendMessage(chatId, MESSAGES.ADD_REMINDER_USAGE);
+  /** Inputs: chat ID, arguments, optional quote, and sender. Adds, lists, or deletes reminders based on the !r syntax. Output: the sent-message promise. */
+  async handleReminder(chatId, args, quotedMessage, sender) {
+    if (args[0] === "-") return this.handleDeleteReminder(chatId, args.slice(1));
+    if (args.length === 0) return this.handleListReminders(chatId);
+
+    const durationText = args[0];
+    const recurrenceMatch = args[1]?.match(/^x(\d+)?$/i);
+    return recurrenceMatch
+      ? this.handleAddRecurringReminder(chatId, durationText, recurrenceMatch[1], args.slice(2), quotedMessage)
+      : this.handleAddReminder(chatId, durationText, args.slice(1), quotedMessage, sender);
+  }
+
+  /** Inputs: chat ID, duration text, content arguments, optional quote and sender. Stores and schedules a one-time reminder. Output: confirmation or usage response. */
+  async handleAddReminder(chatId, durationText, contentArgs, quotedMessage, sender) {
+    const duration = parseDuration(durationText);
+    const content = contentArgs.join(" ").trim() || quotedMessage?.body?.trim();
+    if (!content || !duration) return this.sendMessage(chatId, MESSAGES.REMINDER_USAGE);
     const reminder = this.reminderStore.add(chatId, content, Date.now() + duration);
     this.reminderScheduler?.schedule({ chatId, ...reminder });
     await this.sendMessage(
@@ -123,18 +182,17 @@ class CommandHandler {
       sender?.mentionId ? { mentions: [sender.mentionId] } : undefined,
     );
   }
-  /** Inputs: chat ID, interval/repetition/content arguments, and an optional quote. Creates a recurring reminder. Output: confirmation or usage response. */
-  async handleAddRecurringReminder(chatId, args, quotedMessage) {
-    const intervalText = args[0],
-      interval = parseDuration(intervalText),
-      repetitionText = args[1]?.toLowerCase();
-    const content = args.slice(2).join(" ").trim() || quotedMessage?.body?.trim();
-    const remaining = repetitionText === "inf" ? null : Number(repetitionText);
+  /** Inputs: chat ID, interval text, optional repetition count, content arguments, and optional quote. Creates a recurring reminder. Output: confirmation or usage response. */
+  async handleAddRecurringReminder(chatId, intervalText, repetitionCount, contentArgs, quotedMessage) {
+    const interval = parseDuration(intervalText);
+    const content = contentArgs.join(" ").trim() || quotedMessage?.body?.trim();
+    const remaining = repetitionCount ? Number(repetitionCount) : null;
     if (!content || !interval || interval < 600000 || (remaining !== null && (!Number.isInteger(remaining) || remaining < 1)))
-      return this.sendMessage(chatId, MESSAGES.ADD_RECURRING_REMINDER_USAGE);
+      return this.sendMessage(chatId, MESSAGES.REMINDER_USAGE);
     const reminder = this.reminderStore.addRecurring(chatId, content, Date.now() + interval, interval, remaining);
     this.reminderScheduler?.schedule({ chatId, ...reminder });
-    await this.sendMessage(chatId, MESSAGES.RECURRING_REMINDER_ADDED(formatDuration(intervalText), repetitionText, content));
+    const repetitions = remaining === null ? "infinitas veces" : `${remaining} veces`;
+    await this.sendMessage(chatId, MESSAGES.RECURRING_REMINDER_ADDED(formatDuration(intervalText), repetitions, content));
   }
 
   /** Inputs: chat ID. Lists reminders for that chat. Output: the sent-message promise. */
@@ -145,10 +203,10 @@ class CommandHandler {
   /** Inputs: chat ID and reminder index. Cancels and deletes a reminder. Output: confirmation or validation response. */
   async handleDeleteReminder(chatId, args) {
     const index = Number(args[0]);
-    if (args.length !== 1 || !Number.isInteger(index) || index < 1) return this.sendMessage(chatId, MESSAGES.DELETE_REMINDER_USAGE);
+    if (args.length !== 1 || !Number.isInteger(index) || index < 1) return this.sendMessage(chatId, MESSAGES.REMINDER_USAGE);
     const reminder = this.reminderStore.remove(chatId, index - 1);
     if (reminder) this.reminderScheduler?.cancel(reminder.id);
-    await this.sendMessage(chatId, reminder ? MESSAGES.REMINDER_DELETED(index) : MESSAGES.DELETE_REMINDER_NOT_FOUND);
+    await this.sendMessage(chatId, reminder ? MESSAGES.REMINDER_DELETED(index, reminder.content) : MESSAGES.DELETE_REMINDER_NOT_FOUND);
   }
 
   /** Inputs: chat ID. Selects a random coin side. Output: the sent-message promise. */
@@ -176,7 +234,7 @@ class CommandHandler {
   }
 
   /** Inputs: chat ID, comma-separated title/options, and poll command. Creates a single or multiple-choice poll. Output: sent-poll or usage promise. */
-  async handlePoll(chatId, args, command) {
+  async handlePoll(chatId, args, quotedMessage, sender, command) {
     const [title, ...options] = args
       .join(" ")
       .split(",")
@@ -193,6 +251,76 @@ class CommandHandler {
     if (args.length !== 1 || !duration) return this.sendMessage(chatId, MESSAGES.TIMER_USAGE);
     this.scheduleTimer?.(duration, () => this.sendMessage(chatId, MESSAGES.TIMER_FINISHED));
     await this.sendMessage(chatId, MESSAGES.TIMER_STARTED(formatTimerDuration(durationText)));
+  }
+
+  /** Inputs: chat ID, mentioned user, and duration. Bans a user from commands. Output: confirmation or validation response. */
+  async handleBan(chatId, args, quotedMessage, sender, command, message) {
+    if (!this.adminStore.isAdmin(chatId, sender?.mentionId)) return this.sendMessage(chatId, MESSAGES.ADMIN_ONLY);
+    const userId = message.mentionedIds?.[0];
+    const durationText = args.at(-1);
+    const isIndefinite = durationText?.toLowerCase() === INFINITE_TOKEN;
+    const duration = parseDuration(durationText);
+    if (!userId || args.length !== 2 || (!isIndefinite && !duration)) return this.sendMessage(chatId, MESSAGES.BAN_USAGE);
+    if (isIndefinite) {
+      this.adminStore.banIndefinitely(chatId, userId);
+      return this.sendMessage(chatId, MESSAGES.USER_BANNED_INDEFINITELY);
+    }
+    this.adminStore.ban(chatId, userId, Date.now() + duration);
+    await this.sendMessage(chatId, MESSAGES.USER_BANNED(formatDuration(durationText)));
+  }
+  /** Inputs: chat ID. Lists active group bans. Output: the sent-message promise. */
+  async handleListBans(chatId) {
+    const bans = this.adminStore.getBans(chatId).map((ban) => ({
+      ...ban,
+      remaining: ban.isIndefinite ? "indefinidamente" : formatRemainingDuration(ban.until - Date.now()),
+    }));
+    await this.sendMessage(
+      chatId,
+      bans.length ? MESSAGES.BANS_LIST(bans) : MESSAGES.NO_BANS,
+      bans.length ? { mentions: bans.map(({ userId }) => userId) } : undefined,
+    );
+  }
+  /** Inputs: chat ID and mentioned user. Clears an active ban. Output: confirmation or validation response. */
+  async handleUnban(chatId, args, quotedMessage, sender, command, message) {
+    if (!this.adminStore.isAdmin(chatId, sender?.mentionId)) return this.sendMessage(chatId, MESSAGES.ADMIN_ONLY);
+    const userId = message.mentionedIds?.[0];
+    if (!userId) return this.sendMessage(chatId, MESSAGES.UNBAN_USAGE);
+    await this.sendMessage(chatId, this.adminStore.unban(chatId, userId) ? MESSAGES.USER_UNBANNED : MESSAGES.USER_NOT_BANNED);
+  }
+  /** Inputs: chat ID and mentioned user. Grants group-admin access. Output: confirmation or validation response. */
+  async handleAdmin(chatId, args, quotedMessage, sender, command, message) {
+    if (!this.adminStore.isAdmin(chatId, sender?.mentionId)) return this.sendMessage(chatId, MESSAGES.ADMIN_ONLY);
+    const userId = message.mentionedIds?.[0];
+    if (!userId) return this.sendMessage(chatId, MESSAGES.ADMIN_USAGE);
+    this.adminStore.addAdmin(chatId, userId);
+    await this.sendMessage(chatId, MESSAGES.ADMIN_ADDED);
+  }
+  /** Inputs: chat ID and mentioned user. Revokes group-admin access. Output: confirmation or validation response. */
+  async handleNoAdmin(chatId, args, quotedMessage, sender, command, message) {
+    if (!this.adminStore.isAdmin(chatId, sender?.mentionId)) return this.sendMessage(chatId, MESSAGES.ADMIN_ONLY);
+    const userId = message.mentionedIds?.[0];
+    if (!userId) return this.sendMessage(chatId, MESSAGES.NO_ADMIN_USAGE);
+    const wasRemoved = this.adminStore.removeAdmin(chatId, userId);
+    await this.sendMessage(chatId, wasRemoved ? MESSAGES.ADMIN_REMOVED : MESSAGES.GLOBAL_ADMIN_PROTECTED);
+  }
+  /** Inputs: chat ID and duration. Pauses non-admin bot responses in the group. Output: confirmation or validation response. */
+  async handlePause(chatId, args, quotedMessage, sender) {
+    if (!this.adminStore.isAdmin(chatId, sender?.mentionId)) return this.sendMessage(chatId, MESSAGES.ADMIN_ONLY);
+    const durationText = args[0];
+    const isIndefinite = durationText?.toLowerCase() === INFINITE_TOKEN;
+    const duration = parseDuration(durationText);
+    if (args.length !== 1 || (!isIndefinite && !duration)) return this.sendMessage(chatId, MESSAGES.PAUSE_USAGE);
+    if (isIndefinite) {
+      this.adminStore.pauseIndefinitely(chatId);
+      return this.sendMessage(chatId, MESSAGES.BOT_PAUSED_INDEFINITELY);
+    }
+    this.adminStore.pause(chatId, Date.now() + duration);
+    await this.sendMessage(chatId, MESSAGES.BOT_PAUSED(formatDuration(args[0])));
+  }
+  /** Inputs: chat ID and sender. Clears the group pause. Output: confirmation or permission response. */
+  async handleUnpause(chatId, args, quotedMessage, sender) {
+    if (!this.adminStore.isAdmin(chatId, sender?.mentionId)) return this.sendMessage(chatId, MESSAGES.ADMIN_ONLY);
+    await this.sendMessage(chatId, this.adminStore.unpause(chatId) ? MESSAGES.BOT_UNPAUSED : MESSAGES.BOT_NOT_PAUSED);
   }
 
   /** Inputs: chat ID. Finds the active or next recurring class. Output: the sent-message promise. */
