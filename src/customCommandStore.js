@@ -36,12 +36,21 @@ class CustomCommandStore {
     return this.commandsByChat[chatId]?.[command];
   }
 
+  getAll(chatId) {
+    return Object.entries(this.commandsByChat[chatId] || {}).map(([command, reply]) => ({ command, reply }));
+  }
+
   remove(chatId, command) {
     if (!this.has(chatId, command)) return undefined;
     const reply = this.commandsByChat[chatId][command];
     delete this.commandsByChat[chatId][command];
     this.save();
     return reply;
+  }
+
+  removeAt(chatId, index) {
+    const command = Object.keys(this.commandsByChat[chatId] || {})[index];
+    return command ? { command, reply: this.remove(chatId, command) } : undefined;
   }
 
   save() {

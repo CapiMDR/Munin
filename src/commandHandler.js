@@ -68,6 +68,7 @@ class CommandHandler {
       [COMMANDS.PING]: this.handlePing,
       [COMMANDS.ECHO]: this.handleEcho,
       [COMMANDS.CREATE_CUSTOM_COMMAND]: this.handleCreateCustomCommand,
+      [COMMANDS.LIST_CUSTOM_COMMANDS]: this.handleListCustomCommands,
       [COMMANDS.SAVE_MESSAGE]: this.handleSaveMessage,
       [COMMANDS.VIEW_SAVED_MESSAGE]: this.handleViewSavedMessage,
       [COMMANDS.LIST_SAVED_MESSAGES]: this.handleListSavedMessages,
@@ -113,6 +114,8 @@ class CommandHandler {
   }
   /** Inputs: chat ID, command name, and reply arguments. Creates or updates a group-specific custom command. Output: confirmation or usage response. */
   async handleCreateCustomCommand(chatId, args) {
+    if (args[0] === "-") return this.handleDeleteCustomCommand(chatId, args.slice(1));
+
     const command = args[0]?.toLowerCase();
     const reply = args.slice(1).join(" ").trim();
     if (!command || !/^![a-z0-9_-]+$/i.test(command) || !reply) {
@@ -122,6 +125,18 @@ class CommandHandler {
 
     const alreadyExists = this.customCommandStore.set(chatId, command, reply);
     await this.sendMessage(chatId, alreadyExists ? MESSAGES.CUSTOM_COMMAND_UPDATED(command) : MESSAGES.CUSTOM_COMMAND_CREATED(command));
+  }
+  /** Inputs: chat ID. Lists custom commands in the current group. Output: the sent-message promise. */
+  async handleListCustomCommands(chatId) {
+    const commands = this.customCommandStore.getAll(chatId);
+    await this.sendMessage(chatId, commands.length ? MESSAGES.CUSTOM_COMMANDS_LIST(commands) : MESSAGES.NO_CUSTOM_COMMANDS);
+  }
+  /** Inputs: chat ID and custom-command index. Deletes a custom command. Output: confirmation, usage, or not-found response. */
+  async handleDeleteCustomCommand(chatId, args) {
+    const index = Number(args[0]);
+    if (args.length !== 1 || !Number.isInteger(index) || index < 1) return this.sendMessage(chatId, MESSAGES.DELETE_CUSTOM_COMMAND_USAGE);
+    const deletedCommand = this.customCommandStore.removeAt(chatId, index - 1);
+    await this.sendMessage(chatId, deletedCommand ? MESSAGES.CUSTOM_COMMAND_DELETED(deletedCommand.command) : MESSAGES.CUSTOM_COMMAND_INDEX_NOT_FOUND);
   }
   /** Inputs: chat ID, command arguments, and command name. Replies with or deletes a group-specific custom command. Output: the sent-message promise. */
   async handleCustomCommand(chatId, args, quotedMessage, sender, command) {
