@@ -23,9 +23,7 @@ certs/*
 *.sqlite
 *.sqlite3
 *.db
-notes.json
-reminders.json
-classes.json
+data/
 # Logs
 logs/
 *.log
