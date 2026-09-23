@@ -2,7 +2,7 @@ require("./envLoader");
 const TEST_MODE = true;
 const TEST_CHAT_ID = process.env.TEST_CHAT_ID?.trim() || "";
 
-const { generateResponse } = require("./muninAI");
+const { generateResponse, completeToolCall } = require("./muninAI");
 const { Client, LocalAuth, Poll } = require("whatsapp-web.js");
 const CommandHandler = require("./commandHandler");
 const PendingStore = require("./pendingStore");
@@ -174,8 +174,103 @@ async function handleMention(message, chatId, sender) {
   const prompt = removeMuninMention(message.body);
   if (!prompt) return;
 
-  const response = await generateResponse(chatId, sender?.name, prompt);
-  if (response) await sendMessage(chatId, response);
+  const aiResult = await generateResponse(chatId, sender.name, prompt);
+  if (!aiResult) return;
+  // Normal conversation
+  if (aiResult.type === "message") {
+    await client.sendMessage(chatId, aiResult.content);
+
+    return;
+  }
+
+  // Munin wants to use one of our tools
+  if (aiResult.type === "tool_call") {
+    const toolResult = await executeToolCall(aiResult.toolCall, {
+      chatId,
+      message,
+      sender,
+    });
+
+    const response = await completeToolCall(
+      chatId,
+      aiResult.toolCall,
+      toolResult,
+      aiResult.messages,
+      aiResult.assistantMessage,
+      aiResult.userMessage,
+    );
+
+    if (response) {
+      await client.sendMessage(chatId, response);
+    }
+
+    return;
+  }
+}
+
+async function executeToolCall(toolCall, context) {
+  let args;
+
+  try {
+    args = JSON.parse(toolCall.function.arguments || "{}");
+  } catch {
+    return {
+      success: false,
+      error: "The tool arguments were invalid.",
+    };
+  }
+
+  console.log(`Tool call: ${toolCall.function.name}`, args);
+
+  switch (toolCall.function.name) {
+    case "save_message": {
+      if (!context.message.hasQuotedMsg || !context.message._data?.quotedStanzaID || !context.message._data?.quotedParticipant) {
+        return {
+          success: false,
+          error: "The user did not reply to a message. " + "Tell them they must reply to the message they want to save.",
+        };
+      }
+
+      const quotedMessageId = `false_${context.chatId}_` + `${context.message._data.quotedStanzaID}_` + `${context.message._data.quotedParticipant}`;
+
+      const alreadyExists = commandHandler.savedMessageStore.set(context.chatId, args.title, quotedMessageId);
+
+      return {
+        success: true,
+        action: "save_message",
+        title: args.title,
+        updated: alreadyExists,
+      };
+    }
+
+    case "view_saved_message": {
+      const savedMessage = commandHandler.savedMessageStore.get(context.chatId, args.title);
+
+      if (!savedMessage) {
+        return {
+          success: false,
+          error: `There is no saved message titled "${args.title}".`,
+        };
+      }
+
+      await client.sendMessage(context.chatId, `🐦‍⬛ ${savedMessage.title}`, {
+        quotedMessageId: savedMessage.messageId,
+      });
+
+      return {
+        success: true,
+        action: "view_saved_message",
+        title: savedMessage.title,
+        messageWasShown: true,
+      };
+    }
+
+    default:
+      return {
+        success: false,
+        error: `Unknown tool: ${toolCall.function.name}`,
+      };
+  }
 }
 
 function getQuotedMessage(message) {

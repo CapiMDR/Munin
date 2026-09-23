@@ -50,17 +50,24 @@ function getHistory(chatId) {
   return conversationHistories.get(chatId);
 }
 
-async function createCompletion(messages) {
+async function createCompletion(messages, useTools = true) {
   let lastError;
 
   for (const model of MODELS) {
     try {
       console.log(`Trying model: ${model}`);
 
-      const completion = await groq.chat.completions.create({
+      const options = {
         model,
         messages,
-      });
+      };
+
+      if (useTools) {
+        options.tools = TOOLS;
+        options.tool_choice = "auto";
+      }
+
+      const completion = await groq.chat.completions.create(options);
 
       console.log(`Model used: ${model}`);
 
@@ -77,12 +84,10 @@ async function createCompletion(messages) {
         continue;
       }
 
-      // Don't try other models for unrelated errors.
       throw error;
     }
   }
 
-  // Every model failed.
   throw lastError;
 }
 
@@ -94,7 +99,6 @@ async function generateResponse(chatId, senderName, message) {
     content: `[${senderName}]: ${message}`,
   };
 
-  // Build the request without modifying history yet.
   const messages = [
     {
       role: "system",
@@ -106,13 +110,33 @@ async function generateResponse(chatId, senderName, message) {
 
   const { completion, model } = await createCompletion(messages);
 
-  const response = completion.choices[0]?.message?.content;
+  const assistantMessage = completion.choices[0]?.message;
+
+  logUsage(completion, model);
+
+  if (!assistantMessage) {
+    return undefined;
+  }
+
+  // The model wants Munin to perform an action.
+  if (assistantMessage.tool_calls?.length) {
+    return {
+      type: "tool_call",
+      toolCall: assistantMessage.tool_calls[0],
+      messages,
+      assistantMessage,
+      userMessage,
+      model,
+    };
+  }
+
+  // Normal conversation.
+  const response = assistantMessage.content;
 
   if (!response) {
     return undefined;
   }
 
-  // Only save the exchange after a successful response.
   history.push(userMessage);
 
   history.push({
@@ -120,11 +144,21 @@ async function generateResponse(chatId, senderName, message) {
     content: response,
   });
 
-  // Keep only the most recent messages.
+  trimHistory(history);
+
+  return {
+    type: "message",
+    content: response,
+  };
+}
+
+function trimHistory(history) {
   if (history.length > MAX_HISTORY) {
     history.splice(0, history.length - MAX_HISTORY);
   }
+}
 
+function logUsage(completion, model) {
   console.log(`Model: ${model}`);
 
   console.log(
@@ -132,10 +166,94 @@ async function generateResponse(chatId, senderName, message) {
       `${completion.usage?.completion_tokens} output = ` +
       `${completion.usage?.total_tokens} total`,
   );
+}
+
+async function completeToolCall(chatId, toolCall, toolResult, messages, assistantMessage, userMessage) {
+  const history = getHistory(chatId);
+
+  const toolMessages = [
+    ...messages,
+
+    // Important: include the assistant message that
+    // requested the tool.
+    assistantMessage,
+
+    // Then provide the result of that tool.
+    {
+      role: "tool",
+      tool_call_id: toolCall.id,
+      name: toolCall.function.name,
+      content: JSON.stringify(toolResult),
+    },
+  ];
+
+  const { completion, model } = await createCompletion(toolMessages, false);
+
+  const response = completion.choices[0]?.message?.content;
+
+  logUsage(completion, model);
+
+  if (!response) {
+    return undefined;
+  }
+
+  // Store the original user request and Munin's
+  // final conversational response.
+  history.push(userMessage);
+
+  history.push({
+    role: "assistant",
+    content: response,
+  });
+
+  trimHistory(history);
 
   return response;
 }
 
+const TOOLS = [
+  {
+    type: "function",
+    function: {
+      name: "save_message",
+      description:
+        "Save the WhatsApp message that the user is replying to under a title. " +
+        "Use this when the user asks you to save, remember, pin, or keep a message for later.",
+      parameters: {
+        type: "object",
+        properties: {
+          title: {
+            type: "string",
+            description: "The short title or name the user wants to use for the saved message.",
+          },
+        },
+        required: ["title"],
+      },
+    },
+  },
+
+  {
+    type: "function",
+    function: {
+      name: "view_saved_message",
+      description:
+        "Retrieve a previously saved WhatsApp message by its title. " +
+        "Use this when the user asks to show, find, retrieve, or view a saved message.",
+      parameters: {
+        type: "object",
+        properties: {
+          title: {
+            type: "string",
+            description: "The title or name of the previously saved message.",
+          },
+        },
+        required: ["title"],
+      },
+    },
+  },
+];
+
 module.exports = {
   generateResponse,
+  completeToolCall,
 };
