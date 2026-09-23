@@ -172,6 +172,13 @@ class ClassStore {
     return chat.bell;
   }
 
+  setBell(chatId, enabled) {
+    const chat = this.ensureChat(chatId);
+    chat.bell = enabled;
+    this.save();
+    return chat.bell;
+  }
+
   getAllChatsWithBell() {
     return Object.entries(this.dataByChat)
       .filter(([, data]) => data.bell)
