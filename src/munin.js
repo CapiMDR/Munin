@@ -2,6 +2,8 @@ const { Client, LocalAuth, Poll } = require("whatsapp-web.js");
 const CommandHandler = require("./commandHandler");
 const PendingStore = require("./pendingStore");
 const PendingScheduler = require("./pendingScheduler");
+const CustomCommandStore = require("./customCommandStore");
+const SavedMessageStore = require("./savedMessageStore");
 const ReminderScheduler = require("./reminderScheduler");
 const ReminderStore = require("./reminderStore");
 const ClassStore = require("./classStore");
@@ -34,6 +36,8 @@ async function sendPoll(chatId, title, options, allowMultipleAnswers) {
 }
 
 const pendingStore = new PendingStore();
+const customCommandStore = new CustomCommandStore();
+const savedMessageStore = new SavedMessageStore();
 const pendingScheduler = new PendingScheduler(pendingStore, sendMessage);
 const reminderStore = new ReminderStore();
 const reminderScheduler = new ReminderScheduler(reminderStore, sendMessage);
@@ -50,6 +54,8 @@ const commandHandler = new CommandHandler(
   classScheduler,
   scheduleTimer,
   adminStore,
+  customCommandStore,
+  savedMessageStore,
 );
 
 reminderScheduler.start();
@@ -87,7 +93,7 @@ client.on("group_join", async (notification) => {
   try {
     const chatId = notification.chatId;
 
-    await client.sendMessage(chatId, "🐦‍⬛ Munin ha llegado.\nUsa !ayuda para ver lo que puedo hacer.");
+    await client.sendMessage(chatId, "Munin ha llegado 🐦‍⬛.\nUsa !ayuda para ver lo que puedo hacer.");
   } catch (error) {
     console.error("Group join error:", error);
   }
@@ -112,10 +118,13 @@ client.on("message_create", async (message) => {
     // Get the sender information
     const sender = await getSender(message);
 
+    // Resolve the command message ID for commands that need to reply to it later.
+    const messageId = getSerializedMessageId(message);
+
     // Print the received message and its quoted message (if any) for debugging purposes
     printReceivedMessage(message, sender);
 
-    await commandHandler.handleCommand(message, chatId, quotedMessage, sender);
+    await commandHandler.handleCommand(message, chatId, quotedMessage, sender, messageId);
   } catch (error) {
     console.error("Message handler error:", error);
   }
@@ -126,6 +135,18 @@ function getQuotedMessage(message) {
     return undefined;
   }
   return message._data?.quotedMsg;
+}
+
+function getSerializedMessageId(message) {
+  const ids = [message.id, message._data?.id];
+  for (const id of ids) {
+    if (typeof id === "string") return id;
+    if (id?._serialized) return id._serialized;
+  }
+  for (const id of ids) {
+    if (typeof id?.fromMe === "boolean" && id.remote && id.id) return `${id.fromMe}_${id.remote}_${id.id}`;
+  }
+  return undefined;
 }
 
 async function getSender(message) {

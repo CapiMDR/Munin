@@ -2,6 +2,10 @@ const COMMANDS = Object.freeze({
   MUNIN: "!munin",
   PING: "!ping",
   ECHO: "!echo",
+  CREATE_CUSTOM_COMMAND: "!comando",
+  SAVE_MESSAGE: "!guardar",
+  VIEW_SAVED_MESSAGE: "!ver",
+  LIST_SAVED_MESSAGES: "!guardados",
   PENDING: "!p",
   REMINDER: "!r",
   COIN: "!moneda",
@@ -39,6 +43,18 @@ const EIGHT_BALL_RESPONSES = Object.freeze([
   "No cuentes con ello",
   "Es cierto",
   "No es cierto",
+  "No puedo predecirlo ahora",
+  "Las perspectivas son buenas",
+  "Las perspectivas no son buenas",
+  "Sin duda",
+  "No lo creo",
+  "Sí, definitivamente",
+  "Mis fuentes dicen que no",
+  "No puedo decirlo ahora",
+  "Concéntrate y pregunta de nuevo",
+  "Mi respuesta es no",
+  "Mi respuesta es sí",
+  "Puedes confiar en ello",
 ]);
 
 const HELP_PAGE_COUNT = 5;
@@ -56,6 +72,10 @@ const HELP_PAGES = Object.freeze([
     `${COMMANDS.MUNIN} - Saludar al bot`,
     `${COMMANDS.PING} - Probar el bot`,
     `${COMMANDS.ECHO} <texto> - Repetir texto`,
+    `${COMMANDS.CREATE_CUSTOM_COMMAND} !<nombre> <respuesta> - Crear o sobreescribir un comando personalizado`,
+    `${COMMANDS.SAVE_MESSAGE} <título> - Guardar un mensaje respondido`,
+    `${COMMANDS.VIEW_SAVED_MESSAGE} <título> - Ver un mensaje guardado`,
+    `${COMMANDS.LIST_SAVED_MESSAGES} - Mostrar títulos guardados`,
     `${COMMANDS.HELP} <página> - Ver una página de ayuda`,
   ].join("\n"),
   [
@@ -96,9 +116,24 @@ const HELP_PAGES = Object.freeze([
 ]);
 
 const MESSAGES = Object.freeze({
-  WELCOME: `¡Hola! Soy Munin, un bot asistente de WhatsApp creado por Capi. Escribe ${COMMANDS.HELP} para ver los comandos disponibles.`,
+  WELCOME: `¡Hola! Soy Munin 🐦‍⬛, un bot asistente de WhatsApp creado por Capi. Escribe ${COMMANDS.HELP} para ver los comandos disponibles.`,
 
   PONG: "pong",
+
+  SAVE_MESSAGE_USAGE: `Uso: responde a un mensaje con ${COMMANDS.SAVE_MESSAGE} <título>`,
+  SAVED_MESSAGE_CREATED: (title) => `Mensaje guardado como: ${title}`,
+  SAVED_MESSAGE_UPDATED: (title) => `Mensaje guardado actualizado: ${title}`,
+  VIEW_SAVED_MESSAGE_USAGE: `Uso: ${COMMANDS.VIEW_SAVED_MESSAGE} <título>`,
+  SAVED_MESSAGE_REPLY: (title) => `Mensaje guardado: ${title}`,
+  SAVED_MESSAGE_NOT_FOUND: (title) => `No existe un mensaje guardado con el título: ${title}`,
+  NO_SAVED_MESSAGES: "No hay mensajes guardados en este grupo.",
+  SAVED_MESSAGES_LIST: (messages) => `Mensajes guardados:\n${messages.map((message, index) => `${index + 1}. ${message.title}`).join("\n")}`,
+
+  CUSTOM_COMMAND_USAGE: `Uso: ${COMMANDS.CREATE_CUSTOM_COMMAND} !<nombre> <respuesta>`,
+  CUSTOM_COMMAND_CREATED: (command) => `Comando personalizado creado: ${command}`,
+  CUSTOM_COMMAND_UPDATED: (command) => `Comando personalizado actualizado: ${command}`,
+  CUSTOM_COMMAND_DELETED: (command) => `Comando personalizado eliminado: ${command}`,
+  CUSTOM_COMMAND_BUILTIN_CONFLICT: (command) => `No puedes sobrescribir ${command} porque es un comando del bot.`,
 
   PENDING_USAGE: `Uso: ${COMMANDS.PENDING} [@<dd/mm>] <pendiente>, responde a un mensaje con ${COMMANDS.PENDING}, o usa ${COMMANDS.PENDING} - <índice> para eliminarlo`,
   PENDING_ADDED: (content, date) => `Pendiente agregado${date ? ` para ${date}` : ""}: ${content}`,

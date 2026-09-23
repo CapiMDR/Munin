@@ -2,6 +2,8 @@ const PendingStore = require("./pendingStore");
 const ReminderStore = require("./reminderStore");
 const ClassStore = require("./classStore");
 const AdminStore = require("./adminStore");
+const CustomCommandStore = require("./customCommandStore");
+const SavedMessageStore = require("./savedMessageStore");
 const { getPendingContent, groupPendingsByDate, parsePendingDate } = require("./pendingUtils");
 const { DAYS_ORDER, capitalize } = require("./classStore");
 const { COIN_SIDES, COMMANDS, EIGHT_BALL_RESPONSES, INFINITE_TOKEN, MESSAGES } = require("./commandConstants");
@@ -30,6 +32,8 @@ class CommandHandler {
     classScheduler,
     scheduleTimer,
     adminStore = new AdminStore(),
+    customCommandStore = new CustomCommandStore(),
+    savedMessageStore = new SavedMessageStore(),
   ) {
     Object.assign(this, {
       sendMessage,
@@ -41,16 +45,20 @@ class CommandHandler {
       classScheduler,
       scheduleTimer,
       adminStore,
+      customCommandStore,
+      savedMessageStore,
     });
   }
 
-  /** Inputs: WhatsApp message, chat ID, optional quote and sender. Dispatches a command. Output: a resolved command response. */
-  async handleCommand(message, chatId, quotedMessage, sender) {
+  /** Inputs: WhatsApp message, chat ID, optional quote, sender, and serialized message ID. Dispatches a command. Output: a resolved command response. */
+  async handleCommand(message, chatId, quotedMessage, sender, messageId) {
     const [command, ...args] = message.body.trim().split(/\s+/);
     if (this.adminStore.isBanned(chatId, sender?.mentionId)) return;
     if (this.adminStore.isPaused(chatId) && !this.adminStore.isAdmin(chatId, sender?.mentionId)) return;
-    const handler = this.getHandlers()[command.toLowerCase()] || this.handleUnknown;
-    await handler.call(this, chatId, args, quotedMessage, sender, command, message);
+    const commandKey = command.toLowerCase();
+    const handlers = this.getHandlers();
+    const handler = handlers[commandKey] || (this.customCommandStore.has(chatId, commandKey) ? this.handleCustomCommand : this.handleUnknown);
+    await handler.call(this, chatId, args, quotedMessage, sender, command, message, messageId);
   }
 
   /** Inputs: none. Builds command-to-method routing. Output: an object of command handlers. */
@@ -59,6 +67,10 @@ class CommandHandler {
       [COMMANDS.MUNIN]: this.handleMunin,
       [COMMANDS.PING]: this.handlePing,
       [COMMANDS.ECHO]: this.handleEcho,
+      [COMMANDS.CREATE_CUSTOM_COMMAND]: this.handleCreateCustomCommand,
+      [COMMANDS.SAVE_MESSAGE]: this.handleSaveMessage,
+      [COMMANDS.VIEW_SAVED_MESSAGE]: this.handleViewSavedMessage,
+      [COMMANDS.LIST_SAVED_MESSAGES]: this.handleListSavedMessages,
       [COMMANDS.PENDING]: this.handlePending,
       [COMMANDS.REMINDER]: this.handleReminder,
       [COMMANDS.COIN]: this.handleCoin,
@@ -97,6 +109,54 @@ class CommandHandler {
   /** Inputs: chat ID and text arguments. Echoes text. Output: the sent-message promise. */
   async handleEcho(chatId, args) {
     await this.sendMessage(chatId, args.join(" "));
+  }
+  /** Inputs: chat ID, command name, and reply arguments. Creates or updates a group-specific custom command. Output: confirmation or usage response. */
+  async handleCreateCustomCommand(chatId, args) {
+    const command = args[0]?.toLowerCase();
+    const reply = args.slice(1).join(" ").trim();
+    if (!command || !/^![a-z0-9_-]+$/i.test(command) || !reply) {
+      return this.sendMessage(chatId, MESSAGES.CUSTOM_COMMAND_USAGE);
+    }
+    if (Object.hasOwn(this.getHandlers(), command)) return this.sendMessage(chatId, MESSAGES.CUSTOM_COMMAND_BUILTIN_CONFLICT(command));
+
+    const alreadyExists = this.customCommandStore.set(chatId, command, reply);
+    await this.sendMessage(chatId, alreadyExists ? MESSAGES.CUSTOM_COMMAND_UPDATED(command) : MESSAGES.CUSTOM_COMMAND_CREATED(command));
+  }
+  /** Inputs: chat ID, command arguments, and command name. Replies with or deletes a group-specific custom command. Output: the sent-message promise. */
+  async handleCustomCommand(chatId, args, quotedMessage, sender, command) {
+    const commandKey = command.toLowerCase();
+    if (args.length === 1 && args[0] === "-") {
+      this.customCommandStore.remove(chatId, commandKey);
+      return this.sendMessage(chatId, MESSAGES.CUSTOM_COMMAND_DELETED(commandKey));
+    }
+    await this.sendMessage(chatId, this.customCommandStore.get(chatId, commandKey));
+  }
+  /** Inputs: chat ID, title arguments, quoted message, command message, and serialized message ID. Saves the command message ID under a group-specific title. Output: confirmation or usage response. */
+  async handleSaveMessage(chatId, args, quotedMessage, sender, command, message) {
+    const title = args.join(" ").trim();
+
+    if (!title || !quotedMessage || !message.id?.$1) {
+      return this.sendMessage(chatId, MESSAGES.SAVE_MESSAGE_USAGE);
+    }
+
+    const messageId = message.id.$1;
+
+    const alreadyExists = this.savedMessageStore.set(chatId, title, messageId);
+
+    await this.sendMessage(chatId, alreadyExists ? MESSAGES.SAVED_MESSAGE_UPDATED(title) : MESSAGES.SAVED_MESSAGE_CREATED(title));
+  }
+  /** Inputs: chat ID and title arguments. Sends a bot message quoting the saved command message. Output: confirmation or not-found response. */
+  async handleViewSavedMessage(chatId, args) {
+    const title = args.join(" ").trim();
+    if (!title) return this.sendMessage(chatId, MESSAGES.VIEW_SAVED_MESSAGE_USAGE);
+    const savedMessage = this.savedMessageStore.get(chatId, title);
+    if (!savedMessage) return this.sendMessage(chatId, MESSAGES.SAVED_MESSAGE_NOT_FOUND(title));
+    await this.sendMessage(chatId, MESSAGES.SAVED_MESSAGE_REPLY(savedMessage.title), { quotedMessageId: savedMessage.messageId });
+  }
+  /** Inputs: chat ID. Lists saved message titles for the current group. Output: the sent-message promise. */
+  async handleListSavedMessages(chatId) {
+    const savedMessages = this.savedMessageStore.getAll(chatId);
+    await this.sendMessage(chatId, savedMessages.length ? MESSAGES.SAVED_MESSAGES_LIST(savedMessages) : MESSAGES.NO_SAVED_MESSAGES);
   }
   /** Inputs: chat ID and an optional help-page number. Sends the requested help page. Output: the sent-message promise. */
   async handleHelp(chatId, args) {
