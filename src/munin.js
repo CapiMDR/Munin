@@ -1,6 +1,6 @@
 require("./envLoader");
 
-const TEST_MODE = true;
+const TEST_MODE = false;
 const TEST_CHAT_ID = process.env.TEST_CHAT_ID?.trim() || "";
 
 const { generateResponse, completeToolCall } = require("./muninAI");
