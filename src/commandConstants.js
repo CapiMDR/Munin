@@ -60,6 +60,7 @@ const EIGHT_BALL_RESPONSES = Object.freeze([
 
 const HELP_PAGE_COUNT = 5;
 const HELP_SECTION_INDEX = [
+  "Puedes usar comandos con !<comando> o @Munin <comando>",
   "Secciones:",
   "1. General",
   "2. Pendientes y recordatorios",

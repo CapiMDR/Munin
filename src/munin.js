@@ -9,6 +9,7 @@ const ReminderStore = require("./reminderStore");
 const ClassStore = require("./classStore");
 const ClassScheduler = require("./classScheduler");
 const AdminStore = require("./adminStore");
+const { loadBotLid, saveBotLid } = require("./botIdentityStore");
 
 process.on("unhandledRejection", (reason) => {
   console.error("UNHANDLED REJECTION:");
@@ -93,38 +94,52 @@ client.on("group_join", async (notification) => {
   try {
     const chatId = notification.chatId;
 
-    await client.sendMessage(chatId, "🐦‍⬛ Munin ha llegado.\nUsa !ayuda para ver lo que puedo hacer.");
+    await client.sendMessage(chatId, "🐦‍⬛ Munin ha aterrizado.\nUsa !ayuda para ver lo que puede hacer.");
   } catch (error) {
     console.error("Group join error:", error);
   }
 });
 
+let botLid = loadBotLid();
+
+if (botLid) {
+  console.log("Loaded Munin LID:", botLid);
+}
+
 client.on("message_create", async (message) => {
   try {
-    // Ignore messages sent by this bot to prevent command loops.
-    if (message.fromMe || message.id?.fromMe) return;
+    // Ignore Munin's own messages, but learn its LID first if necessary.
+    if (message.fromMe || message.id?.fromMe) {
+      if (!botLid) {
+        botLid =
+          message.id?.participant?._serialized ??
+          message.id?.participant ??
+          message._data?.id?.participant?._serialized ??
+          message._data?.id?.participant;
+
+        if (botLid) {
+          saveBotLid(botLid);
+          console.log("Learned Munin LID:", botLid);
+        }
+      }
+
+      return;
+    }
 
     const chatId = message.id.remote;
 
-    // Ignore anything that isn't a group
     if (!chatId?.endsWith("@g.us")) return;
 
-    // Ignore non-command messages
-    if (!message.body.startsWith("!")) return;
+    const commandText = getCommandText(message, botLid);
+    if (!commandText) return;
 
-    // Get the quoted message if it exists
     const quotedMessage = await getQuotedMessage(message);
-
-    // Get the sender information
     const sender = await getSender(message);
-
-    // Resolve the command message ID for commands that need to reply to it later.
     const messageId = getSerializedMessageId(message);
 
-    // Print the received message and its quoted message (if any) for debugging purposes
-    printReceivedMessage(message, sender);
+    //printReceivedMessage(message, sender);
 
-    await commandHandler.handleCommand(message, chatId, quotedMessage, sender, messageId);
+    await commandHandler.handleCommand(message, chatId, quotedMessage, sender, messageId, commandText);
   } catch (error) {
     console.error("Message handler error:", error);
   }
@@ -135,6 +150,25 @@ function getQuotedMessage(message) {
     return undefined;
   }
   return message._data?.quotedMsg;
+}
+
+function getCommandText(message, botLid) {
+  const body = message.body?.trim();
+  if (!body) return undefined;
+
+  // Regular command: !ping
+  if (body.startsWith("!")) return body;
+
+  // Mention command: @Munin ping
+  if (!botLid || !message.mentionedIds?.includes(botLid)) {
+    return undefined;
+  }
+
+  const commandWithoutMention = body.replace(/^@\S+\s*/, "").trim();
+
+  if (!commandWithoutMention) return undefined;
+
+  return commandWithoutMention.startsWith("!") ? commandWithoutMention : `!${commandWithoutMention}`;
 }
 
 function getSerializedMessageId(message) {

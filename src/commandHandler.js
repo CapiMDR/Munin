@@ -50,9 +50,9 @@ class CommandHandler {
     });
   }
 
-  /** Inputs: WhatsApp message, chat ID, optional quote, sender, and serialized message ID. Dispatches a command. Output: a resolved command response. */
-  async handleCommand(message, chatId, quotedMessage, sender, messageId) {
-    const [command, ...args] = message.body.trim().split(/\s+/);
+  /** Inputs: WhatsApp message, chat ID, optional quote, sender, serialized message ID, and normalized command text. Dispatches a command. Output: a resolved command response. */
+  async handleCommand(message, chatId, quotedMessage, sender, messageId, commandText = message.body) {
+    const [command, ...args] = commandText.trim().split(/\s+/);
     if (this.adminStore.isBanned(chatId, sender?.mentionId)) return;
     if (this.adminStore.isPaused(chatId) && !this.adminStore.isAdmin(chatId, sender?.mentionId)) return;
     const commandKey = command.toLowerCase();
