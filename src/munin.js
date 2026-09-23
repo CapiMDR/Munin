@@ -1,8 +1,10 @@
 require("./envLoader");
+
 const TEST_MODE = true;
 const TEST_CHAT_ID = process.env.TEST_CHAT_ID?.trim() || "";
 
 const { generateResponse, completeToolCall } = require("./muninAI");
+const { createAiToolExecutor } = require("./aiToolExecutor");
 const { Client, LocalAuth, Poll } = require("whatsapp-web.js");
 const CommandHandler = require("./commandHandler");
 const PendingStore = require("./pendingStore");
@@ -50,6 +52,16 @@ const reminderScheduler = new ReminderScheduler(reminderStore, sendMessage);
 const classStore = new ClassStore();
 const classScheduler = new ClassScheduler(classStore, sendMessage);
 const adminStore = new AdminStore();
+const aiToolExecutor = createAiToolExecutor({
+  pendingStore,
+  reminderStore,
+  reminderScheduler,
+  savedMessageStore,
+  classStore,
+  classScheduler,
+  scheduleTimer,
+  sendMessage,
+});
 const commandHandler = new CommandHandler(
   sendMessage,
   pendingStore,
@@ -171,8 +183,9 @@ async function handleFormalCommand(message, chatId, sender) {
 async function handleMention(message, chatId, sender) {
   if (!botLid || !message.mentionedIds?.includes(botLid)) return;
 
-  const prompt = removeMuninMention(message.body);
-  if (!prompt) return;
+  // A bare mention is still an intentional request for Munin's attention.
+  // Give the model explicit context instead of dropping that message silently.
+  const prompt = removeMuninMention(message.body) || "El usuario te mencionó sin escribir ningún mensaje.";
 
   const aiResult = await generateResponse(chatId, sender.name, prompt);
   if (!aiResult) return;
@@ -185,11 +198,17 @@ async function handleMention(message, chatId, sender) {
 
   // Munin wants to use one of our tools
   if (aiResult.type === "tool_call") {
-    const toolResult = await executeToolCall(aiResult.toolCall, {
+    const toolResult = await aiToolExecutor.execute(aiResult.toolCall, {
       chatId,
       message,
-      sender,
     });
+
+    // Help is already complete, canonical message text. Deliver it directly so
+    // the follow-up model completion cannot omit or paraphrase the command list.
+    if (toolResult.success && toolResult.action === "show_help") {
+      await sendMessage(chatId, toolResult.help);
+      return;
+    }
 
     const response = await completeToolCall(
       chatId,
@@ -205,71 +224,6 @@ async function handleMention(message, chatId, sender) {
     }
 
     return;
-  }
-}
-
-async function executeToolCall(toolCall, context) {
-  let args;
-
-  try {
-    args = JSON.parse(toolCall.function.arguments || "{}");
-  } catch {
-    return {
-      success: false,
-      error: "The tool arguments were invalid.",
-    };
-  }
-
-  console.log(`Tool call: ${toolCall.function.name}`, args);
-
-  switch (toolCall.function.name) {
-    case "save_message": {
-      if (!context.message.hasQuotedMsg || !context.message._data?.quotedStanzaID || !context.message._data?.quotedParticipant) {
-        return {
-          success: false,
-          error: "The user did not reply to a message. " + "Tell them they must reply to the message they want to save.",
-        };
-      }
-
-      const quotedMessageId = `false_${context.chatId}_` + `${context.message._data.quotedStanzaID}_` + `${context.message._data.quotedParticipant}`;
-
-      const alreadyExists = commandHandler.savedMessageStore.set(context.chatId, args.title, quotedMessageId);
-
-      return {
-        success: true,
-        action: "save_message",
-        title: args.title,
-        updated: alreadyExists,
-      };
-    }
-
-    case "view_saved_message": {
-      const savedMessage = commandHandler.savedMessageStore.get(context.chatId, args.title);
-
-      if (!savedMessage) {
-        return {
-          success: false,
-          error: `There is no saved message titled "${args.title}".`,
-        };
-      }
-
-      await client.sendMessage(context.chatId, `🐦‍⬛ ${savedMessage.title}`, {
-        quotedMessageId: savedMessage.messageId,
-      });
-
-      return {
-        success: true,
-        action: "view_saved_message",
-        title: savedMessage.title,
-        messageWasShown: true,
-      };
-    }
-
-    default:
-      return {
-        success: false,
-        error: `Unknown tool: ${toolCall.function.name}`,
-      };
   }
 }
 

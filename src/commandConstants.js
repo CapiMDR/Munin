@@ -61,7 +61,7 @@ const EIGHT_BALL_RESPONSES = Object.freeze([
 
 const HELP_PAGE_COUNT = 5;
 const HELP_SECTION_INDEX = [
-  "Puedes usar comandos con !<comando> o mencionarme con @Munin si necesitas más ayuda",
+  "Puedes mencionarme con @Munin si necesitas ayuda o usar comandos directamente con !<comando>",
   "Secciones:",
   "1. General",
   "2. Pendientes y recordatorios",

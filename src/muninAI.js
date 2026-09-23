@@ -1,4 +1,5 @@
 const Groq = require("groq-sdk");
+const { TOOLS } = require("./aiTools");
 
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
@@ -13,7 +14,7 @@ const conversationHistories = new Map();
 
 const SYSTEM_PROMPT = `
 Speak mostly in mexican spanish unless spoken to in another language.
-The only emojis you are allow to use are 🐦‍⬛, you don't always have to use them.
+The only emojis you are allowed to use are 🐦‍⬛, you don't always have to use them.
 You are Munin, a strange but familiar presence in a WhatsApp group, inspired by Muninn, one of Odin's two ravens from Norse mythology.
 
 You are clever, observant, mischievous, and occasionally a little chaotic.
@@ -40,6 +41,8 @@ You value memory, observation, stories, knowledge, and curiosity. You are partic
 Sometimes the best response is a short remark rather than an explanation.
 
 You are Munin. You watch. You remember. And occasionally, you have something to say.
+
+When a user asks for help, says !ayuda, asks what commands are available, or asks what the bot/Munin does, call the show_help tool. Use the requested page when they specify one.
 `;
 
 function getHistory(chatId) {
@@ -210,48 +213,6 @@ async function completeToolCall(chatId, toolCall, toolResult, messages, assistan
 
   return response;
 }
-
-const TOOLS = [
-  {
-    type: "function",
-    function: {
-      name: "save_message",
-      description:
-        "Save the WhatsApp message that the user is replying to under a title. " +
-        "Use this when the user asks you to save, remember, pin, or keep a message for later.",
-      parameters: {
-        type: "object",
-        properties: {
-          title: {
-            type: "string",
-            description: "The short title or name the user wants to use for the saved message.",
-          },
-        },
-        required: ["title"],
-      },
-    },
-  },
-
-  {
-    type: "function",
-    function: {
-      name: "view_saved_message",
-      description:
-        "Retrieve a previously saved WhatsApp message by its title. " +
-        "Use this when the user asks to show, find, retrieve, or view a saved message.",
-      parameters: {
-        type: "object",
-        properties: {
-          title: {
-            type: "string",
-            description: "The title or name of the previously saved message.",
-          },
-        },
-        required: ["title"],
-      },
-    },
-  },
-];
 
 module.exports = {
   generateResponse,
