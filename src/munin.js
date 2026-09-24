@@ -211,6 +211,13 @@ async function handleMention(message, chatId, sender) {
       return;
     }
 
+    // List tools return canonical, application-owned text. Send it directly
+    // instead of asking the LLM to reproduce or summarize stored data.
+    if (toolResult.success && toolResult.message) {
+      await sendMessage(chatId, toolResult.message);
+      return;
+    }
+
     // Tool validation can provide an exact, user-friendly response when a
     // follow-up model completion would otherwise be unable to answer.
     if (!toolResult.success && toolResult.userMessage) {

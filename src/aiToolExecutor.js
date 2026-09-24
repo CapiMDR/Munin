@@ -2,6 +2,8 @@ const { getPendingContent, parsePendingDate } = require("./pendingUtils");
 const { formatMexicoCityDateTime, formatTimerDuration, parseDuration, parseTimeRange, parseTimerDuration } = require("./timeUtils");
 const { DAYS_ORDER } = require("./classStore");
 const { MESSAGES } = require("./commandConstants");
+const { formatAllClasses, formatClassesToday, formatPendings, formatReminders, formatSavedMessages } = require("./listResponseFormatter");
+const { getMexicoCityTime } = require("./timeUtils");
 
 const MINIMUM_RECURRING_REMINDER_MS = 10 * 60_000;
 
@@ -30,6 +32,7 @@ function createAiToolExecutor({
     start_timer: (args, context) => startTimer(args, context, scheduleTimer, sendMessage),
     show_help: (args) => showHelp(args),
     list_classes: (args, context) => listClasses(context, classStore),
+    list_classes_today: (args, context) => listClassesToday(context, classStore),
     add_class: (args, context) => addClass(args, context, classStore, classScheduler),
     edit_class: (args, context) => editClass(args, context, classStore, classScheduler),
     delete_class: (args, context) => deleteClass(args, context, classStore, classScheduler),
@@ -87,11 +90,8 @@ async function viewSavedMessage(args, context, savedMessageStore, sendMessage) {
 }
 
 function listSavedMessages(context, savedMessageStore) {
-  const savedMessages = savedMessageStore.getAll(context.chatId).map((message, index) => ({
-    index: index + 1,
-    title: message.title,
-  }));
-  return { success: true, action: "list_saved_messages", savedMessages };
+  const savedMessages = savedMessageStore.getAll(context.chatId);
+  return { success: true, action: "list_saved_messages", message: formatSavedMessages(savedMessages) };
 }
 
 function createPending(args, context, pendingStore) {
@@ -105,12 +105,8 @@ function createPending(args, context, pendingStore) {
 }
 
 function listPendings(context, pendingStore) {
-  const pendings = pendingStore.getAll(context.chatId).map((pending, index) => ({
-    index: index + 1,
-    content: getPendingContent(pending),
-    date: typeof pending === "object" ? pending.date || null : null,
-  }));
-  return { success: true, action: "list_pendings", pendings };
+  const pendings = pendingStore.getAll(context.chatId);
+  return { success: true, action: "list_pendings", message: formatPendings(pendings) };
 }
 
 function deletePending(args, context, pendingStore) {
@@ -152,15 +148,8 @@ function createReminder(args, context, reminderStore, reminderScheduler) {
 }
 
 function listReminders(context, reminderStore) {
-  const reminders = reminderStore.getAll(context.chatId).map((reminder, index) => ({
-    index: index + 1,
-    content: reminder.content,
-    dueAt: formatMexicoCityDateTime(reminder.dueAt),
-    timeZone: "America/Mexico_City",
-    recurring: Boolean(reminder.intervalMs),
-    repetitions: reminder.remaining === null ? "infinite" : reminder.remaining || null,
-  }));
-  return { success: true, action: "list_reminders", reminders };
+  const reminders = reminderStore.getAll(context.chatId);
+  return { success: true, action: "list_reminders", message: formatReminders(reminders) };
 }
 
 function deleteReminder(args, context, reminderStore, reminderScheduler) {
@@ -195,8 +184,18 @@ function listClasses(context, classStore) {
   return {
     success: true,
     action: "list_classes",
-    bellEnabled: classStore.getBell(context.chatId),
-    classes: classStore.getAllSorted(context.chatId).map(formatClass),
+    message: formatAllClasses(classStore.getAllSorted(context.chatId)),
+  };
+}
+
+function listClassesToday(context, classStore) {
+  if (!classStore) return failure("The class store is unavailable.");
+
+  const day = getMexicoCityTime().day;
+  return {
+    success: true,
+    action: "list_classes_today",
+    message: formatClassesToday(day, classStore.getByDay(context.chatId, day)),
   };
 }
 

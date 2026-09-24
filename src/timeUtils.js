@@ -122,6 +122,18 @@ function getMexicoCityDate(date = new Date()) {
   return { day: Number(values.day), month: Number(values.month) };
 }
 
+function getMexicoCityDateKey(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Mexico_City",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
+
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
 function millisecondsUntilTime(time, targetMinutes) {
   const currentSeconds = time.minutes * 60 + time.seconds;
   const targetSeconds = targetMinutes * 60;
@@ -133,4 +145,4 @@ function millisecondsUntilNextDay(time) {
   return (24 * 60 * 60 - time.minutes * 60 - time.seconds) * 1_000;
 }
 
-module.exports = { formatDuration, formatMexicoCityDateTime, formatReminder, formatRemainingDuration, formatTimerDuration, getMexicoCityDate, getMexicoCityTime, millisecondsUntilNextDay, millisecondsUntilTime, parseDuration, parseTimeRange, parseTimerDuration, timeToMinutes };
+module.exports = { formatDuration, formatMexicoCityDateTime, formatReminder, formatRemainingDuration, formatTimerDuration, getMexicoCityDate, getMexicoCityDateKey, getMexicoCityTime, millisecondsUntilNextDay, millisecondsUntilTime, parseDuration, parseTimeRange, parseTimerDuration, timeToMinutes };

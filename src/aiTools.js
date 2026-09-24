@@ -143,6 +143,14 @@ const TOOLS = [
   {
     type: "function",
     function: {
+      name: "list_classes_today",
+      description: "List the current group's classes scheduled for today in the Mexico City timezone.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "add_class",
       description: "Add a recurring weekly class to the current group.",
       parameters: {
