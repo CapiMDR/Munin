@@ -258,13 +258,13 @@ function removeMuninMention(body) {
 async function getLLMPrompt(message) {
   let content = removeMuninMention(message.body || "");
   const mentionedIds = message.mentionedIds || [];
-  if (!mentionedIds.length) return content;
-
   let contacts = [];
-  try {
-    contacts = await message.getMentions();
-  } catch (error) {
-    console.warn("Could not resolve mentioned contacts for the LLM:", error.message);
+  if (mentionedIds.length) {
+    try {
+      contacts = await message.getMentions();
+    } catch (error) {
+      console.warn("Could not resolve mentioned contacts for the LLM:", error.message);
+    }
   }
 
   mentionedIds.forEach((mention, index) => {
@@ -273,11 +273,20 @@ async function getLLMPrompt(message) {
 
     const contact = contacts[index];
     const displayName = contact?.pushname || contact?.name || contact?.shortName || contact?.number || "alguien";
-    const rawMention = `${mentionId.split("@")[0]}`;
+    const rawMention = `@${mentionId.split("@")[0]}`;
     content = content.split(rawMention).join(`@${displayName}`);
   });
 
-  return content.trim();
+  const quotedContent = getQuotedMessage(message)?.body?.trim();
+  if (!quotedContent) return content.trim();
+
+  return `${content.trim()}\n\n[Mensaje citado]\n${sanitizeQuotedContent(quotedContent)}\n[/Mensaje citado]`;
+}
+
+function sanitizeQuotedContent(content) {
+  // Quoted-message contact metadata is not resolved here, so remove raw
+  // numeric mention tags before that content is sent to the LLM.
+  return content.replace(/@\d{5,}(?=\s|$|[.,;:!?])/g, "@alguien");
 }
 
 function getSerializedMessageId(message) {

@@ -154,6 +154,8 @@ const MESSAGES = Object.freeze({
   PENDING_DELETED: (index, content) => `Pendiente ${index} eliminado: ${content}`,
   REMINDER_USAGE: `Uso: ${COMMANDS.REMINDER} <cantidad><m/h/d> [x<veces> o x] <contenido>. Responde a un mensaje para usarlo como contenido; ${COMMANDS.REMINDER} - <índice> lo elimina. Los recordatorios repetidos requieren un mínimo de 10m.`,
   REMINDER_INVALID_DURATION: "No entendi el tiempo del recordatorio. Usa una cantidad positiva seguida de m, h o d; por ejemplo: 30m, 2h o 1d.",
+  REMINDER_INVALID_ABSOLUTE_TIME: "No entendi la fecha u hora del recordatorio. Usa hoy o manana y una hora HH:mm, por ejemplo: hoy a las 10:00.",
+  REMINDER_TIME_ALREADY_PASSED: "Esa hora de hoy ya paso. Indica una hora futura o pide el recordatorio para manana.",
   RECURRING_REMINDER_ADDED: (interval, repetitions, content) => `Recordatorio repetido cada ${interval}, ${repetitions}: ${content}`,
 
   REMINDER_ADDED: (userTag, time, content) => `${userTag ? `${userTag} ` : ""}Te recordaré en ${time}: ${content}`,

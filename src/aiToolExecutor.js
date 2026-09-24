@@ -1,5 +1,14 @@
 const { getPendingContent, parsePendingDate } = require("./pendingUtils");
-const { formatMexicoCityDateTime, formatTimerDuration, parseDuration, parseTimeRange, parseTimerDuration } = require("./timeUtils");
+const {
+  formatMexicoCityDateTime,
+  formatTimerDuration,
+  getMexicoCityDateParts,
+  mexicoCityDateTimeToTimestamp,
+  parseClockTime,
+  parseDuration,
+  parseTimeRange,
+  parseTimerDuration,
+} = require("./timeUtils");
 const { DAYS_ORDER } = require("./classStore");
 const { MESSAGES } = require("./commandConstants");
 const { formatAllClasses, formatClassesToday, formatPendings, formatReminders, formatSavedMessages } = require("./listResponseFormatter");
@@ -118,19 +127,33 @@ function deletePending(args, context, pendingStore) {
 
 function createReminder(args, context, reminderStore, reminderScheduler) {
   const content = args.content?.trim();
-  const duration = parseDuration(args.duration);
+  const hasDuration = args.duration !== undefined;
+  const hasAbsoluteTime = args.due_date !== undefined || args.due_time !== undefined;
   const hasRepeatCount = args.repeat_count !== undefined;
   const repeatForever = args.repeat_forever === true;
 
-  if (!duration) return failure("A valid reminder duration is required.", MESSAGES.REMINDER_INVALID_DURATION);
   if (!content) return failure("Reminder content is required.");
+  if (hasDuration && hasAbsoluteTime) return failure("Use either duration or due_date/due_time, not both.");
+  if (!hasDuration && !hasAbsoluteTime) return failure("A reminder time is required.", MESSAGES.REMINDER_INVALID_DURATION);
   if (repeatForever && hasRepeatCount) return failure("Use either repeat_count or repeat_forever, not both.");
+
+  let duration;
+  let dueAt;
+  if (hasAbsoluteTime) {
+    if (hasRepeatCount || repeatForever) return failure("Absolute reminders cannot repeat.");
+    const absoluteDueAt = getAbsoluteReminderDueAt(args);
+    if (absoluteDueAt.error) return absoluteDueAt;
+    dueAt = absoluteDueAt.dueAt;
+  } else {
+    duration = parseDuration(args.duration);
+    if (!duration) return failure("A valid reminder duration is required.", MESSAGES.REMINDER_INVALID_DURATION);
+    dueAt = Date.now() + duration;
+  }
 
   const remaining = hasRepeatCount ? Number(args.repeat_count) : undefined;
   if (hasRepeatCount && (!Number.isInteger(remaining) || remaining < 1)) return failure("repeat_count must be a positive integer.");
   if ((hasRepeatCount || repeatForever) && duration < MINIMUM_RECURRING_REMINDER_MS) return failure("Recurring reminders require a minimum duration of 10m.");
 
-  const dueAt = Date.now() + duration;
   const reminder = hasRepeatCount || repeatForever
     ? reminderStore.addRecurring(context.chatId, content, dueAt, duration, repeatForever ? null : remaining)
     : reminderStore.add(context.chatId, content, dueAt);
@@ -142,6 +165,7 @@ function createReminder(args, context, reminderStore, reminderScheduler) {
     content,
     dueAt: formatMexicoCityDateTime(dueAt),
     timeZone: "America/Mexico_City",
+    absolute: hasAbsoluteTime,
     recurring: hasRepeatCount || repeatForever,
     repetitions: repeatForever ? "infinite" : remaining || null,
   };
@@ -186,6 +210,30 @@ function listClasses(context, classStore) {
     action: "list_classes",
     message: formatAllClasses(classStore.getAllSorted(context.chatId)),
   };
+}
+
+function getAbsoluteReminderDueAt(args) {
+  const dateName = args.due_date?.trim().toLowerCase();
+  const normalizedDate = dateName === "hoy" ? "today" : dateName === "mañana" || dateName === "manana" ? "tomorrow" : dateName;
+  const clockTime = parseClockTime(args.due_time);
+  if (!clockTime || !["today", "tomorrow"].includes(normalizedDate)) {
+    return failure("A valid absolute reminder date and time are required.", MESSAGES.REMINDER_INVALID_ABSOLUTE_TIME);
+  }
+
+  const date = getMexicoCityDateParts();
+  if (normalizedDate === "tomorrow") {
+    const tomorrow = new Date(Date.UTC(date.year, date.month - 1, date.day + 1));
+    date.year = tomorrow.getUTCFullYear();
+    date.month = tomorrow.getUTCMonth() + 1;
+    date.day = tomorrow.getUTCDate();
+  }
+
+  const dueAt = mexicoCityDateTimeToTimestamp({ ...date, ...clockTime });
+  if (normalizedDate === "today" && dueAt <= Date.now()) {
+    return failure("The requested reminder time has already passed.", MESSAGES.REMINDER_TIME_ALREADY_PASSED);
+  }
+
+  return { dueAt };
 }
 
 function listClassesToday(context, classStore) {

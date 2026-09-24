@@ -72,16 +72,18 @@ const TOOLS = [
     type: "function",
     function: {
       name: "create_reminder",
-      description: "Create a reminder for the current group. Use a duration such as 30m, 2h, or 1d. Optional repetition creates a recurring reminder.",
+      description: "Create a reminder for the current group. Use either a relative duration such as 30m, 2h, or 1d, or an absolute today/tomorrow time. Optional repetition is only for relative reminders.",
       parameters: {
         type: "object",
         properties: {
           content: { type: "string", description: "The reminder text." },
           duration: { type: "string", description: "A positive duration using m, h, or d; for example 30m." },
+          due_date: { type: "string", enum: ["today", "tomorrow"], description: "Use for an absolute reminder date instead of duration." },
+          due_time: { type: "string", description: "24-hour HH:mm time for an absolute reminder; for example 10:00." },
           repeat_count: { type: "integer", description: "Optional total number of deliveries for a recurring reminder. Must be at least 1." },
           repeat_forever: { type: "boolean", description: "Set true to repeat indefinitely. Do not combine with repeat_count." },
         },
-        required: ["content", "duration"],
+        required: ["content"],
       },
     },
   },

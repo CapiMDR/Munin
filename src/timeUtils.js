@@ -122,6 +122,64 @@ function getMexicoCityDate(date = new Date()) {
   return { day: Number(values.day), month: Number(values.month) };
 }
 
+function getMexicoCityDateParts(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Mexico_City",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
+
+  return { year: Number(values.year), month: Number(values.month), day: Number(values.day) };
+}
+
+function parseClockTime(value) {
+  const match = value?.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return undefined;
+
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (hour > 23 || minute > 59) return undefined;
+  return { hour, minute, formatted: `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}` };
+}
+
+// Converts a Mexico City wall-clock date/time into an absolute timestamp while
+// respecting the timezone's IANA rules instead of the host machine timezone.
+function mexicoCityDateTimeToTimestamp({ year, month, day, hour, minute }) {
+  const desiredLocalAsUtc = Date.UTC(year, month - 1, day, hour, minute);
+  let timestamp = desiredLocalAsUtc;
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const local = getMexicoCityDateTimeParts(new Date(timestamp));
+    const actualLocalAsUtc = Date.UTC(local.year, local.month - 1, local.day, local.hour, local.minute);
+    timestamp += desiredLocalAsUtc - actualLocalAsUtc;
+  }
+
+  return timestamp;
+}
+
+function getMexicoCityDateTimeParts(date) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Mexico_City",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
+
+  return {
+    year: Number(values.year),
+    month: Number(values.month),
+    day: Number(values.day),
+    hour: Number(values.hour),
+    minute: Number(values.minute),
+  };
+}
+
 function getMexicoCityDateKey(date = new Date()) {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Mexico_City",
@@ -145,4 +203,4 @@ function millisecondsUntilNextDay(time) {
   return (24 * 60 * 60 - time.minutes * 60 - time.seconds) * 1_000;
 }
 
-module.exports = { formatDuration, formatMexicoCityDateTime, formatReminder, formatRemainingDuration, formatTimerDuration, getMexicoCityDate, getMexicoCityDateKey, getMexicoCityTime, millisecondsUntilNextDay, millisecondsUntilTime, parseDuration, parseTimeRange, parseTimerDuration, timeToMinutes };
+module.exports = { formatDuration, formatMexicoCityDateTime, formatReminder, formatRemainingDuration, formatTimerDuration, getMexicoCityDate, getMexicoCityDateKey, getMexicoCityDateParts, getMexicoCityTime, mexicoCityDateTimeToTimestamp, millisecondsUntilNextDay, millisecondsUntilTime, parseClockTime, parseDuration, parseTimeRange, parseTimerDuration, timeToMinutes };
