@@ -124,7 +124,8 @@ const MESSAGES = Object.freeze({
   SAVED_MESSAGE_INDEX_NOT_FOUND: "No existe un mensaje guardado con ese índice.",
   SAVED_MESSAGE_DELETED: (title) => `Mensaje guardado eliminado: ${title}`,
   NO_SAVED_MESSAGES: "No hay mensajes guardados en este grupo.",
-  SAVED_MESSAGES_LIST: (messages) => `Mensajes guardados:\n${messages.map((message, index) => `${index + 1}. ${message.title}`).join("\n")}`,
+  SAVED_MESSAGES_LIST: (messages) =>
+    `🐦‍⬛ Cosas que me pediste recordar:\n${messages.map((message, index) => `${index + 1}. ${message.title}`).join("\n")}`,
 
   CUSTOM_COMMAND_USAGE: `Uso: ${COMMANDS.CREATE_CUSTOM_COMMAND} !<nombre> <respuesta>`,
   CUSTOM_COMMAND_CREATED: (command) => `Comando personalizado creado: ${command}`,
@@ -141,11 +142,11 @@ const MESSAGES = Object.freeze({
   NO_PENDING: "No hay pendientes guardados para este chat.",
   DAILY_PENDINGS: (groups) =>
     [
-      "Pendientes de hoy:",
-      groups.expired.length && `Vencidos:\n${groups.expired.join("\n")}`,
-      groups.today.length && `Vencen hoy:\n${groups.today.join("\n")}`,
-      groups.active.length && `Activos:\n${groups.active.join("\n")}`,
-      groups.noDate.length && `Sin fecha:\n${groups.noDate.join("\n")}`,
+      "🐦‍⬛ Esto es lo que tienes pendiente:",
+      groups.expired.length && `Ya se te pasaron:\n${groups.expired.join("\n")}`,
+      groups.today.length && `Para hoy, no se te olviden:\n${groups.today.join("\n")}`,
+      groups.active.length && `Todavía hay tiempo:\n${groups.active.join("\n")}`,
+      groups.noDate.length && `Estos andan sin rumbo ni fecha:\n${groups.noDate.join("\n")}`,
     ]
       .filter(Boolean)
       .join("\n\n"),
@@ -157,7 +158,9 @@ const MESSAGES = Object.freeze({
 
   REMINDER_ADDED: (userTag, time, content) => `${userTag ? `${userTag} ` : ""}Te recordaré en ${time}: ${content}`,
   NO_REMINDERS: "No hay recordatorios guardados para este chat.",
-  REMINDERS_LIST: (reminders) => `Recordatorios:\n${reminders.map((reminder, index) => `${index + 1}. ${reminder}`).join("\n")}`,
+  REMINDERS_LIST: (reminders) =>
+    `🐦‍⬛ Cosas que no debo dejarte olvidar:\n${reminders.map((reminder, index) => `${index + 1}. ${reminder}`).join("\n")}`,
+
   DELETE_REMINDER_NOT_FOUND: "No existe un recordatorio con ese índice en este chat.",
   REMINDER_DELETED: (index, content) => `Recordatorio ${index} eliminado: ${content}`,
 
@@ -174,9 +177,9 @@ const MESSAGES = Object.freeze({
   CURRENT_CLASS_ACTIVE: (cls) => `📚 Ahora: ${cls.name} (${cls.startTime} - ${cls.endTime}) en ${cls.classroom}`,
   CURRENT_CLASS_NEXT: (cls, day) => `📚 Siguiente: ${cls.name} — ${day} ${cls.startTime} - ${cls.endTime} en ${cls.classroom}`,
   NO_CLASSES: "No hay clases registradas.",
-  CLASSES_TODAY: (day, lines) => `📋 Clases de hoy (${day}):\n${lines.join("\n")}`,
+  CLASSES_TODAY: (day, lines) => `🐦‍⬛ Esto te espera hoy (${day}):\n${lines.join("\n")}`,
   NO_CLASSES_TODAY: "No hay clases hoy.",
-  ALL_CLASSES: (dayGroups) => `📋 Todas las clases:\n\n${dayGroups.join("\n\n")}`,
+  ALL_CLASSES: (dayGroups) => `🐦‍⬛ Esto es lo que tengo sobre tus clases:\n\n${dayGroups.join("\n\n")}`,
   ADD_CLASS_USAGE: `Uso: ${COMMANDS.ADD_CLASS} <nombre>, <día>, <inicio>-<fin>, <salón>\nEjemplo: ${COMMANDS.ADD_CLASS} Matemáticas, Lunes, 8:00-9:30, A-301`,
   CLASS_ADDED: (cls, day) => `✅ Clase agregada: ${cls.name} — ${day} ${cls.startTime} - ${cls.endTime} en ${cls.classroom}`,
   INVALID_DAY: "Día inválido. Usa: lunes, martes, miércoles, jueves, viernes, sábado, domingo.",

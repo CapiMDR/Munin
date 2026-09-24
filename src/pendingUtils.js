@@ -11,7 +11,7 @@ function parsePendingDate(value) {
 
 function formatPending(pending) {
   if (typeof pending === "string") return pending;
-  return `${pending.date ? `@${pending.date} ` : ""}${pending.content}`;
+  return `${pending.date ? `${pending.date} - ` : ""}${pending.content}`;
 }
 
 function getPendingContent(pending) {
