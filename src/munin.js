@@ -186,7 +186,7 @@ async function handleMention(message, chatId, sender) {
 
   // A bare mention is still an intentional request for Munin's attention.
   // Give the model explicit context instead of dropping that message silently.
-  const prompt = removeMuninMention(message.body) || "El usuario te mencionó sin escribir ningún mensaje.";
+  const prompt = (await getLLMPrompt(message)) || "El usuario te mencionó sin escribir ningún mensaje.";
 
   const aiResult = await generateResponse(chatId, sender.name, prompt);
   if (!aiResult) return;
@@ -244,6 +244,33 @@ function getQuotedMessage(message) {
 
 function removeMuninMention(body) {
   return body.replace(/^@\S+\s*/, "").trim();
+}
+
+// Builds the text the LLM receives. WhatsApp message bodies represent mentions
+// as raw JIDs/numbers, so replace each one with its contact display name first.
+async function getLLMPrompt(message) {
+  let content = removeMuninMention(message.body || "");
+  const mentionedIds = message.mentionedIds || [];
+  if (!mentionedIds.length) return content;
+
+  let contacts = [];
+  try {
+    contacts = await message.getMentions();
+  } catch (error) {
+    console.warn("Could not resolve mentioned contacts for the LLM:", error.message);
+  }
+
+  mentionedIds.forEach((mention, index) => {
+    const mentionId = typeof mention === "string" ? mention : mention?._serialized;
+    if (!mentionId) return;
+
+    const contact = contacts[index];
+    const displayName = contact?.pushname || contact?.name || contact?.shortName || contact?.number || "alguien";
+    const rawMention = `${mentionId.split("@")[0]}`;
+    content = content.split(rawMention).join(`@${displayName}`);
+  });
+
+  return content.trim();
 }
 
 function getSerializedMessageId(message) {
