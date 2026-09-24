@@ -1,5 +1,5 @@
 const { getPendingContent, parsePendingDate } = require("./pendingUtils");
-const { formatTimerDuration, parseDuration, parseTimeRange, parseTimerDuration } = require("./timeUtils");
+const { formatMexicoCityDateTime, formatTimerDuration, parseDuration, parseTimeRange, parseTimerDuration } = require("./timeUtils");
 const { DAYS_ORDER } = require("./classStore");
 const { MESSAGES } = require("./commandConstants");
 
@@ -126,7 +126,8 @@ function createReminder(args, context, reminderStore, reminderScheduler) {
   const hasRepeatCount = args.repeat_count !== undefined;
   const repeatForever = args.repeat_forever === true;
 
-  if (!content || !duration) return failure("Reminder content and a valid duration are required.");
+  if (!duration) return failure("A valid reminder duration is required.", MESSAGES.REMINDER_INVALID_DURATION);
+  if (!content) return failure("Reminder content is required.");
   if (repeatForever && hasRepeatCount) return failure("Use either repeat_count or repeat_forever, not both.");
 
   const remaining = hasRepeatCount ? Number(args.repeat_count) : undefined;
@@ -143,7 +144,8 @@ function createReminder(args, context, reminderStore, reminderScheduler) {
     success: true,
     action: "create_reminder",
     content,
-    dueAt: new Date(dueAt).toISOString(),
+    dueAt: formatMexicoCityDateTime(dueAt),
+    timeZone: "America/Mexico_City",
     recurring: hasRepeatCount || repeatForever,
     repetitions: repeatForever ? "infinite" : remaining || null,
   };
@@ -153,7 +155,8 @@ function listReminders(context, reminderStore) {
   const reminders = reminderStore.getAll(context.chatId).map((reminder, index) => ({
     index: index + 1,
     content: reminder.content,
-    dueAt: new Date(reminder.dueAt).toISOString(),
+    dueAt: formatMexicoCityDateTime(reminder.dueAt),
+    timeZone: "America/Mexico_City",
     recurring: Boolean(reminder.intervalMs),
     repetitions: reminder.remaining === null ? "infinite" : reminder.remaining || null,
   }));
@@ -313,8 +316,8 @@ function isOneBasedIndex(value) {
   return Number.isInteger(value) && value > 0;
 }
 
-function failure(error) {
-  return { success: false, error };
+function failure(error, userMessage) {
+  return { success: false, error, userMessage };
 }
 
 module.exports = { createAiToolExecutor };

@@ -74,6 +74,7 @@ const commandHandler = new CommandHandler(
   adminStore,
   customCommandStore,
   savedMessageStore,
+  () => botLid,
 );
 
 reminderScheduler.start();
@@ -207,6 +208,13 @@ async function handleMention(message, chatId, sender) {
     // the follow-up model completion cannot omit or paraphrase the command list.
     if (toolResult.success && toolResult.action === "show_help") {
       await sendMessage(chatId, toolResult.help);
+      return;
+    }
+
+    // Tool validation can provide an exact, user-friendly response when a
+    // follow-up model completion would otherwise be unable to answer.
+    if (!toolResult.success && toolResult.userMessage) {
+      await sendMessage(chatId, toolResult.userMessage);
       return;
     }
 

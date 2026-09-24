@@ -34,6 +34,7 @@ class CommandHandler {
     adminStore = new AdminStore(),
     customCommandStore = new CustomCommandStore(),
     savedMessageStore = new SavedMessageStore(),
+    getBotLid = () => undefined,
   ) {
     Object.assign(this, {
       sendMessage,
@@ -47,6 +48,7 @@ class CommandHandler {
       adminStore,
       customCommandStore,
       savedMessageStore,
+      getBotLid,
     });
   }
 
@@ -58,7 +60,7 @@ class CommandHandler {
     const commandKey = command.toLowerCase();
     const handlers = this.getHandlers();
     const handler = handlers[commandKey] || (this.customCommandStore.has(chatId, commandKey) ? this.handleCustomCommand : this.handleUnknown);
-    await handler.call(this, chatId, args, quotedMessage, sender, command, message, messageId);
+    await handler.call(this, chatId, args, quotedMessage, sender, command, message, messageId, this.getBotLid());
   }
 
   /** Inputs: none. Builds command-to-method routing. Output: an object of command handlers. */
@@ -136,7 +138,10 @@ class CommandHandler {
     const index = Number(args[0]);
     if (args.length !== 1 || !Number.isInteger(index) || index < 1) return this.sendMessage(chatId, MESSAGES.DELETE_CUSTOM_COMMAND_USAGE);
     const deletedCommand = this.customCommandStore.removeAt(chatId, index - 1);
-    await this.sendMessage(chatId, deletedCommand ? MESSAGES.CUSTOM_COMMAND_DELETED(deletedCommand.command) : MESSAGES.CUSTOM_COMMAND_INDEX_NOT_FOUND);
+    await this.sendMessage(
+      chatId,
+      deletedCommand ? MESSAGES.CUSTOM_COMMAND_DELETED(deletedCommand.command) : MESSAGES.CUSTOM_COMMAND_INDEX_NOT_FOUND,
+    );
   }
   /** Inputs: chat ID, command arguments, and command name. Replies with or deletes a group-specific custom command. Output: the sent-message promise. */
   async handleCustomCommand(chatId, args, quotedMessage, sender, command) {
@@ -148,14 +153,18 @@ class CommandHandler {
     await this.sendMessage(chatId, this.customCommandStore.get(chatId, commandKey));
   }
   /** Inputs: chat ID, title arguments, quoted message, command message, and serialized message ID. Saves the command message ID under a group-specific title. Output: confirmation or usage response. */
-  async handleSaveMessage(chatId, args, quotedMessage, sender, command, message) {
+  async handleSaveMessage(chatId, args, quotedMessage, sender, command, message, messageId, botLid) {
     const title = args.join(" ").trim();
 
     if (!title || !message.hasQuotedMsg || !message._data?.quotedStanzaID || !message._data?.quotedParticipant) {
       return this.sendMessage(chatId, MESSAGES.SAVE_MESSAGE_USAGE);
     }
 
-    const quotedMessageId = `false_${chatId}_${message._data.quotedStanzaID}_${message._data.quotedParticipant}`;
+    const quotedParticipant = message._data.quotedParticipant?._serialized ?? message._data.quotedParticipant;
+
+    const fromMe = quotedParticipant === botLid;
+
+    const quotedMessageId = `${fromMe}_${chatId}_${message._data.quotedStanzaID}_${quotedParticipant}`;
 
     const alreadyExists = this.savedMessageStore.set(chatId, title, quotedMessageId);
 

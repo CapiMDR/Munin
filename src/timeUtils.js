@@ -34,7 +34,16 @@ function formatDuration(value) {
 }
 
 function formatReminder(reminder) {
-  return `${reminder.content} (vence ${new Date(reminder.dueAt).toLocaleString("es-MX")})`;
+  return `${reminder.content} (vence ${formatMexicoCityDateTime(reminder.dueAt)})`;
+}
+
+function formatMexicoCityDateTime(value) {
+  return new Intl.DateTimeFormat("es-MX", {
+    timeZone: "America/Mexico_City",
+    dateStyle: "short",
+    timeStyle: "short",
+    hourCycle: "h23",
+  }).format(new Date(value));
 }
 
 function timeToMinutes(time) {
@@ -124,4 +133,4 @@ function millisecondsUntilNextDay(time) {
   return (24 * 60 * 60 - time.minutes * 60 - time.seconds) * 1_000;
 }
 
-module.exports = { formatDuration, formatReminder, formatRemainingDuration, formatTimerDuration, getMexicoCityDate, getMexicoCityTime, millisecondsUntilNextDay, millisecondsUntilTime, parseDuration, parseTimeRange, parseTimerDuration, timeToMinutes };
+module.exports = { formatDuration, formatMexicoCityDateTime, formatReminder, formatRemainingDuration, formatTimerDuration, getMexicoCityDate, getMexicoCityTime, millisecondsUntilNextDay, millisecondsUntilTime, parseDuration, parseTimeRange, parseTimerDuration, timeToMinutes };

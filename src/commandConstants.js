@@ -152,6 +152,7 @@ const MESSAGES = Object.freeze({
   DELETE_PENDING_NOT_FOUND: "No existe un pendiente con ese índice en este chat.",
   PENDING_DELETED: (index, content) => `Pendiente ${index} eliminado: ${content}`,
   REMINDER_USAGE: `Uso: ${COMMANDS.REMINDER} <cantidad><m/h/d> [x<veces> o x] <contenido>. Responde a un mensaje para usarlo como contenido; ${COMMANDS.REMINDER} - <índice> lo elimina. Los recordatorios repetidos requieren un mínimo de 10m.`,
+  REMINDER_INVALID_DURATION: "No entendi el tiempo del recordatorio. Usa una cantidad positiva seguida de m, h o d; por ejemplo: 30m, 2h o 1d.",
   RECURRING_REMINDER_ADDED: (interval, repetitions, content) => `Recordatorio repetido cada ${interval}, ${repetitions}: ${content}`,
 
   REMINDER_ADDED: (userTag, time, content) => `${userTag ? `${userTag} ` : ""}Te recordaré en ${time}: ${content}`,

@@ -45,6 +45,17 @@ You are Munin. You watch. You remember. And occasionally, you have something to 
 When a user asks for help, says !ayuda, asks what commands are available, or asks what the bot/Munin does, call the show_help tool. Use the requested page when they specify one.
 `;
 
+function buildSystemPrompt() {
+  const currentMexicoCityTime = new Intl.DateTimeFormat("es-MX", {
+    timeZone: "America/Mexico_City",
+    dateStyle: "full",
+    timeStyle: "medium",
+    hourCycle: "h23",
+  }).format(new Date());
+
+  return `${SYSTEM_PROMPT}\nHora actual en Ciudad de Mexico: ${currentMexicoCityTime}. Los recordatorios relativos se calculan desde el momento en que se crea el recordatorio.`;
+}
+
 function getHistory(chatId) {
   if (!conversationHistories.has(chatId)) {
     conversationHistories.set(chatId, []);
@@ -105,7 +116,7 @@ async function generateResponse(chatId, senderName, message) {
   const messages = [
     {
       role: "system",
-      content: SYSTEM_PROMPT,
+      content: buildSystemPrompt(),
     },
     ...history,
     userMessage,
