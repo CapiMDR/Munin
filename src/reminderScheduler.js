@@ -1,5 +1,6 @@
 const MAX_TIMEOUT = 2 ** 31 - 1;
 const RETRY_DELAY = 60_000;
+const { MESSAGES } = require("./commandConstants");
 
 class ReminderScheduler {
   constructor(reminderStore, sendMessage) {
@@ -38,7 +39,7 @@ class ReminderScheduler {
     }
 
     try {
-      await this.sendMessage(reminder.chatId, `⏰ Recordatorio: ${reminder.content}`);
+      await this.sendMessage(reminder.chatId, MESSAGES.REMINDER_DUE(reminder.content));
       if (reminder.intervalMs && (reminder.remaining === null || reminder.remaining > 1)) {
         const nextReminder = this.reminderStore.updateById(reminder.chatId, reminder.id, {
           dueAt: Date.now() + reminder.intervalMs,

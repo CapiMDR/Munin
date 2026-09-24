@@ -261,9 +261,10 @@ class CommandHandler {
     if (args.length === 0) return this.handleListReminders(chatId);
 
     const durationText = args[0];
-    const recurrenceMatch = args[1]?.match(/^x(\d+)?$/i);
-    return recurrenceMatch
-      ? this.handleAddRecurringReminder(chatId, durationText, recurrenceMatch[1], args.slice(2), quotedMessage)
+    const recurrenceMatch = args[1]?.match(/^x(\d+)$/i);
+    const repeatsForever = args[1]?.toLowerCase() === INFINITE_TOKEN;
+    return recurrenceMatch || repeatsForever
+      ? this.handleAddRecurringReminder(chatId, durationText, recurrenceMatch?.[1], args.slice(2), quotedMessage)
       : this.handleAddReminder(chatId, durationText, args.slice(1), quotedMessage, sender);
   }
 

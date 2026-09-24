@@ -35,7 +35,7 @@ const COMMANDS = Object.freeze({
 });
 
 const COIN_SIDES = Object.freeze(["cara", "cruz"]);
-const INFINITE_TOKEN = "x";
+const INFINITE_TOKEN = "inf";
 const EIGHT_BALL_RESPONSES = Object.freeze([
   "Sí",
   "No",
@@ -142,7 +142,7 @@ const MESSAGES = Object.freeze({
   NO_PENDING: "No hay pendientes guardados para este chat.",
   DAILY_PENDINGS: (groups) =>
     [
-      "🐦‍⬛ Esto es lo que tienes pendiente:",
+      "🐦‍⬛ Esto es lo que se tiene pendiente:",
       groups.expired.length && `Ya se te pasaron:\n${groups.expired.join("\n")}`,
       groups.today.length && `Para hoy, no se te olviden:\n${groups.today.join("\n")}`,
       groups.active.length && `Todavía hay tiempo:\n${groups.active.join("\n")}`,
@@ -152,13 +152,14 @@ const MESSAGES = Object.freeze({
       .join("\n\n"),
   DELETE_PENDING_NOT_FOUND: "No existe un pendiente con ese índice en este chat.",
   PENDING_DELETED: (index, content) => `Pendiente ${index} eliminado: ${content}`,
-  REMINDER_USAGE: `Uso: ${COMMANDS.REMINDER} <cantidad><m/h/d> [x<veces> o x] <contenido>. Responde a un mensaje para usarlo como contenido; ${COMMANDS.REMINDER} - <índice> lo elimina. Los recordatorios repetidos requieren un mínimo de 10m.`,
-  REMINDER_INVALID_DURATION: "No entendi el tiempo del recordatorio. Usa una cantidad positiva seguida de m, h o d; por ejemplo: 30m, 2h o 1d.",
-  REMINDER_INVALID_ABSOLUTE_TIME: "No entendi la fecha u hora del recordatorio. Usa hoy o manana y una hora HH:mm, por ejemplo: hoy a las 10:00.",
-  REMINDER_TIME_ALREADY_PASSED: "Esa hora de hoy ya paso. Indica una hora futura o pide el recordatorio para manana.",
+  REMINDER_USAGE: `Uso: ${COMMANDS.REMINDER} <cantidad><m/h/d> [x<veces> o ${INFINITE_TOKEN}] <contenido>. Responde a un mensaje para usarlo como contenido; ${COMMANDS.REMINDER} - <índice> lo elimina. Los recordatorios repetidos requieren un mínimo de 10m.`,
+  REMINDER_INVALID_DURATION: "No entendí el tiempo del recordatorio. Usa una cantidad positiva seguida de m, h o d; por ejemplo: 30m, 2h o 1d.",
+  REMINDER_INVALID_ABSOLUTE_TIME: "No entendí la fecha u hora del recordatorio. Usa hoy o mañana y una hora HH:mm, por ejemplo: hoy a las 10:00.",
+  REMINDER_TIME_ALREADY_PASSED: "Esa hora de hoy ya paso. Indica una hora futura o pide el recordatorio para mañana.",
   RECURRING_REMINDER_ADDED: (interval, repetitions, content) => `Recordatorio repetido cada ${interval}, ${repetitions}: ${content}`,
 
   REMINDER_ADDED: (userTag, time, content) => `${userTag ? `${userTag} ` : ""}Te recordaré en ${time}: ${content}`,
+  REMINDER_DUE: (content) => `🐦‍⬛ Recordar: ${content}`,
   NO_REMINDERS: "No hay recordatorios guardados para este chat.",
   REMINDERS_LIST: (reminders) =>
     `🐦‍⬛ Cosas que no debo dejarte olvidar:\n${reminders.map((reminder, index) => `${index + 1}. ${reminder}`).join("\n")}`,

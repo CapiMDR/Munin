@@ -134,6 +134,8 @@ async function handleMessageCreate(message) {
     if (!isEligibleChat(chatId)) return;
 
     const sender = await getSender(message);
+    //printReceivedMessage(message, sender);
+
     if (message.body.startsWith("!")) {
       await handleFormalCommand(message, chatId, sender);
       return;
@@ -175,8 +177,6 @@ function isEligibleChat(chatId) {
 async function handleFormalCommand(message, chatId, sender) {
   const quotedMessage = getQuotedMessage(message);
   const messageId = getSerializedMessageId(message);
-
-  printReceivedMessage(message, sender);
   await commandHandler.handleCommand(message, chatId, quotedMessage, sender, messageId, message.body.trim());
 }
 
