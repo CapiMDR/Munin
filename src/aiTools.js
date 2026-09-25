@@ -53,12 +53,13 @@ const TOOLS = [
     type: "function",
     function: {
       name: "create_pending",
-      description: "Create a pending item for the current group. Optionally assign it a calendar date in dd/mm format.",
+      description: "Create a pending item for the current group. Optionally assign it a calendar date in dd/mm format and/or a time in HH:mm format.",
       parameters: {
         type: "object",
         properties: {
           content: { type: "string", description: "The pending item's text." },
           date: { type: "string", description: "Optional due date in dd/mm format, for example 25/12." },
+          time: { type: "string", description: "Optional time in HH:mm format, for example 10:00." },
         },
         required: ["content"],
       },

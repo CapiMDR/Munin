@@ -108,7 +108,7 @@ const HELP_PAGES = Object.freeze([
     "**Pendientes**",
     'Dime *"anota comprar hielo como pendiente"*.',
     "`!p comprar hielo`",
-    "Puedes añadir una fecha o responder a un mensaje: `!p @25/12 comprar hielo`  `!p`",
+    "Puedes añadir fecha y hora, o responder a un mensaje: `!p @25/12 10:00 comprar hielo`  `!p`",
     'Dime *"muéstra mis pendientes"* o *"quita el pendiente 1 de la lista"*.',
     "Consulta o elimina pendientes: `!p`  `!p - 1`",
   ].join("\n"),
@@ -170,6 +170,7 @@ const MESSAGES = Object.freeze({
   WELCOME: `¡Hola! Soy Munin 🐦‍⬛, un bot asistente de WhatsApp creado por Capi. Escribe ${COMMANDS.HELP} para ver los comandos disponibles.`,
 
   PONG: "pong",
+  MUTATION_WITH_LIST: (confirmation, list) => `${confirmation}\n\n${list}`,
   SUMMARY_USAGE: (maxAmount) => `Uso: ${COMMANDS.SUMMARY} <cantidad entre 1 y ${maxAmount}>`,
   SUMMARY_NO_MESSAGES: "No hay mensajes anteriores para resumir en este chat.",
   SUMMARY_UNAVAILABLE: "No pude generar el resumen. Inténtalo de nuevo.",
@@ -197,8 +198,8 @@ const MESSAGES = Object.freeze({
   NO_CUSTOM_COMMANDS: "No hay comandos personalizados en este grupo.",
   CUSTOM_COMMANDS_LIST: (commands) => `Comandos personalizados:\n${commands.map((command, index) => `${index + 1}. ${command.command}`).join("\n")}`,
 
-  PENDING_USAGE: `Uso: ${COMMANDS.PENDING} [@<dd/mm>] <pendiente>, responde a un mensaje con ${COMMANDS.PENDING}, o usa ${COMMANDS.PENDING} - <índice> para eliminarlo`,
-  PENDING_ADDED: (content, date) => `Pendiente agregado${date ? ` para ${date}` : ""}: ${content}`,
+  PENDING_USAGE: `Uso: ${COMMANDS.PENDING} [@<dd/mm>] [HH:mm] <pendiente>, responde a un mensaje con ${COMMANDS.PENDING}, o usa ${COMMANDS.PENDING} - <índice> para eliminarlo`,
+  PENDING_ADDED: (content, date, time) => `Pendiente agregado${date ? ` para ${date}` : ""}${time ? ` a las ${time}` : ""}: ${content}`,
   NO_PENDING: "No hay pendientes guardados para este chat.",
   DAILY_PENDINGS: (groups) =>
     [
@@ -219,6 +220,7 @@ const MESSAGES = Object.freeze({
   RECURRING_REMINDER_ADDED: (interval, repetitions, content) => `Recordatorio repetido cada ${interval}, ${repetitions}: ${content}`,
 
   REMINDER_ADDED: (userTag, time, content) => `${userTag ? `${userTag} ` : ""}Te recordaré en ${time}: ${content}`,
+  REMINDER_CREATED: (content, dueAt) => `Recordatorio agregado para ${dueAt}: ${content}`,
   REMINDER_DUE: (content) => `🐦‍⬛ Recordar: ${content}`,
   NO_REMINDERS: "No hay recordatorios guardados para este chat.",
   REMINDERS_LIST: (reminders) =>
@@ -240,9 +242,11 @@ const MESSAGES = Object.freeze({
   CURRENT_CLASS_ACTIVE: (cls) => `📚 Ahora: ${cls.name} (${cls.startTime} - ${cls.endTime}) en ${cls.classroom}`,
   CURRENT_CLASS_NEXT: (cls, day) => `📚 Siguiente: ${cls.name} — ${day} ${cls.startTime} - ${cls.endTime} en ${cls.classroom}`,
   NO_CLASSES: "No hay clases registradas.",
-  CLASSES_TODAY: (day, lines) => `🐦‍⬛ Estas son las clases de hoy (${day}):\n${lines.join("\n")}`,
+  CLASSES_TODAY: (day, lines, bellEnabled) =>
+    `🐦‍⬛ Estas son las clases de hoy (${day}):\n${bellEnabled ? "🔔 Campana activada" : "🔕 Campana desactivada"}\n\n${lines.join("\n")}`,
   NO_CLASSES_TODAY: "No hay clases hoy.",
-  ALL_CLASSES: (dayGroups) => `🐦‍⬛ Estas son todas las clases:\n\n${dayGroups.join("\n\n")}`,
+  ALL_CLASSES: (dayGroups, bellEnabled) =>
+    `🐦‍⬛ Estas son todas las clases:\n${bellEnabled ? "🔔 Campana activada" : "🔕 Campana desactivada"}\n\n${dayGroups.join("\n\n")}`,
   ADD_CLASS_USAGE: `Uso: ${COMMANDS.ADD_CLASS} <nombre>, <día>, <inicio>-<fin>, <salón>\nEjemplo: ${COMMANDS.ADD_CLASS} Matemáticas, Lunes, 8:00-9:30, A-301`,
   CLASS_ADDED: (cls, day) => `✅ Clase agregada: ${cls.name} — ${day} ${cls.startTime} - ${cls.endTime} en ${cls.classroom}`,
   INVALID_DAY: "Día inválido. Usa: lunes, martes, miércoles, jueves, viernes, sábado, domingo.",

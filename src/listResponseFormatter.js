@@ -15,7 +15,7 @@ function formatReminders(reminders) {
   return reminders.length ? MESSAGES.REMINDERS_LIST(reminders.map(formatReminder)) : MESSAGES.NO_REMINDERS;
 }
 
-function formatAllClasses(classes, currentTime = getMexicoCityTime()) {
+function formatAllClasses(classes, currentTime = getMexicoCityTime(), bellEnabled = true) {
   if (!classes.length) return MESSAGES.NO_CLASSES;
 
   const groups = DAYS_ORDER.map((day) => [day, classes.filter((cls) => cls.day === day)])
@@ -28,16 +28,16 @@ function formatAllClasses(classes, currentTime = getMexicoCityTime()) {
       });
       return `${capitalize(day)}:\n${lines.join("\n")}`;
     });
-  return MESSAGES.ALL_CLASSES(groups);
+  return MESSAGES.ALL_CLASSES(groups, bellEnabled);
 }
 
-function formatClassesToday(day, classes, currentMinutes = getMexicoCityTime().minutes) {
+function formatClassesToday(day, classes, currentMinutes = getMexicoCityTime().minutes, bellEnabled = true) {
   const lines = classes.map((cls) => {
     const isActive = currentMinutes >= timeToMinutes(cls.startTime) && currentMinutes < timeToMinutes(cls.endTime);
     return formatClassLine(cls, isActive);
   });
 
-  return classes.length ? MESSAGES.CLASSES_TODAY(capitalize(day), lines) : MESSAGES.NO_CLASSES_TODAY;
+  return classes.length ? MESSAGES.CLASSES_TODAY(capitalize(day), lines, bellEnabled) : MESSAGES.NO_CLASSES_TODAY;
 }
 
 function formatClassLine(cls, isActive = false) {

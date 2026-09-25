@@ -28,12 +28,12 @@ class PendingStore {
   }
 
   // Add a pending item for a specific chat. If the chat doesn't exist, it initializes an empty array for that chat.
-  add(chatId, content, date) {
+  add(chatId, content, date, time) {
     if (!this.pendingsByChat[chatId]) {
       this.pendingsByChat[chatId] = [];
     }
 
-    this.pendingsByChat[chatId].push({ content, date });
+    this.pendingsByChat[chatId].push({ content, date, time });
     this.save();
   }
 

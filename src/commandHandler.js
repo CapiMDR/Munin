@@ -5,7 +5,7 @@ const AdminStore = require("./adminStore");
 const CustomCommandStore = require("./customCommandStore");
 const SavedMessageStore = require("./savedMessageStore");
 const { formatAllClasses, formatClassesToday, formatPendings, formatReminders, formatSavedMessages } = require("./listResponseFormatter");
-const { getPendingContent, parsePendingDate } = require("./pendingUtils");
+const { getPendingContent, parsePendingDate, parsePendingTime } = require("./pendingUtils");
 const { DAYS_ORDER, capitalize } = require("./classStore");
 const { COIN_SIDES, COMMANDS, EIGHT_BALL_RESPONSES, INFINITE_TOKEN, MESSAGES } = require("./commandConstants");
 const {
@@ -251,14 +251,21 @@ class CommandHandler {
     const date = parsePendingDate(args[0]);
     if (args[0]?.startsWith("@") && !date) return this.sendMessage(chatId, MESSAGES.PENDING_USAGE);
 
+    const timeIndex = date ? 1 : 0;
+    const time = parsePendingTime(args[timeIndex]);
+    if (/^\d{1,2}:\d{2}$/.test(args[timeIndex] || "") && !time) return this.sendMessage(chatId, MESSAGES.PENDING_USAGE);
+
     const pending =
       args
-        .slice(date ? 1 : 0)
+        .slice((date ? 1 : 0) + (time ? 1 : 0))
         .join(" ")
         .trim() || quotedMessage?.body?.trim();
     if (!pending) return this.sendMessage(chatId, MESSAGES.PENDING_USAGE);
-    this.pendingStore.add(chatId, pending, date);
-    await this.sendMessage(chatId, MESSAGES.PENDING_ADDED(pending, date));
+    this.pendingStore.add(chatId, pending, date, time);
+    await this.sendMessage(
+      chatId,
+      MESSAGES.MUTATION_WITH_LIST(MESSAGES.PENDING_ADDED(pending, date, time), formatPendings(this.pendingStore.getAll(chatId))),
+    );
   }
 
   /** Inputs: chat ID. Lists pending items for that chat. Output: the sent-message promise. */
@@ -272,9 +279,10 @@ class CommandHandler {
     const index = Number(args[0]);
     if (args.length !== 1 || !Number.isInteger(index) || index < 1) return this.sendMessage(chatId, MESSAGES.PENDING_USAGE);
     const pending = this.pendingStore.remove(chatId, index - 1);
+    if (pending === undefined) return this.sendMessage(chatId, MESSAGES.DELETE_PENDING_NOT_FOUND);
     await this.sendMessage(
       chatId,
-      pending !== undefined ? MESSAGES.PENDING_DELETED(index, getPendingContent(pending)) : MESSAGES.DELETE_PENDING_NOT_FOUND,
+      MESSAGES.MUTATION_WITH_LIST(MESSAGES.PENDING_DELETED(index, getPendingContent(pending)), formatPendings(this.pendingStore.getAll(chatId))),
     );
   }
 
@@ -300,7 +308,10 @@ class CommandHandler {
     this.reminderScheduler?.schedule({ chatId, ...reminder });
     await this.sendMessage(
       chatId,
-      MESSAGES.REMINDER_ADDED(sender?.tag, formatDuration(durationText), content),
+      MESSAGES.MUTATION_WITH_LIST(
+        MESSAGES.REMINDER_ADDED(sender?.tag, formatDuration(durationText), content),
+        formatReminders(this.reminderStore.getAll(chatId)),
+      ),
       sender?.mentionId ? { mentions: [sender.mentionId] } : undefined,
     );
   }
@@ -314,7 +325,13 @@ class CommandHandler {
     const reminder = this.reminderStore.addRecurring(chatId, content, Date.now() + interval, interval, remaining);
     this.reminderScheduler?.schedule({ chatId, ...reminder });
     const repetitions = remaining === null ? "infinitas veces" : `${remaining} veces`;
-    await this.sendMessage(chatId, MESSAGES.RECURRING_REMINDER_ADDED(formatDuration(intervalText), repetitions, content));
+    await this.sendMessage(
+      chatId,
+      MESSAGES.MUTATION_WITH_LIST(
+        MESSAGES.RECURRING_REMINDER_ADDED(formatDuration(intervalText), repetitions, content),
+        formatReminders(this.reminderStore.getAll(chatId)),
+      ),
+    );
   }
 
   /** Inputs: chat ID. Lists reminders for that chat. Output: the sent-message promise. */
@@ -328,7 +345,11 @@ class CommandHandler {
     if (args.length !== 1 || !Number.isInteger(index) || index < 1) return this.sendMessage(chatId, MESSAGES.REMINDER_USAGE);
     const reminder = this.reminderStore.remove(chatId, index - 1);
     if (reminder) this.reminderScheduler?.cancel(reminder.id);
-    await this.sendMessage(chatId, reminder ? MESSAGES.REMINDER_DELETED(index, reminder.content) : MESSAGES.DELETE_REMINDER_NOT_FOUND);
+    if (!reminder) return this.sendMessage(chatId, MESSAGES.DELETE_REMINDER_NOT_FOUND);
+    await this.sendMessage(
+      chatId,
+      MESSAGES.MUTATION_WITH_LIST(MESSAGES.REMINDER_DELETED(index, reminder.content), formatReminders(this.reminderStore.getAll(chatId))),
+    );
   }
 
   /** Inputs: chat ID. Selects a random coin side. Output: the sent-message promise. */
@@ -398,11 +419,7 @@ class CommandHandler {
     }));
     const admins = this.adminStore.getAdmins(chatId);
     const mentions = [...new Set([...bans.map(({ userId }) => userId), ...admins])];
-    await this.sendMessage(
-      chatId,
-      MESSAGES.CONFIG_LIST(bans, admins),
-      mentions.length ? { mentions } : undefined,
-    );
+    await this.sendMessage(chatId, MESSAGES.CONFIG_LIST(bans, admins), mentions.length ? { mentions } : undefined);
   }
   /** Inputs: chat ID and mentioned user. Clears an active ban. Output: confirmation or validation response. */
   async handleUnban(chatId, args, quotedMessage, sender, command, message) {
@@ -467,13 +484,13 @@ class CommandHandler {
   async handleClassesToday(chatId) {
     const day = getMexicoCityTime().day,
       classes = this.classStore.getByDay(chatId, day);
-    await this.sendMessage(chatId, formatClassesToday(day, classes));
+    await this.sendMessage(chatId, formatClassesToday(day, classes, undefined, this.classStore.getBell(chatId)));
   }
 
   /** Inputs: chat ID. Lists all classes grouped by weekday. Output: the sent-message promise. */
   async handleAllClasses(chatId) {
     const classes = this.classStore.getAllSorted(chatId);
-    await this.sendMessage(chatId, formatAllClasses(classes));
+    await this.sendMessage(chatId, formatAllClasses(classes, undefined, this.classStore.getBell(chatId)));
   }
 
   /** Inputs: chat ID and class fields. Validates and stores a class. Output: confirmation or validation response. */
@@ -489,7 +506,10 @@ class CommandHandler {
     if (!time) return this.sendMessage(chatId, MESSAGES.INVALID_TIME);
     const cls = this.classStore.add(chatId, { name, day, startTime: time.startTime, endTime: time.endTime, classroom });
     this.classScheduler?.rescheduleForChat(chatId);
-    await this.sendMessage(chatId, MESSAGES.CLASS_ADDED(cls, capitalize(cls.day)));
+    await this.sendMessage(
+      chatId,
+      MESSAGES.MUTATION_WITH_LIST(MESSAGES.CLASS_ADDED(cls, capitalize(cls.day)), formatAllClasses(this.classStore.getAllSorted(chatId), undefined, this.classStore.getBell(chatId))),
+    );
   }
 
   /** Inputs: chat ID and class update fields. Validates and updates a class. Output: confirmation or validation response. */
@@ -504,7 +524,10 @@ class CommandHandler {
     if (!updates) return;
     const cls = this.classStore.update(chatId, resolved.class.id, updates);
     this.classScheduler?.rescheduleForChat(chatId);
-    await this.sendMessage(chatId, MESSAGES.CLASS_EDITED(cls, capitalize(cls.day)));
+    await this.sendMessage(
+      chatId,
+      MESSAGES.MUTATION_WITH_LIST(MESSAGES.CLASS_EDITED(cls, capitalize(cls.day)), formatAllClasses(this.classStore.getAllSorted(chatId), undefined, this.classStore.getBell(chatId))),
+    );
   }
 
   /** Inputs: chat ID and class identifier. Removes a class. Output: confirmation or validation response. */
@@ -514,7 +537,10 @@ class CommandHandler {
     if (!resolved.class) return this.sendMessage(chatId, MESSAGES.CLASS_NOT_FOUND);
     const cls = this.classStore.remove(chatId, resolved.class.id);
     this.classScheduler?.rescheduleForChat(chatId);
-    await this.sendMessage(chatId, MESSAGES.CLASS_DELETED(cls.name));
+    await this.sendMessage(
+      chatId,
+      MESSAGES.MUTATION_WITH_LIST(MESSAGES.CLASS_DELETED(cls.name), formatAllClasses(this.classStore.getAllSorted(chatId), undefined, this.classStore.getBell(chatId))),
+    );
   }
 
   /** Inputs: chat ID. Toggles class reminders. Output: the sent-message promise. */

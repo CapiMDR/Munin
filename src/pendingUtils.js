@@ -11,7 +11,13 @@ function parsePendingDate(value) {
 
 function formatPending(pending) {
   if (typeof pending === "string") return pending;
-  return `${pending.date ? `${pending.date} - ` : ""}${pending.content}`;
+  const scheduledFor = pending.date || pending.time ? `${[pending.date, pending.time].filter(Boolean).join(" ")} - ` : "";
+  return `${scheduledFor}${pending.content}`;
+}
+
+function parsePendingTime(value) {
+  if (typeof value !== "string") return undefined;
+  return parseClockTime(value)?.formatted;
 }
 
 function getPendingContent(pending) {
@@ -41,4 +47,5 @@ function groupPendingsByDate(pendings, today) {
   return groups;
 }
 
-module.exports = { formatPending, getPendingContent, groupPendingsByDate, parsePendingDate };
+module.exports = { formatPending, getPendingContent, groupPendingsByDate, parsePendingDate, parsePendingTime };
+const { parseClockTime } = require("./timeUtils");
