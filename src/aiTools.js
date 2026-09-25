@@ -1,6 +1,22 @@
+const { MAX_AMOUNT } = require("./summarizer");
+
 // Tool schemas are kept separate from execution so the LLM contract can grow
 // without coupling model prompts to WhatsApp or persistence details.
 const TOOLS = [
+  {
+    type: "function",
+    function: {
+      name: "summarize_messages",
+      description: "Summarize the requested number of most recent prior messages in the current group. Use when the user asks Munin to summarize, recap, or explain the latest group conversation.",
+      parameters: {
+        type: "object",
+        properties: {
+          amount: { type: "integer", minimum: 1, maximum: MAX_AMOUNT, description: "How many recent messages to summarize." },
+        },
+        required: ["amount"],
+      },
+    },
+  },
   {
     type: "function",
     function: {

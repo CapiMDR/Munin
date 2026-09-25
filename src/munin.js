@@ -6,7 +6,7 @@ const TEST_MODE = true;
 const TEST_MODE_SEND_MAINTENANCE_MESSAGE = true;
 const TEST_CHAT_ID = process.env.TEST_CHAT_ID?.trim() || "";
 
-const { generateResponse, completeToolCall } = require("./muninAI");
+const { generateResponse, generateSummary, completeToolCall } = require("./muninAI");
 const { createAiToolExecutor } = require("./aiToolExecutor");
 const { Client, LocalAuth, Poll } = require("whatsapp-web.js");
 const CommandHandler = require("./commandHandler");
@@ -19,6 +19,7 @@ const ReminderStore = require("./reminderStore");
 const ClassStore = require("./classStore");
 const ClassScheduler = require("./classScheduler");
 const AdminStore = require("./adminStore");
+const { Summarizer } = require("./summarizer");
 const { loadBotLid, saveBotLid } = require("./botIdentityStore");
 const { MESSAGES } = require("./commandConstants");
 
@@ -56,6 +57,7 @@ const reminderScheduler = new ReminderScheduler(reminderStore, sendMessage);
 const classStore = new ClassStore();
 const classScheduler = new ClassScheduler(classStore, sendMessage);
 const adminStore = new AdminStore();
+const summarizer = new Summarizer();
 const aiToolExecutor = createAiToolExecutor({
   pendingStore,
   reminderStore,
@@ -65,6 +67,7 @@ const aiToolExecutor = createAiToolExecutor({
   classScheduler,
   scheduleTimer,
   sendMessage,
+  summarizer,
 });
 const commandHandler = new CommandHandler(
   sendMessage,
@@ -79,6 +82,8 @@ const commandHandler = new CommandHandler(
   customCommandStore,
   savedMessageStore,
   () => botLid,
+  summarizer,
+  generateSummary,
 );
 
 reminderScheduler.start();
@@ -134,6 +139,8 @@ async function handleMessageCreate(message) {
   try {
     // Ignore bot messages to avoid infinite command intake (looking at you !echo !echo...)
     if (myOwnMessage(message)) return;
+
+    summarizer.addMessage(message);
 
     const chatId = getChatId(message);
     // Munin is NOT a personal assistant
