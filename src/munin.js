@@ -1,9 +1,9 @@
 require("./envLoader");
 
-const TEST_MODE = true;
+const TEST_MODE = false;
 // When test mode excludes a group, the global admin can enable this to send a
 // maintenance notice there instead of silently ignoring incoming messages.
-const TEST_MODE_SEND_MAINTENANCE_MESSAGE = true;
+const TEST_MODE_SEND_MAINTENANCE_MESSAGE = false;
 const TEST_CHAT_ID = process.env.TEST_CHAT_ID?.trim() || "";
 
 const { generateResponse, generateSummary, completeToolCall } = require("./muninAI");
@@ -88,7 +88,6 @@ const commandHandler = new CommandHandler(
 
 reminderScheduler.start();
 classScheduler.start();
-pendingScheduler.start();
 
 function scheduleTimer(duration, callback) {
   return setTimeout(() => {
@@ -109,9 +108,19 @@ client.on("auth_failure", (msg) => {
   console.error("AUTH FAILURE:", msg);
 });
 
+let pendingSchedulerStarted = false;
+
 client.on("ready", () => {
   console.log("READY");
+  startPendingScheduler();
 });
+
+function startPendingScheduler() {
+  if (pendingSchedulerStarted) return;
+
+  pendingSchedulerStarted = true;
+  pendingScheduler.start();
+}
 
 client.on("disconnected", (reason) => {
   console.log("DISCONNECTED:", reason);
