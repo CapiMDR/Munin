@@ -34,6 +34,8 @@ class CommandHandler {
     customCommandStore = new CustomCommandStore(),
     savedMessageStore = new SavedMessageStore(),
     getBotLid = () => undefined,
+    summarizer,
+    generateSummary,
   ) {
     Object.assign(this, {
       sendMessage,
@@ -48,6 +50,8 @@ class CommandHandler {
       customCommandStore,
       savedMessageStore,
       getBotLid,
+      summarizer,
+      generateSummary,
     });
   }
 
@@ -83,6 +87,7 @@ class CommandHandler {
       [COMMANDS.POLL]: this.handlePoll,
       [COMMANDS.MULTIPLE_POLL]: this.handlePoll,
       [COMMANDS.TIMER]: this.handleTimer,
+      [COMMANDS.SUMMARY]: this.handleSummary,
       [COMMANDS.BAN]: this.handleBan,
       [COMMANDS.CONFIG]: this.handleConfig,
       [COMMANDS.UNBAN]: this.handleUnban,
@@ -112,6 +117,24 @@ class CommandHandler {
   /** Inputs: chat ID and text arguments. Echoes text. Output: the sent-message promise. */
   async handleEcho(chatId, args) {
     await this.sendMessage(chatId, args.join(" "));
+  }
+  /** Inputs: chat ID, requested message count, and the command message. Summarizes recent prior group messages with the LLM. Output: the sent-message promise. */
+  async handleSummary(chatId, args, quotedMessage, sender, command, message) {
+    const maxAmount = this.summarizer?.maxAmount;
+    if (!Number.isInteger(maxAmount) || typeof this.generateSummary !== "function") {
+      return this.sendMessage(chatId, MESSAGES.SUMMARY_UNAVAILABLE);
+    }
+
+    const amount = Number(args[0]);
+    if (args.length !== 1 || !Number.isInteger(amount) || amount < 1 || amount > maxAmount) {
+      return this.sendMessage(chatId, MESSAGES.SUMMARY_USAGE(maxAmount));
+    }
+
+    const conversation = this.summarizer.formatRecentMessages(chatId, amount, message);
+    if (!conversation) return this.sendMessage(chatId, MESSAGES.SUMMARY_NO_MESSAGES);
+
+    const summary = await this.generateSummary(conversation);
+    await this.sendMessage(chatId, summary || MESSAGES.SUMMARY_UNAVAILABLE);
   }
   /** Inputs: chat ID, command name, and reply arguments. Creates or updates a group-specific custom command. Output: confirmation or usage response. */
   async handleCreateCustomCommand(chatId, args) {

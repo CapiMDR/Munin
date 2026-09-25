@@ -17,6 +17,7 @@ const COMMANDS = Object.freeze({
   POLL: "!encuesta",
   MULTIPLE_POLL: "!encuestam",
   TIMER: "!tiempo",
+  SUMMARY: "!resumen",
   BAN: "!ban",
   CONFIG: "!config",
   UNBAN: "!unban",
@@ -76,6 +77,10 @@ const HELP_PAGES = Object.freeze([
     "",
     "**Hablar con Munin**",
     "`!munin`  `!ping`  `!echo hola`",
+    "",
+    "**Resúmenes**",
+    'Dime *"resume los últimos 20 mensajes"*.',
+    "`!resumen 20`",
     "",
     "**Comandos personalizados**",
     "`!comando !saludo Hola, manada`",
@@ -165,6 +170,9 @@ const MESSAGES = Object.freeze({
   WELCOME: `¡Hola! Soy Munin 🐦‍⬛, un bot asistente de WhatsApp creado por Capi. Escribe ${COMMANDS.HELP} para ver los comandos disponibles.`,
 
   PONG: "pong",
+  SUMMARY_USAGE: (maxAmount) => `Uso: ${COMMANDS.SUMMARY} <cantidad entre 1 y ${maxAmount}>`,
+  SUMMARY_NO_MESSAGES: "No hay mensajes anteriores para resumir en este chat.",
+  SUMMARY_UNAVAILABLE: "No pude generar el resumen. Inténtalo de nuevo.",
 
   SAVE_MESSAGE_USAGE: `Uso: responde a un mensaje con ${COMMANDS.SAVE_MESSAGE} <título>`,
   SAVED_MESSAGE_CREATED: (title) => `Mensaje guardado como: ${title}`,

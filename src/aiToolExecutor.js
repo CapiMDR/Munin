@@ -27,6 +27,7 @@ function createAiToolExecutor({
   classScheduler,
   scheduleTimer,
   sendMessage,
+  summarizer,
 }) {
   const handlers = {
     save_message: (args, context) => saveMessage(args, context, savedMessageStore),
@@ -39,6 +40,7 @@ function createAiToolExecutor({
     list_reminders: (args, context) => listReminders(context, reminderStore),
     delete_reminder: (args, context) => deleteReminder(args, context, reminderStore, reminderScheduler),
     start_timer: (args, context) => startTimer(args, context, scheduleTimer, sendMessage),
+    summarize_messages: (args, context) => summarizeMessages(args, context, summarizer),
     show_help: (args) => showHelp(args),
     list_classes: (args, context) => listClasses(context, classStore),
     list_classes_today: (args, context) => listClassesToday(context, classStore),
@@ -210,6 +212,21 @@ function listClasses(context, classStore) {
     action: "list_classes",
     message: formatAllClasses(classStore.getAllSorted(context.chatId)),
   };
+}
+
+function summarizeMessages(args, context, summarizer) {
+  const maxAmount = summarizer?.maxAmount;
+  const amount = args.amount;
+  if (!Number.isInteger(maxAmount) || !Number.isInteger(amount) || amount < 1 || amount > maxAmount) {
+    return failure("A valid summary amount is required.", MESSAGES.SUMMARY_USAGE(maxAmount));
+  }
+
+  // The buffer converts WhatsApp message objects into only "user: content"
+  // lines before this result is passed back to the LLM.
+  const conversation = summarizer.formatRecentMessages(context.chatId, amount, context.message);
+  if (!conversation) return failure("There are no messages to summarize.", MESSAGES.SUMMARY_NO_MESSAGES);
+
+  return { success: true, action: "summarize_messages", amount, conversation };
 }
 
 function getAbsoluteReminderDueAt(args) {
