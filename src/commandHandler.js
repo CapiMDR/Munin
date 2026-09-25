@@ -84,7 +84,7 @@ class CommandHandler {
       [COMMANDS.MULTIPLE_POLL]: this.handlePoll,
       [COMMANDS.TIMER]: this.handleTimer,
       [COMMANDS.BAN]: this.handleBan,
-      [COMMANDS.BANS]: this.handleListBans,
+      [COMMANDS.CONFIG]: this.handleConfig,
       [COMMANDS.UNBAN]: this.handleUnban,
       [COMMANDS.ADMIN]: this.handleAdmin,
       [COMMANDS.NO_ADMIN]: this.handleNoAdmin,
@@ -367,16 +367,18 @@ class CommandHandler {
     this.adminStore.ban(chatId, userId, Date.now() + duration);
     await this.sendMessage(chatId, MESSAGES.USER_BANNED(formatDuration(durationText)));
   }
-  /** Inputs: chat ID. Lists active group bans. Output: the sent-message promise. */
-  async handleListBans(chatId) {
+  /** Inputs: chat ID. Lists active group bans and administrators. Output: the sent-message promise. */
+  async handleConfig(chatId) {
     const bans = this.adminStore.getBans(chatId).map((ban) => ({
       ...ban,
       remaining: ban.isIndefinite ? "indefinidamente" : formatRemainingDuration(ban.until - Date.now()),
     }));
+    const admins = this.adminStore.getAdmins(chatId);
+    const mentions = [...new Set([...bans.map(({ userId }) => userId), ...admins])];
     await this.sendMessage(
       chatId,
-      bans.length ? MESSAGES.BANS_LIST(bans) : MESSAGES.NO_BANS,
-      bans.length ? { mentions: bans.map(({ userId }) => userId) } : undefined,
+      MESSAGES.CONFIG_LIST(bans, admins),
+      mentions.length ? { mentions } : undefined,
     );
   }
   /** Inputs: chat ID and mentioned user. Clears an active ban. Output: confirmation or validation response. */

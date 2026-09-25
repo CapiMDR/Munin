@@ -1,6 +1,9 @@
 require("./envLoader");
 
-const TEST_MODE = false;
+const TEST_MODE = true;
+// When test mode excludes a group, the global admin can enable this to send a
+// maintenance notice there instead of silently ignoring incoming messages.
+const TEST_MODE_SEND_MAINTENANCE_MESSAGE = true;
 const TEST_CHAT_ID = process.env.TEST_CHAT_ID?.trim() || "";
 
 const { generateResponse, completeToolCall } = require("./muninAI");
@@ -17,6 +20,7 @@ const ClassStore = require("./classStore");
 const ClassScheduler = require("./classScheduler");
 const AdminStore = require("./adminStore");
 const { loadBotLid, saveBotLid } = require("./botIdentityStore");
+const { MESSAGES } = require("./commandConstants");
 
 process.on("unhandledRejection", (reason) => {
   console.error("UNHANDLED REJECTION:");
@@ -128,27 +132,40 @@ client.on("message_create", handleMessageCreate);
 
 async function handleMessageCreate(message) {
   try {
-    if (handleOwnMessage(message)) return;
+    // Ignore bot messages to avoid infinite command intake (looking at you !echo !echo...)
+    if (myOwnMessage(message)) return;
 
-    const chatId = message.id.remote;
-    if (!isEligibleChat(chatId)) return;
+    const chatId = getChatId(message);
+    // Munin is NOT a personal assistant
+    if (!isGroupChat(chatId)) return;
+
+    const body = getMessageBody(message);
+    const isCommand = body.startsWith("!");
+    const isMention = isBotMention(message);
+
+    // Ignore random messages
+    if (!isCommand && !isMention) return;
+
+    // Only allow messages from test groupchats if on test mode
+    if (isExcludedByTestMode(chatId)) {
+      if (TEST_MODE_SEND_MAINTENANCE_MESSAGE) {
+        await sendMessage(chatId, MESSAGES.TEST_MODE_MAINTENANCE);
+      }
+      return;
+    }
 
     const sender = await getSender(message);
     //printReceivedMessage(message, sender);
 
-    if (message.body.startsWith("!")) {
-      await handleFormalCommand(message, chatId, sender);
-      return;
-    }
-
-    await handleMention(message, chatId, sender);
+    if (isCommand) return handleFormalCommand(message, chatId, sender);
+    return handleMention(message, chatId, sender, isMention);
   } catch (error) {
     console.error("Message handler error:", error);
   }
 }
 
 // Ignore messages of the bot itself
-function handleOwnMessage(message) {
+function myOwnMessage(message) {
   if (!message.fromMe && !message.id?.fromMe) return false;
   //Learn the bot ID to recognize mentions. It is stored after the first execution run so this won't need to happen again
   learnBotLid(message);
@@ -167,22 +184,32 @@ function learnBotLid(message) {
   }
 }
 
-// Only accept group chats and only allow test chat when testing
-function isEligibleChat(chatId) {
-  if (TEST_MODE && chatId !== TEST_CHAT_ID) return false;
-  return chatId?.endsWith("@g.us");
+function getChatId(message) {
+  return message?.id?.remote;
+}
+
+function getMessageBody(message) {
+  return typeof message?.body === "string" ? message.body : "";
+}
+
+function isExcludedByTestMode(chatId) {
+  return TEST_MODE && chatId !== TEST_CHAT_ID;
+}
+
+function isGroupChat(chatId) {
+  return Boolean(chatId?.endsWith("@g.us"));
 }
 
 // Exposing old !<command> interface just in case. The idea is to fully replace this with an LLM
 async function handleFormalCommand(message, chatId, sender) {
   const quotedMessage = getQuotedMessage(message);
   const messageId = getSerializedMessageId(message);
-  await commandHandler.handleCommand(message, chatId, quotedMessage, sender, messageId, message.body.trim());
+  await commandHandler.handleCommand(message, chatId, quotedMessage, sender, messageId, getMessageBody(message).trim());
 }
 
 // Mentions trigger the LLM to respond
-async function handleMention(message, chatId, sender) {
-  if (!botLid || !message.mentionedIds?.includes(botLid)) return;
+async function handleMention(message, chatId, sender, isMention = isBotMention(message)) {
+  if (!isMention) return;
 
   // A bare mention is still an intentional request for Munin's attention.
   // Give the model explicit context instead of dropping that message silently.
@@ -240,6 +267,10 @@ async function handleMention(message, chatId, sender) {
 
     return;
   }
+}
+
+function isBotMention(message) {
+  return Boolean(botLid && message.mentionedIds?.includes(botLid));
 }
 
 function getQuotedMessage(message) {

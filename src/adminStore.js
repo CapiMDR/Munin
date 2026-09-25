@@ -103,6 +103,10 @@ class AdminStore {
     if (removedExpiredBan) this.save();
     return bans;
   }
+  getAdmins(chatId) {
+    const admins = this.chat(chatId).admins;
+    return [...new Set([GLOBAL_ADMIN_ID, ...admins].filter(Boolean))];
+  }
   save() {
     fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
     fs.writeFileSync(this.filePath, JSON.stringify(this.data, null, 2));
