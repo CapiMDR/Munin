@@ -5,7 +5,7 @@ const TEST_MODE = false;
 // maintenance notice there instead of silently ignoring incoming messages.
 const TEST_MODE_SEND_MAINTENANCE_MESSAGE = false;
 const TEST_CHAT_ID = process.env.TEST_CHAT_ID?.trim() || "";
-const FEATHER_COOLDOWN_MS = 60 * 60 * 1_000;
+const FEATHER_COOLDOWN_MS = 30 * 60 * 1_000;
 
 const { generateResponse, generateSummary, shouldAwardFeather, translateTrivia, suggestSimilarCommand, completeToolCall } = require("./muninAI");
 const { createAiToolExecutor } = require("./aiToolExecutor");

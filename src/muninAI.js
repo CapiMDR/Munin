@@ -197,15 +197,13 @@ async function generateSummary(conversation) {
   return completion.choices[0]?.message?.content?.trim();
 }
 
-// Keeps feather awards deliberate: ordinary chat, simple questions, and direct
-// requests do not qualify, while unusually clever, funny, heartfelt, or
-// memorable messages can.
+// Feathers are deliberately rare: most good messages should still not qualify.
 async function shouldAwardFeather(message) {
   const messages = [
     {
       role: "system",
       content:
-        "Judge whether Munin genuinely loves this WhatsApp message enough to award it a feather reaction. Award only for a notably clever, funny, moving, original, insightful, or memorable message. Do not award ordinary conversation, greetings, simple questions, instructions, requests, commands, or routine replies. Reply with exactly YES or NO.",
+        "Judge whether Munin genuinely loves this WhatsApp message enough to award it a feather. Feathers are rare and reserved for exceptional messages. Default to NO whenever uncertain. Award YES only when the message genuinely stands out from normal group conversation and feels worth remembering days later: unusually original insight, genuinely sharp or novel humor, strong emotional impact, a short or simple message that is exceptionally well-timed or clever, or an exceptional group-specific callback or running joke. Do NOT award a feather merely because the message is good, funny, interesting, long, unusual, provocative, or well-written. Do NOT award greetings, simple questions, instructions, requests, commands, routine replies, generic compliments, common jokes, ordinary reactions, or mildly interesting opinions. A feather should feel like a notable event, not routine positive feedback. When in doubt, choose NO. Reply with exactly YES or NO.",
     },
     { role: "user", content: message },
   ];

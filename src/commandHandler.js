@@ -257,13 +257,21 @@ class CommandHandler {
   }
   /** Inputs: chat ID, sender, and command message. Shows mentioned-user activity or the sender's when no one is mentioned. Output: the sent-message promise. */
   async handleStats(chatId, args, quotedMessage, sender, command, message) {
-    const mentionedIds = (message?.mentionedIds || [])
-      .map((mention) => (typeof mention === "string" ? mention : mention?._serialized))
-      .filter(Boolean);
-    if (mentionedIds.length > 1) return this.sendMessage(chatId, MESSAGES.STATS_USAGE);
+    const mentionedContacts = await message.getMentions();
 
-    const targetMentionId = mentionedIds[0] || sender?.mentionId;
+    if (mentionedContacts.length > 1) {
+      return this.sendMessage(chatId, MESSAGES.STATS_USAGE);
+    }
+
+    let targetMentionId = sender?.mentionId;
+
+    if (mentionedContacts.length === 1) {
+      const contact = mentionedContacts[0];
+      targetMentionId = contact?.id?._serialized ?? contact?.id?.$1;
+    }
+
     const stats = this.userStatsStore?.get(chatId, targetMentionId);
+
     await this.sendMessage(chatId, stats ? MESSAGES.USER_STATS(stats) : MESSAGES.STATS_UNAVAILABLE);
   }
   /** Inputs: chat ID. Shows the current week's stored group activity and current open-item totals. Output: the sent-message promise. */

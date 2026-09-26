@@ -214,7 +214,7 @@ const MESSAGES = Object.freeze({
   TRIVIA_UNAVAILABLE: "No pude conseguir preguntas de trivia ahora. Inténtalo de nuevo más tarde.",
   TRIVIA_ALREADY_ACTIVE: "Ya hay una trivia en curso en este grupo. Terminen esa antes de empezar otra.",
   TRIVIA_STARTING: (seconds) =>
-    `🧠 La trivia comienza en ${seconds} segundos, contesten con A, B, C o D. No es necesario mencionarme para contestar, reaccionaré con "🐦‍⬛" cuando vea tu respuesta. ¡Que gane aquel con mejor memoria!`,
+    `🧠 La trivia comienza en ${seconds} segundos, contesten con A, B, C o D. No es necesario mencionarme para contestar, reaccionaré con "🐦‍⬛" cuando vea tu respuesta. ¡Que gane aquel con la mejor memoria!`,
   TRIVIA_QUESTION: (trivia) => formatTriviaQuestion(trivia),
   TRIVIA_SESSION_QUESTION: (question, number, total, durationSeconds) =>
     [
@@ -234,7 +234,7 @@ const MESSAGES = Object.freeze({
       correctPlayers.length ? `Acertaron (${correctPlayers.length}): ${correctPlayers.join(", ")}` : "Nadie acertó esta vez.",
     ].join("\n"),
   TRIVIA_SCOREBOARD: (ranking) => formatTriviaRanking("📊 Marcador", ranking),
-  TRIVIA_LEADERBOARD: (ranking) => formatTriviaRanking("🏆 Trivia terminada", ranking),
+  TRIVIA_LEADERBOARD: (ranking) => formatTriviaRanking("🏆 Trivia terminada", ranking) + "\nYa he visto suficiente conocimiento.",
   USER_STATS: (stats) => formatUserStats(stats),
   STATS_UNAVAILABLE: "No pude encontrar tus estadísticas todavía.",
   STATS_USAGE: `Uso: ${COMMANDS.STATS} [@usuario]`,
@@ -535,11 +535,11 @@ function formatTriviaQuestion(trivia) {
 
 function formatTriviaRanking(title, ranking) {
   if (!ranking.length) return `${title}\n\nNadie respondió la trivia.`;
-  return (
-    [title, "", ...ranking.map((player, index) => `${index + 1}. ${player.name} — ${player.score} ${player.score === 1 ? "punto" : "puntos"}`)].join(
-      "\n",
-    ) + "\nYa he visto suficiente conocimiento."
-  );
+  return [
+    title,
+    "",
+    ...ranking.map((player, index) => `${index + 1}. ${player.name} — ${player.score} ${player.score === 1 ? "punto" : "puntos"}`),
+  ].join("\n");
 }
 
 function shuffleTriviaAnswers(answers) {
