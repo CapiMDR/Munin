@@ -193,6 +193,18 @@ const TOOLS = [
   {
     type: "function",
     function: {
+      name: "react_to_message",
+      description: "Silently react to the invoking message when a reaction is more appropriate than a verbal response. Never use the feather emoji (🪶).",
+      parameters: {
+        type: "object",
+        properties: { emoji: { type: "string", description: "The reaction emoji to use. Never use 🪶." } },
+        required: ["emoji"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "get_weather",
       description: "Get the daily weather forecast at Munin's configured or requested location. Accepts dd/mm or Spanish relative dates such as hoy, mañana, ayer, pasado mañana, or a weekday.",
       parameters: {

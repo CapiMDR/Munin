@@ -195,7 +195,7 @@ const HELP_PAGES = Object.freeze([
 
     `> "De vez en cuando encuentro un mensaje que merece algo más que una respuesta.`,
     "> Puede ser particularmente gracioso, ingenioso, interesante o simplemente demasiado bueno para dejarlo pasar.",
-    "> Cuando eso ocurre, dejo una pluma.",
+    "> Cuando eso ocurre, dejo una pluma 🪶.",
     "> No puedes pedirlas. No puedes darlas. Y no prometo ser justo.",
     `> Si tienes una, es porque algo que dijiste le gustó mucho a un cuervo." - 🐦‍⬛`,
   ].join("\n"),
@@ -442,7 +442,7 @@ const MESSAGES = Object.freeze({
 
   TIMER_USAGE: `Uso: ${COMMANDS.TIMER} <cantidad><s/m/h>`,
   TIMER_STARTED: (duration) => `🐦‍⬛ Estaré contando por ${duration}.`,
-  TIMER_FINISHED: "🪶 El tiempo se ha acabado.",
+  TIMER_FINISHED: "⏰ El tiempo se ha acabado.",
 
   ADMIN_ONLY: "Este comando es solo para administradores.",
   BAN_USAGE: `Uso: ${COMMANDS.BAN} @usuario <cantidad><m/h/d> o ${INFINITE_TOKEN}`,

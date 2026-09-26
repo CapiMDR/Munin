@@ -28,6 +28,7 @@ function createAiToolExecutor({
   userStatsStore,
   sendCatImage,
   sendDogImage,
+  reactToInvokingMessage,
   openMeteoApi,
   openTriviaApi,
   translateTrivia,
@@ -55,6 +56,7 @@ function createAiToolExecutor({
     show_user_stats: (args, context) => showUserStats(context, userStatsStore),
     send_cat_image: (args, context) => sendRandomImageForGroup(context, sendCatImage, "send_cat_image", MESSAGES.CAT_UNAVAILABLE),
     send_dog_image: (args, context) => sendRandomImageForGroup(context, sendDogImage, "send_dog_image", MESSAGES.DOG_UNAVAILABLE),
+    react_to_message: (args, context) => reactToInvokingMessageTool(args, context, reactToInvokingMessage),
     get_weather: (args) => getWeather(args, openMeteoApi),
     start_trivia: (args, context) => startTrivia(args, context, openTriviaApi, translateTrivia, triviaManager),
     list_classes: (args, context) => listClasses(context, classStore),
@@ -297,6 +299,20 @@ async function getWeather(args, openMeteoApi) {
   } catch (error) {
     console.error("Could not fetch weather:", error.message);
     return failure("The weather service failed.", error.message === "Invalid weather date." ? MESSAGES.WEATHER_USAGE : MESSAGES.WEATHER_UNAVAILABLE);
+  }
+}
+
+async function reactToInvokingMessageTool(args, context, reactToInvokingMessage) {
+  const emoji = typeof args.emoji === "string" ? args.emoji.trim() : "";
+  if (!emoji || emoji.includes("🪶") || !/\p{Extended_Pictographic}/u.test(emoji)) return failure("A non-feather emoji reaction is required.");
+  if (typeof reactToInvokingMessage !== "function") return failure("Message reactions are unavailable.");
+
+  try {
+    await reactToInvokingMessage(context.message, emoji);
+    return { success: true, action: "react_to_message" };
+  } catch (error) {
+    console.error("Could not react to invoking message:", error.message);
+    return failure("Could not react to the message.");
   }
 }
 

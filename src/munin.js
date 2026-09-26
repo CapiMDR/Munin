@@ -90,6 +90,7 @@ const aiToolExecutor = createAiToolExecutor({
   userStatsStore,
   sendCatImage,
   sendDogImage,
+  reactToInvokingMessage,
   openMeteoApi,
   openTriviaApi,
   translateTrivia,
@@ -390,7 +391,7 @@ async function handleMention(message, chatId, sender, isMention = isBotMention(m
       return;
     }
 
-    if (toolResult.success && ["send_cat_image", "send_dog_image", "start_trivia"].includes(toolResult.action)) {
+    if (toolResult.success && ["send_cat_image", "send_dog_image", "start_trivia", "react_to_message"].includes(toolResult.action)) {
       return;
     }
 
@@ -435,6 +436,10 @@ async function awardFeather(message, chatId, sender) {
   } catch (error) {
     console.warn("Could not award feather:", error.message);
   }
+}
+
+async function reactToInvokingMessage(message, emoji) {
+  return reactToMessage(message, emoji);
 }
 
 function isBotMention(message) {
