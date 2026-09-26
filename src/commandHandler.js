@@ -42,6 +42,9 @@ class CommandHandler {
     sendCatImage,
     sendDogImage,
     openMeteoApi,
+    openTriviaApi,
+    translateTrivia,
+    triviaManager,
   ) {
     Object.assign(this, {
       sendMessage,
@@ -64,6 +67,9 @@ class CommandHandler {
       sendCatImage,
       sendDogImage,
       openMeteoApi,
+      openTriviaApi,
+      translateTrivia,
+      triviaManager,
     });
   }
 
@@ -121,6 +127,7 @@ class CommandHandler {
       [COMMANDS.CAT]: this.handleCat,
       [COMMANDS.DOG]: this.handleDog,
       [COMMANDS.WEATHER]: this.handleWeather,
+      [COMMANDS.TRIVIA]: this.handleTrivia,
     };
   }
 
@@ -292,6 +299,23 @@ class CommandHandler {
     } catch (error) {
       console.error("Could not fetch weather:", error.message);
       await this.sendMessage(chatId, error.message === "Invalid weather date." ? MESSAGES.WEATHER_USAGE : MESSAGES.WEATHER_UNAVAILABLE);
+    }
+  }
+  /** Inputs: chat ID and a requested trivia-question count. Fetches a batch and sends its first question with shuffled answers. Output: the sent-message promise. */
+  async handleTrivia(chatId, args) {
+    const amount = Number(args[0]);
+    if (args.length !== 1 || !Number.isInteger(amount) || amount < 1 || amount > 50) {
+      return this.sendMessage(chatId, MESSAGES.TRIVIA_USAGE);
+    }
+    if (this.triviaManager?.hasActiveSession(chatId)) return this.triviaManager.rejectNewSession(chatId);
+    try {
+      const triviaBatch = await this.openTriviaApi?.getTrivia(amount);
+      const trivia = await this.translateTrivia?.(triviaBatch);
+      if (!trivia) return this.sendMessage(chatId, MESSAGES.TRIVIA_UNAVAILABLE);
+      await this.triviaManager?.start(chatId, trivia);
+    } catch (error) {
+      console.error("Could not fetch trivia:", error.message);
+      await this.sendMessage(chatId, MESSAGES.TRIVIA_UNAVAILABLE);
     }
   }
   /** Inputs: chat ID and unknown command name. Asks the LLM for a close, existing command name. Output: the sent-message promise. */

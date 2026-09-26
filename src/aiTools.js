@@ -204,6 +204,18 @@ const TOOLS = [
   {
     type: "function",
     function: {
+      name: "start_trivia",
+      description: "Fetch a group trivia batch and return its first question with shuffled answer options. The question count must be from 1 to 50.",
+      parameters: {
+        type: "object",
+        properties: { amount: { type: "integer", minimum: 1, maximum: 50, description: "Number of questions to fetch for the trivia." } },
+        required: ["amount"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "list_classes",
       description: "List all classes for the current group with their one-based global indexes and bell status.",
       parameters: { type: "object", properties: {} },
