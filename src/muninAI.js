@@ -50,6 +50,7 @@ When a user asks to see their statistics, activity, messages sent, sticker usage
 When a user asks for a cat, cat picture, kitten, or gato, call send_cat_image.
 When a user asks for a dog, dog picture, puppy, or perro, call send_dog_image.
 When a user asks about weather, forecast, clima, lluvia, temperature, or temperatura, call get_weather. Use today when no date is requested.
+When a user asks to start, play, or receive a trivia question, call start_trivia. Ask for the number of questions if they do not provide one; use a number only from 1 to 50.
 When a user asks to summarize or recap a number of recent group messages, call summarize_messages with that number, if no number is given use 50. After it returns its compact conversation text, write a concise summary based only on that text.
 For a reminder requested for a specific time today or tomorrow, call create_reminder with due_date (today/tomorrow) and due_time (HH:mm), not duration.
 For a pending with a specified date and/or time, call create_pending with date (dd/mm) and/or time (HH:mm).
@@ -194,6 +195,49 @@ async function generateSummary(conversation) {
   return completion.choices[0]?.message?.content?.trim();
 }
 
+// Translates an entire trivia batch in a single model request. The result keeps
+// Open Trivia DB's response shape so later round-handling can use every question.
+async function translateTrivia(trivia) {
+  const messages = [
+    {
+      role: "system",
+      content:
+        "Translate every human-readable string in the supplied Open Trivia DB JSON to natural Mexican Spanish. Return only valid JSON, with exactly the same object shape and keys: response_code and results; each result must retain category, type, difficulty, question, correct_answer, and incorrect_answers. Keep response_code as 0, retain every result and answer, and never reveal which answer is correct outside the correct_answer field.",
+    },
+    { role: "user", content: JSON.stringify(trivia) },
+  ];
+
+  const { completion, model } = await createCompletion(messages, false);
+  logUsage(completion, model);
+
+  const translated = parseTranslatedTrivia(completion.choices[0]?.message?.content, trivia?.results?.length);
+  if (!translated) throw new Error("The trivia translation was invalid.");
+  return translated;
+}
+
+function parseTranslatedTrivia(content, expectedQuestionCount) {
+  if (typeof content !== "string") return undefined;
+
+  try {
+    const trivia = JSON.parse(content.trim().replace(/^```(?:json)?\s*|\s*```$/gi, ""));
+    if (trivia?.response_code !== 0 || !Array.isArray(trivia.results) || trivia.results.length !== expectedQuestionCount) return undefined;
+    if (!trivia.results.every(isTranslatedTriviaQuestion)) return undefined;
+    return trivia;
+  } catch {
+    return undefined;
+  }
+}
+
+function isTranslatedTriviaQuestion(question) {
+  return (
+    typeof question?.category === "string" &&
+    typeof question.question === "string" &&
+    typeof question.correct_answer === "string" &&
+    Array.isArray(question.incorrect_answers) &&
+    question.incorrect_answers.every((answer) => typeof answer === "string")
+  );
+}
+
 // The model chooses from the supplied command names only. The caller owns the
 // final wording so an unknown-command response stays concise and predictable.
 async function suggestSimilarCommand(command, availableCommands) {
@@ -278,6 +322,7 @@ async function completeToolCall(chatId, toolCall, toolResult, messages, assistan
 module.exports = {
   generateResponse,
   generateSummary,
+  translateTrivia,
   suggestSimilarCommand,
   completeToolCall,
 };

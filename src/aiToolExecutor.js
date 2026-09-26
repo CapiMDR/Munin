@@ -29,6 +29,9 @@ function createAiToolExecutor({
   sendCatImage,
   sendDogImage,
   openMeteoApi,
+  openTriviaApi,
+  translateTrivia,
+  triviaManager,
   classStore,
   classScheduler,
   scheduleTimer,
@@ -53,6 +56,7 @@ function createAiToolExecutor({
     send_cat_image: (args, context) => sendRandomImageForGroup(context, sendCatImage, "send_cat_image", MESSAGES.CAT_UNAVAILABLE),
     send_dog_image: (args, context) => sendRandomImageForGroup(context, sendDogImage, "send_dog_image", MESSAGES.DOG_UNAVAILABLE),
     get_weather: (args) => getWeather(args, openMeteoApi),
+    start_trivia: (args, context) => startTrivia(args, context, openTriviaApi, translateTrivia, triviaManager),
     list_classes: (args, context) => listClasses(context, classStore),
     list_classes_today: (args, context) => listClassesToday(context, classStore),
     add_class: (args, context) => addClass(args, context, classStore, classScheduler),
@@ -293,6 +297,23 @@ async function getWeather(args, openMeteoApi) {
   } catch (error) {
     console.error("Could not fetch weather:", error.message);
     return failure("The weather service failed.", error.message === "Invalid weather date." ? MESSAGES.WEATHER_USAGE : MESSAGES.WEATHER_UNAVAILABLE);
+  }
+}
+
+async function startTrivia(args, context, openTriviaApi, translateTrivia, triviaManager) {
+  try {
+    if (triviaManager?.hasActiveSession(context.chatId)) {
+      await triviaManager.rejectNewSession(context.chatId);
+      return { success: true, action: "start_trivia" };
+    }
+    const triviaBatch = await openTriviaApi?.getTrivia(args.amount);
+    const trivia = await translateTrivia?.(triviaBatch);
+    if (!trivia) return failure("The trivia service is unavailable.", MESSAGES.TRIVIA_UNAVAILABLE);
+    await triviaManager?.start(context.chatId, trivia);
+    return { success: true, action: "start_trivia" };
+  } catch (error) {
+    console.error("Could not fetch trivia:", error.message);
+    return failure("The trivia service failed.", MESSAGES.TRIVIA_UNAVAILABLE);
   }
 }
 

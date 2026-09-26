@@ -39,6 +39,7 @@ const COMMANDS = Object.freeze({
   CAT: "!gato",
   DOG: "!perro",
   WEATHER: "!clima",
+  TRIVIA: "!trivia",
 });
 
 const COIN_SIDES = Object.freeze(["cara", "cruz"]);
@@ -85,7 +86,7 @@ const HELP_PAGES = Object.freeze([
     "`!munin`  `!ping`  `!echo hola`",
     "",
     "**Resúmenes**",
-    '> Dime *"resume los últimos 20 mensajes"*.',
+    '> Dime *"Resume los últimos 20 mensajes"*.',
     "`!resumen 20`",
     "",
     "**Comandos personalizados**",
@@ -94,9 +95,9 @@ const HELP_PAGES = Object.freeze([
     "Consulta o elimina los comandos del grupo: `!comandos`  `!comando - 1`",
     "",
     "**Mensajes guardados**",
-    '> Responde a un mensaje y dime *"guarda esto como reglas"*.',
+    '> Responde a un mensaje y dime *"Guarda esto como reglas"*.',
     "`!guardar reglas`",
-    '> Dime *"muestrame reglas"*.',
+    '> Dime *"Muestrame reglas"*.',
     "Puedes verlo, listar los títulos o borrarlo `!ver reglas`  `!guardados`  `!borrar 1`",
     "",
     "Cambia de página con `!ayuda 2`.",
@@ -106,17 +107,17 @@ const HELP_PAGES = Object.freeze([
     HELP_SECTION_INDEX,
     "",
     "**Recordatorios**",
-    '> Dime *"recuérdame pagarle a Juan mañana a las 17:00"*.',
+    '> Dime *"Recuérdame pagarle a Juan mañana a las 17:00"*.',
     "Como comando relativo desde ahora: `!r 1d pagarle a Juan`",
     "Para repetirlo: `!r 30m x3 tomar agua`  |  Para repetirlo siempre: `!r 30m inf tomar agua`",
-    '> Dime *"muéstra mis recordatorios"* o *"quita el recordatorio 1 de la lista"*.',
+    '> Dime *"Muéstra mis recordatorios"* o *"quita el recordatorio 1 de la lista"*.',
     "Consulta o elimina recordatorios: `!r`  `!r - 1`",
     "",
     "**Pendientes**",
-    '> Dime *"anota comprar hielo como pendiente"*.',
+    '> Dime *"Anota comprar hielo como pendiente"*.',
     "`!p comprar hielo`",
     "Puedes añadir fecha y hora, o responder a un mensaje: `!p @25/12 10:00 comprar hielo`  `!p`",
-    '> Dime *"muéstra mis pendientes"* o *"quita el pendiente 1 de la lista"*.',
+    '> Dime *"Muéstra mis pendientes"* o *"quita el pendiente 1 de la lista"*.',
     "Consulta o elimina pendientes: `!p`  `!p - 1`",
   ].join("\n"),
   [
@@ -126,9 +127,11 @@ const HELP_PAGES = Object.freeze([
     "**Decidir al azar**",
     '> Dime *"Elige entre pizza y tacos"*.',
     "`!elige pizza, tacos`",
-    "",
-    "**Juegos rápidos**",
     "Lanza una moneda, un dado o consulta la bola 8: `!moneda`  `!dado`  `!bola8`",
+    "",
+    "**Trivia**",
+    '> Dime *"Inicia una trivia de 10 preguntas"*.',
+    "`!trivia 10`",
     "",
     "**Encuestas**",
     "`!encuesta ¿Qué cenamos?,Pizza,Tacos`",
@@ -153,18 +156,18 @@ const HELP_PAGES = Object.freeze([
     `=== Ayuda 4/${HELP_PAGE_COUNT}: Clases ===`,
     HELP_SECTION_INDEX,
     "",
-    '> Dime *"muéstrame mis clases de hoy"*.',
-    '> Dime *"muéstrame mi horario"*.',
+    '> Dime *"Muéstrame mis clases de hoy"*.',
+    '> Dime *"Muéstrame mi horario"*.',
     "Consulta la clase actual o siguiente, las de hoy, o toda la semana: `!clase`  `!clases`  `!todaslasclases`",
     "",
     "**Agregar una clase**",
-    '> Dime *"agrega Matemáticas el lunes de 8 a 9:30 en A-301"*.',
+    '> Dime *"Agrega Matemáticas el lunes de 8 a 9:30 en A-301"*.',
     "`!agregarclase Matemáticas, lunes, 08:00-09:30, A-301`",
     "",
     "**Editar o eliminar**",
     "Usa el nombre o índice de la lista: `!editarclase 2, horario=10:00-11:30`  `!eliminarclase 2`",
     "",
-    '> Dime *"apaga/enciende la campana"*.',
+    '> Dime *"Apaga/enciende la campana"*.',
     "**Campana de clases**",
     "Activa o desactiva el aviso de 10 minutos antes de cada clase: `!campana`",
   ].join("\n"),
@@ -195,15 +198,39 @@ const MESSAGES = Object.freeze({
   WEATHER_UNAVAILABLE: "No pude consultar el clima para esa fecha. Inténtalo con una fecha próxima.",
   WEATHER_REPORT: (weather) =>
     `🌦️ ${weather.forecastLabel} en ${weather.location}\n${weather.condition}\nMin: ${weather.minTemperature}°C – Max: ${weather.maxTemperature}°C\nLluvia: ${weather.precipitationChance}% (${weather.precipitation} mm) · Viento: ${weather.maxWindSpeed} km/h`,
-  USER_STATS: (stats) =>
-    `🐦‍⬛ Estadísticas de ${stats.name}:\n\n*Total*\nMensajes: ${stats.lifetime.messages} · Palabras: ${stats.lifetime.words}\nRespuestas: ${stats.lifetime.repliesSent}\nMenciones enviadas/recibidas: ${stats.lifetime.mentionsSent}/${stats.lifetime.mentionsReceived}\nMenciones a Munin: ${stats.lifetime.muninMentions}\nStickers/imágenes/notas de voz: ${stats.lifetime.stickers}/${stats.lifetime.images}/${stats.lifetime.voiceNotes}\nComandos: ${stats.lifetime.commandsUsed} · Recordatorios: ${stats.lifetime.remindersCreated}\nMensajes guardados: ${stats.lifetime.messagesSaved} · Encuestas: ${stats.lifetime.pollsCreated}\n\n*Esta semana*\nMensajes: ${stats.weekly.messages} · Palabras: ${stats.weekly.words}\nRespuestas: ${stats.weekly.repliesSent}\nMenciones enviadas/recibidas: ${stats.weekly.mentionsSent}/${stats.weekly.mentionsReceived}\nMenciones a Munin: ${stats.weekly.muninMentions}\nStickers/imágenes/notas de voz: ${stats.weekly.stickers}/${stats.weekly.images}/${stats.weekly.voiceNotes}\nComandos: ${stats.weekly.commandsUsed} · Recordatorios: ${stats.weekly.remindersCreated}\nMensajes guardados: ${stats.weekly.messagesSaved} · Encuestas: ${stats.weekly.pollsCreated}\n\n*Hoy*\nMensajes: ${stats.daily.messages} · Palabras: ${stats.daily.words}\nRespuestas: ${stats.daily.repliesSent}\nMenciones enviadas/recibidas: ${stats.daily.mentionsSent}/${stats.daily.mentionsReceived}\nMenciones a Munin: ${stats.daily.muninMentions}\nStickers/imágenes/notas de voz: ${stats.daily.stickers}/${stats.daily.images}/${stats.daily.voiceNotes}\n\n*Récords*\nMensaje más largo: ${stats.records.longestMessage} palabras\nRacha más larga: ${stats.records.longestStreak} mensajes`,
+  TRIVIA_USAGE: `Uso: ${COMMANDS.TRIVIA} <número de preguntas entre 1 y 50>`,
+  TRIVIA_UNAVAILABLE: "No pude conseguir preguntas de trivia ahora. Inténtalo de nuevo más tarde.",
+  TRIVIA_ALREADY_ACTIVE: "Ya hay una trivia en curso en este grupo. Terminen esa antes de empezar otra.",
+  TRIVIA_STARTING: (seconds) =>
+    `🧠 La trivia comienza en ${seconds} segundos, contesten con A, B, C o D. No es necesario mencionarme para contestar. ¡Que gane aquel con mejor memoria!`,
+  TRIVIA_QUESTION: (trivia) => formatTriviaQuestion(trivia),
+  TRIVIA_SESSION_QUESTION: (question, number, total, durationSeconds) =>
+    [
+      "🧠 Trivia",
+      `Pregunta ${number} de ${total} · ${question.category}`,
+      "",
+      `*${question.question}*`,
+      "",
+      ...question.options.map((option) => `${option.letter}. ${option.text}`),
+      "",
+      `Tienen ${durationSeconds} segundos para responder con A, B, C o D.`,
+    ].join("\n"),
+  TRIVIA_ANSWER_REVEAL: (question, correctPlayers) =>
+    [
+      "⏰ Tiempo",
+      `La respuesta era *${question.correctOption}. ${question.options.find((option) => option.letter === question.correctOption)?.text}*`,
+      correctPlayers.length ? `Acertaron (${correctPlayers.length}): ${correctPlayers.join(", ")}` : "Nadie acertó esta vez.",
+    ].join("\n"),
+  TRIVIA_SCOREBOARD: (ranking) => formatTriviaRanking("📊 Marcador", ranking),
+  TRIVIA_LEADERBOARD: (ranking) => formatTriviaRanking("🏆 Trivia terminada", ranking),
+  USER_STATS: (stats) => formatUserStats(stats),
   STATS_UNAVAILABLE: "No pude encontrar tus estadísticas todavía.",
   STATS_USAGE: `Uso: ${COMMANDS.STATS} [@usuario]`,
   WEEKLY_REPORT_ENABLED: "Reporte semanal automático activado. Lo enviaré cada domingo a las 08:00.",
   WEEKLY_REPORT_DISABLED: "Reporte semanal automático desactivado.",
   GROUP_REPORT: (stats) =>
     [
-      "🐦‍⬛ El reporte que le daré a Odín",
+      "🐦‍⬛ Ha llegado el momento de desvelar el reporte que le daré a Odín",
       "",
       "*Lo que observé hoy*",
       `${stats.daily.messages} mensajes · ${stats.daily.words} palabras`,
@@ -213,6 +240,13 @@ const MESSAGES = Object.freeze({
       "*Lo que observé esta semana*",
       `${stats.weekly.messages} mensajes · ${stats.weekly.words} palabras`,
       `${stats.weekly.stickers} stickers · ${stats.weekly.images} imágenes · ${stats.weekly.voiceNotes} audios`,
+      "",
+      "*Trabajo para el cuervo*",
+      `${stats.weekly.commandsUsed} comandos · ${stats.weekly.remindersCreated} recordatorios`,
+      `${stats.weekly.messagesSaved} mensajes guardados · ${stats.weekly.pollsCreated} encuestas`,
+      "",
+      "Ahora sí, lo verdaderamente importante.",
+      "*Los títulos de esta semana son:*",
       "",
       formatGroupLeader(
         stats.members,
@@ -277,9 +311,19 @@ const MESSAGES = Object.freeze({
         "El cuervo detecta una vigilia compartida",
       ),
       "",
-      "Trabajo para el cuervo",
-      `${stats.weekly.commandsUsed} comandos · ${stats.weekly.remindersCreated} recordatorios`,
-      `${stats.weekly.messagesSaved} mensajes guardados · ${stats.weekly.pollsCreated} encuestas`,
+      formatTriviaLeader(stats.members, "gamesWon", "El tryhard", "Nadie ha ganado una trivia todavía.", "El cuervo declara una victoria compartida"),
+      "",
+      formatTriviaLeader(
+        stats.members,
+        "correctAnswers",
+        "El sabelotodo",
+        "Nadie ha acertado una respuesta todavía.",
+        "El cuervo ve un empate de sabios",
+      ),
+      "",
+      formatLowestTriviaCorrectAnswers(stats.members, "Al que le falta estudiar"),
+      "",
+      "🪶 *Ya terminando:*",
       "",
       getWeeklyReportComment(stats.weekly, getWeeklyStatLeaders(stats.members), stats.currentPendings || 0),
     ].join("\n"),
@@ -426,6 +470,65 @@ function formatGroupLeader(members, metric, title, unit, zeroMessage, tieMessage
   return `${title}\n> ${tieMessage}: ${leaders.join(", ")} — ${highest} ${displayUnit}`;
 }
 
+function formatTriviaLeader(members, metric, title, zeroMessage, tieMessage) {
+  const highest = Math.max(0, ...members.map((member) => member.weekly?.trivia?.[metric] || 0));
+  if (highest === 0) return `${title}\n> ${zeroMessage}`;
+
+  const leaders = members.filter((member) => (member.weekly?.trivia?.[metric] || 0) === highest).map((member) => member.name);
+  if (leaders.length === 1) return `${title}\n> ${leaders[0]} — ${highest}`;
+  return `${title}\n> ${tieMessage}: ${leaders.join(", ")} — ${highest}`;
+}
+
+function formatLowestTriviaCorrectAnswers(members, title) {
+  const players = members.filter((member) => (member.weekly?.trivia?.gamesPlayed || 0) > 0);
+  if (!players.length) return `${title}\n> Nadie ha participado en una trivia todavía.`;
+
+  const lowest = Math.min(...players.map((member) => member.weekly.trivia.correctAnswers || 0));
+  const leaders = players.filter((member) => (member.weekly.trivia.correctAnswers || 0) === lowest).map((member) => member.name);
+  if (leaders.length === 1) return `${title}\n> ${leaders[0]} — ${lowest}`;
+  return `${title}\n> El cuervo encuentra un empate: ${leaders.join(", ")} — ${lowest}`;
+}
+
+function formatUserStats(stats) {
+  const lifetimeTrivia = stats.lifetime.trivia || {};
+  const weeklyTrivia = stats.weekly.trivia || {};
+  const dailyTrivia = stats.daily.trivia || {};
+  return `🐦‍⬛ Estadísticas de ${stats.name}:\n\n*Total*\nMensajes: ${stats.lifetime.messages} · Palabras: ${stats.lifetime.words}\nRespuestas: ${stats.lifetime.repliesSent}\nMenciones enviadas/recibidas: ${stats.lifetime.mentionsSent}/${stats.lifetime.mentionsReceived}\nMenciones a Munin: ${stats.lifetime.muninMentions}\nStickers/imágenes/notas de voz: ${stats.lifetime.stickers}/${stats.lifetime.images}/${stats.lifetime.voiceNotes}\nComandos: ${stats.lifetime.commandsUsed} · Recordatorios: ${stats.lifetime.remindersCreated}\nMensajes guardados: ${stats.lifetime.messagesSaved} · Encuestas: ${stats.lifetime.pollsCreated}\nTrivia: ${lifetimeTrivia.gamesPlayed || 0} jugadas · ${lifetimeTrivia.gamesWon || 0} ganadas\nRespuestas correctas: ${lifetimeTrivia.correctAnswers || 0}/${lifetimeTrivia.questionsAnswered || 0}\n\n*Esta semana*\nMensajes: ${stats.weekly.messages} · Palabras: ${stats.weekly.words}\nRespuestas: ${stats.weekly.repliesSent}\nMenciones enviadas/recibidas: ${stats.weekly.mentionsSent}/${stats.weekly.mentionsReceived}\nMenciones a Munin: ${stats.weekly.muninMentions}\nStickers/imágenes/notas de voz: ${stats.weekly.stickers}/${stats.weekly.images}/${stats.weekly.voiceNotes}\nComandos: ${stats.weekly.commandsUsed} · Recordatorios: ${stats.weekly.remindersCreated}\nMensajes guardados: ${stats.weekly.messagesSaved} · Encuestas: ${stats.weekly.pollsCreated}\nTrivia: ${weeklyTrivia.gamesPlayed || 0} jugadas · ${weeklyTrivia.gamesWon || 0} ganadas\nRespuestas correctas: ${weeklyTrivia.correctAnswers || 0}/${weeklyTrivia.questionsAnswered || 0}\n\n*Hoy*\nMensajes: ${stats.daily.messages} · Palabras: ${stats.daily.words}\nRespuestas: ${stats.daily.repliesSent}\nMenciones enviadas/recibidas: ${stats.daily.mentionsSent}/${stats.daily.mentionsReceived}\nMenciones a Munin: ${stats.daily.muninMentions}\nStickers/imágenes/notas de voz: ${stats.daily.stickers}/${stats.daily.images}/${stats.daily.voiceNotes}\nTrivia: ${dailyTrivia.gamesPlayed || 0} jugadas · ${dailyTrivia.gamesWon || 0} ganadas\nRespuestas correctas: ${dailyTrivia.correctAnswers || 0}/${dailyTrivia.questionsAnswered || 0}\n\n*Récords*\nMensaje más largo: ${stats.records.longestMessage} palabras\nRacha más larga: ${stats.records.longestStreak} mensajes\nRacha de respuestas correctas actual/mejor: ${lifetimeTrivia.currentCorrectStreak || 0}/${lifetimeTrivia.bestCorrectStreak || 0}`;
+}
+
+function formatTriviaQuestion(trivia) {
+  const question = trivia?.results?.[0];
+  if (!question) return MESSAGES.TRIVIA_UNAVAILABLE;
+
+  const answers = shuffleTriviaAnswers([question.correct_answer, ...question.incorrect_answers]);
+  return [
+    "🧠 Trivia",
+    `Pregunta 1 de ${trivia.results.length} · ${question.category}`,
+    "",
+    `*${question.question}*`,
+    "",
+    ...answers.map((answer, index) => `${String.fromCharCode(65 + index)}. ${answer}`),
+  ].join("\n");
+}
+
+function formatTriviaRanking(title, ranking) {
+  if (!ranking.length) return `${title}\n\nNadie respondió la trivia.`;
+  return (
+    [title, "", ...ranking.map((player, index) => `${index + 1}. ${player.name} — ${player.score} ${player.score === 1 ? "punto" : "puntos"}`)].join(
+      "\n",
+    ) + "\nYa he visto suficiente conocimiento."
+  );
+}
+
+function shuffleTriviaAnswers(answers) {
+  const shuffled = [...answers];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const otherIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[otherIndex]] = [shuffled[otherIndex], shuffled[index]];
+  }
+  return shuffled;
+}
+
 const STICKER_THRESHOLD = 30;
 const STICKER_PROPORTION_THRESHOLD = 0.3;
 const MUNIN_MENTIONS_THRESHOLD = 30;
@@ -433,9 +536,15 @@ const PENDING_THRESHOLD = 5;
 const REMINDER_THRESHOLD = 4;
 const POLL_THRESHOLD = 3;
 const LOW_MESSAGE_THRESHOLD = 15;
+const TRIVIA_PARTICIPATION_THRESHOLD = 6;
+const TRIVIA_ANSWER_THRESHOLD = 8;
+const TRIVIA_HIGH_ACCURACY_THRESHOLD = 0.75;
+const TRIVIA_LOW_ACCURACY_THRESHOLD = 0.3;
+const TRIVIA_WINS_THRESHOLD = 2;
 
 function getWeeklyReportComment(weekly, leaders, currentPendings) {
   let observations = "";
+  const trivia = weekly.trivia || {};
   if (weekly.stickers > STICKER_THRESHOLD) {
     const stickerLeaders = leaders.stickers.names.join(", ");
     observations += `\nEl cuervo concluye que ${stickerLeaders} ya domina el idioma de los stickers.`;
@@ -461,8 +570,23 @@ function getWeeklyReportComment(weekly, leaders, currentPendings) {
     observations += `\nHicieron ${weekly.pollsCreated} encuestas. Son muy indecisos todos.`;
   }
 
+  if ((trivia.gamesPlayed || 0) >= TRIVIA_PARTICIPATION_THRESHOLD) {
+    observations += `\nAcumularon ${trivia.gamesPlayed} participaciones en trivia. El cuervo ya sospecha que estudian a escondidas.`;
+  }
+
+  if ((trivia.gamesWon || 0) >= TRIVIA_WINS_THRESHOLD) {
+    observations += `\n${leaders.trivia.gamesWon.names.join(", ")} está dominando las trivias con ${leaders.trivia.gamesWon.value} victorias.`;
+  }
+
+  const triviaAccuracy = (trivia.correctAnswers || 0) / (trivia.questionsAnswered || 1);
+  if ((trivia.questionsAnswered || 0) >= TRIVIA_ANSWER_THRESHOLD && triviaAccuracy >= TRIVIA_HIGH_ACCURACY_THRESHOLD) {
+    observations += `\nCon ${Math.round(triviaAccuracy * 100)}% de respuestas correctas, este grupo ya está listo para pelear contra Odín en una trivia.`;
+  } else if ((trivia.questionsAnswered || 0) >= TRIVIA_ANSWER_THRESHOLD && triviaAccuracy <= TRIVIA_LOW_ACCURACY_THRESHOLD) {
+    observations += `\nSolo acertaron ${Math.round(triviaAccuracy * 100)}% de las preguntas de trivia. El cuervo recomienda abrir un libro de vez en cuando.`;
+  }
+
   if (weekly.messages < LOW_MESSAGE_THRESHOLD) {
-    observations += `\nEl cuervo ahora está en Valhalla (muerto).`;
+    observations += `\nEl grupo ahora está en Valhalla (muerto).`;
   }
 
   observations += `\nEl cuervo archivó ${weekly.messages} mensajes esta semana y aún conserva algunas plumas.\nSeguiré observando...`;
@@ -487,7 +611,13 @@ function getWeeklyStatLeaders(members) {
     "pollsCreated",
   ];
 
-  return Object.fromEntries(metrics.map((metric) => [metric, getWeeklyStatLeader(members, metric)]));
+  return {
+    ...Object.fromEntries(metrics.map((metric) => [metric, getWeeklyStatLeader(members, metric)])),
+    trivia: {
+      gamesWon: getWeeklyTriviaLeader(members, "gamesWon"),
+      correctAnswers: getWeeklyTriviaLeader(members, "correctAnswers"),
+    },
+  };
 }
 
 function getWeeklyStatLeader(members, metric) {
@@ -495,6 +625,14 @@ function getWeeklyStatLeader(members, metric) {
   return {
     value,
     names: value ? members.filter((member) => (member.weekly?.[metric] || 0) === value).map((member) => member.name) : [],
+  };
+}
+
+function getWeeklyTriviaLeader(members, metric) {
+  const value = Math.max(0, ...members.map((member) => member.weekly?.trivia?.[metric] || 0));
+  return {
+    value,
+    names: value ? members.filter((member) => (member.weekly?.trivia?.[metric] || 0) === value).map((member) => member.name) : [],
   };
 }
 

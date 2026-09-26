@@ -4,6 +4,8 @@ const { getMexicoCityDateKey, getMexicoCityWeekKey } = require("./timeUtils");
 
 const LIFETIME_FIELDS = ["messages", "nightMessages", "repliesSent", "mentionsSent", "mentionsReceived", "muninMentions", "stickers", "images", "voiceNotes", "words", "commandsUsed", "remindersCreated", "messagesSaved", "pollsCreated"];
 const DAILY_FIELDS = ["messages", "nightMessages", "repliesSent", "mentionsSent", "mentionsReceived", "muninMentions", "stickers", "images", "voiceNotes", "words"];
+const TRIVIA_LIFETIME_FIELDS = ["gamesPlayed", "gamesWon", "questionsAnswered", "correctAnswers", "currentCorrectStreak", "bestCorrectStreak"];
+const TRIVIA_DAILY_FIELDS = ["gamesPlayed", "gamesWon", "questionsAnswered", "correctAnswers"];
 
 class UserStatsStore {
   constructor(filePath = path.join(__dirname, "..", "data", "userStats.json")) {
@@ -58,6 +60,38 @@ class UserStatsStore {
     return this.snapshot(profile);
   }
 
+  recordTriviaGamePlayed(chatId, mentionId) {
+    return this.recordTrivia(chatId, mentionId, (profile) => this.incrementTrivia(profile, "gamesPlayed"));
+  }
+
+  recordTriviaAnswer(chatId, mentionId, correct) {
+    return this.recordTrivia(chatId, mentionId, (profile) => {
+      this.incrementTrivia(profile, "questionsAnswered");
+      if (!correct) {
+        profile.lifetime.trivia.currentCorrectStreak = 0;
+        profile.weekly.trivia.currentCorrectStreak = 0;
+        return;
+      }
+      this.incrementTrivia(profile, "correctAnswers");
+      profile.lifetime.trivia.currentCorrectStreak += 1;
+      profile.weekly.trivia.currentCorrectStreak += 1;
+      profile.lifetime.trivia.bestCorrectStreak = Math.max(profile.lifetime.trivia.bestCorrectStreak, profile.lifetime.trivia.currentCorrectStreak);
+      profile.weekly.trivia.bestCorrectStreak = Math.max(profile.weekly.trivia.bestCorrectStreak, profile.weekly.trivia.currentCorrectStreak);
+    });
+  }
+
+  recordTriviaGameWon(chatId, mentionId) {
+    return this.recordTrivia(chatId, mentionId, (profile) => this.incrementTrivia(profile, "gamesWon"));
+  }
+
+  recordTrivia(chatId, mentionId, update) {
+    if (!chatId || !mentionId) return undefined;
+    const profile = this.getProfile(this.getGroup(chatId), mentionId);
+    update(profile);
+    this.save();
+    return this.snapshot(profile);
+  }
+
   get(chatId, mentionId) {
     const group = this.data.groups[chatId];
     if (!group) return undefined;
@@ -67,14 +101,14 @@ class UserStatsStore {
 
   getGroupReport(chatId) {
     const group = this.data.groups[chatId];
-    if (!group) return { memberCount: 0, members: [], daily: counters(DAILY_FIELDS), weekly: counters(LIFETIME_FIELDS) };
+    if (!group) return { memberCount: 0, members: [], daily: dailyCounters(), weekly: lifetimeCounters() };
 
     const profiles = Object.values(this.getGroup(chatId).users).map((profile) => this.normalizeProfile(profile));
     return {
       memberCount: profiles.length,
       members: profiles.map((profile) => ({ name: profile.name, weekly: profile.weekly })),
-      daily: sumCounters(profiles.map((profile) => profile.daily), DAILY_FIELDS),
-      weekly: sumCounters(profiles.map((profile) => profile.weekly), LIFETIME_FIELDS),
+      daily: sumStatCounters(profiles.map((profile) => profile.daily), DAILY_FIELDS, TRIVIA_DAILY_FIELDS),
+      weekly: sumStatCounters(profiles.map((profile) => profile.weekly), LIFETIME_FIELDS, TRIVIA_LIFETIME_FIELDS),
     };
   }
 
@@ -84,7 +118,7 @@ class UserStatsStore {
 
     Object.values(this.getGroup(chatId).users).forEach((profile) => {
       const normalized = this.normalizeProfile(profile);
-      normalized.weekly = { week: getMexicoCityWeekKey(), ...counters(LIFETIME_FIELDS) };
+      normalized.weekly = { week: getMexicoCityWeekKey(), ...lifetimeCounters() };
     });
     this.save();
   }
@@ -109,7 +143,7 @@ class UserStatsStore {
 
   normalizeProfile(profile) {
     if (!profile.lifetime) {
-      profile.lifetime = counters(LIFETIME_FIELDS, {
+      profile.lifetime = lifetimeCounters({
         messages: profile.messagesSent || 0,
         repliesSent: profile.messagesRepliedTo || 0,
         muninMentions: profile.muninUses || 0,
@@ -121,24 +155,41 @@ class UserStatsStore {
       delete profile.stickersSent;
     }
     const today = getMexicoCityDateKey();
-    if (!profile.daily || profile.daily.date !== today) profile.daily = { date: today, ...counters(DAILY_FIELDS) };
+    if (!profile.daily || profile.daily.date !== today) profile.daily = { date: today, ...dailyCounters() };
     const week = getMexicoCityWeekKey();
-    if (!profile.weekly) profile.weekly = { week, ...counters(LIFETIME_FIELDS, profile.daily) };
-    else if (profile.weekly.week !== week) profile.weekly = { week, ...counters(LIFETIME_FIELDS) };
+    if (!profile.weekly) profile.weekly = { week, ...lifetimeCounters(profile.daily) };
+    else if (profile.weekly.week !== week) profile.weekly = { week, ...lifetimeCounters() };
     profile.records ||= { longestMessage: 0, longestStreak: 0 };
     LIFETIME_FIELDS.forEach((field) => (profile.lifetime[field] ||= 0));
+    profile.lifetime.trivia ||= triviaCounters(TRIVIA_LIFETIME_FIELDS);
+    profile.daily.trivia ||= triviaCounters(TRIVIA_DAILY_FIELDS);
+    profile.weekly.trivia ||= triviaCounters(TRIVIA_LIFETIME_FIELDS);
+    normalizeTrivia(profile.lifetime.trivia, TRIVIA_LIFETIME_FIELDS);
+    normalizeTrivia(profile.daily.trivia, TRIVIA_DAILY_FIELDS);
+    normalizeTrivia(profile.weekly.trivia, TRIVIA_LIFETIME_FIELDS);
     return profile;
   }
 
   increment(profile, field, amount = 1, includeDaily = true) {
     profile.lifetime[field] += amount;
     const week = getMexicoCityWeekKey();
-    if (profile.weekly.week !== week) profile.weekly = { week, ...counters(LIFETIME_FIELDS) };
+    if (profile.weekly.week !== week) profile.weekly = { week, ...lifetimeCounters() };
     profile.weekly[field] += amount;
     if (!includeDaily || !DAILY_FIELDS.includes(field)) return;
     const today = getMexicoCityDateKey();
-    if (profile.daily.date !== today) profile.daily = { date: today, ...counters(DAILY_FIELDS) };
+    if (profile.daily.date !== today) profile.daily = { date: today, ...dailyCounters() };
     profile.daily[field] += amount;
+  }
+
+  incrementTrivia(profile, field, amount = 1) {
+    profile.lifetime.trivia[field] += amount;
+    const week = getMexicoCityWeekKey();
+    if (profile.weekly.week !== week) profile.weekly = { week, ...lifetimeCounters() };
+    profile.weekly.trivia[field] += amount;
+    if (!TRIVIA_DAILY_FIELDS.includes(field)) return;
+    const today = getMexicoCityDateKey();
+    if (profile.daily.date !== today) profile.daily = { date: today, ...dailyCounters() };
+    profile.daily.trivia[field] += amount;
   }
 
   updateStreak(group, mentionId, profile) {
@@ -158,7 +209,24 @@ class UserStatsStore {
 }
 
 function createProfile(name) {
-  return { name, lifetime: counters(LIFETIME_FIELDS), daily: { date: getMexicoCityDateKey(), ...counters(DAILY_FIELDS) }, records: { longestMessage: 0, longestStreak: 0 } };
+  return { name, lifetime: lifetimeCounters(), daily: { date: getMexicoCityDateKey(), ...dailyCounters() }, records: { longestMessage: 0, longestStreak: 0 } };
+}
+
+function lifetimeCounters(initial = {}) {
+  return { ...counters(LIFETIME_FIELDS, initial), trivia: triviaCounters(TRIVIA_LIFETIME_FIELDS, initial.trivia) };
+}
+
+function dailyCounters(initial = {}) {
+  return { ...counters(DAILY_FIELDS, initial), trivia: triviaCounters(TRIVIA_DAILY_FIELDS, initial.trivia) };
+}
+
+function triviaCounters(fields, initial = {}) {
+  return counters(fields, initial);
+}
+
+function normalizeTrivia(trivia, fields) {
+  if (!trivia || typeof trivia !== "object") return;
+  fields.forEach((field) => (trivia[field] ||= 0));
 }
 
 function counters(fields, initial = {}) {
@@ -170,6 +238,12 @@ function sumCounters(counterSets, fields) {
     fields.forEach((field) => (total[field] += values[field] || 0));
     return total;
   }, counters(fields));
+}
+
+function sumStatCounters(counterSets, fields, triviaFields) {
+  const total = sumCounters(counterSets, fields);
+  total.trivia = sumCounters(counterSets.map((values) => values.trivia || {}), triviaFields);
+  return total;
 }
 
 module.exports = UserStatsStore;

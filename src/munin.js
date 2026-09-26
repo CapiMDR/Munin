@@ -6,7 +6,7 @@ const TEST_MODE = false;
 const TEST_MODE_SEND_MAINTENANCE_MESSAGE = false;
 const TEST_CHAT_ID = process.env.TEST_CHAT_ID?.trim() || "";
 
-const { generateResponse, generateSummary, suggestSimilarCommand, completeToolCall } = require("./muninAI");
+const { generateResponse, generateSummary, translateTrivia, suggestSimilarCommand, completeToolCall } = require("./muninAI");
 const { createAiToolExecutor } = require("./aiToolExecutor");
 const { Client, LocalAuth, MessageMedia, Poll } = require("whatsapp-web.js");
 const CommandHandler = require("./commandHandler");
@@ -25,6 +25,8 @@ const WeeklyReportScheduler = require("./weeklyReportScheduler");
 const TheCatApi = require("./theCatApi");
 const TheDogApi = require("./theDogApi");
 const OpenMeteoApi = require("./openMeteoApi");
+const OpenTriviaApi = require("./openTriviaApi");
+const { TriviaManager } = require("./triviaManager");
 const { Summarizer } = require("./summarizer");
 const { loadBotLid, saveBotLid } = require("./botIdentityStore");
 const { MESSAGES } = require("./commandConstants");
@@ -69,6 +71,14 @@ const weeklyReportStore = new WeeklyReportStore();
 const theCatApi = new TheCatApi();
 const theDogApi = new TheDogApi();
 const openMeteoApi = new OpenMeteoApi();
+const openTriviaApi = new OpenTriviaApi();
+const triviaManager = new TriviaManager({
+  sendMessage,
+  getPlayerName: (chatId, mentionId) => userStatsStore.get(chatId, mentionId)?.name || mentionId,
+  recordTriviaGamePlayed: (chatId, mentionId) => userStatsStore.recordTriviaGamePlayed(chatId, mentionId),
+  recordTriviaAnswer: (chatId, mentionId, correct) => userStatsStore.recordTriviaAnswer(chatId, mentionId, correct),
+  recordTriviaGameWon: (chatId, mentionId) => userStatsStore.recordTriviaGameWon(chatId, mentionId),
+});
 const summarizer = new Summarizer();
 const aiToolExecutor = createAiToolExecutor({
   pendingStore,
@@ -80,6 +90,9 @@ const aiToolExecutor = createAiToolExecutor({
   sendCatImage,
   sendDogImage,
   openMeteoApi,
+  openTriviaApi,
+  translateTrivia,
+  triviaManager,
   classStore,
   classScheduler,
   scheduleTimer,
@@ -107,6 +120,9 @@ const commandHandler = new CommandHandler(
   sendCatImage,
   sendDogImage,
   openMeteoApi,
+  openTriviaApi,
+  translateTrivia,
+  triviaManager,
 );
 
 const weeklyReportScheduler = new WeeklyReportScheduler(weeklyReportStore, userStatsStore, buildGroupReport, sendMessage);
@@ -223,6 +239,12 @@ async function handleMessageCreate(message) {
       words: countWords(body),
       isCommand,
     });
+
+    const answer = body.trim().toUpperCase();
+    if (triviaManager.isWaitingForAnswers(chatId) && /^[ABCD]$/.test(answer)) {
+      triviaManager.submitAnswer(chatId, sender.mentionId, answer);
+      return;
+    }
 
     // Ignore random messages
     if (!isCommand && !isMention) return;
@@ -360,7 +382,7 @@ async function handleMention(message, chatId, sender, isMention = isBotMention(m
       return;
     }
 
-    if (toolResult.success && ["send_cat_image", "send_dog_image"].includes(toolResult.action)) {
+    if (toolResult.success && ["send_cat_image", "send_dog_image", "start_trivia"].includes(toolResult.action)) {
       return;
     }
 
