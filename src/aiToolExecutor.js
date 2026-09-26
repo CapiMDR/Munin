@@ -26,6 +26,9 @@ function createAiToolExecutor({
   savedMessageStore,
   customCommandStore,
   userStatsStore,
+  sendCatImage,
+  sendDogImage,
+  openMeteoApi,
   classStore,
   classScheduler,
   scheduleTimer,
@@ -47,6 +50,9 @@ function createAiToolExecutor({
     show_help: (args) => showHelp(args),
     create_custom_command: (args, context) => createCustomCommand(args, context, customCommandStore),
     show_user_stats: (args, context) => showUserStats(context, userStatsStore),
+    send_cat_image: (args, context) => sendRandomImageForGroup(context, sendCatImage, "send_cat_image", MESSAGES.CAT_UNAVAILABLE),
+    send_dog_image: (args, context) => sendRandomImageForGroup(context, sendDogImage, "send_dog_image", MESSAGES.DOG_UNAVAILABLE),
+    get_weather: (args) => getWeather(args, openMeteoApi),
     list_classes: (args, context) => listClasses(context, classStore),
     list_classes_today: (args, context) => listClassesToday(context, classStore),
     add_class: (args, context) => addClass(args, context, classStore, classScheduler),
@@ -265,6 +271,29 @@ function showUserStats(context, userStatsStore) {
   if (!stats) return failure("No statistics are available for this user.", MESSAGES.STATS_UNAVAILABLE);
 
   return { success: true, action: "show_user_stats", message: MESSAGES.USER_STATS(stats) };
+}
+
+async function sendRandomImageForGroup(context, sendImage, action, unavailableMessage) {
+  if (!sendImage) return failure("The animal image service is unavailable.", unavailableMessage);
+
+  try {
+    const image = await sendImage(context.chatId);
+    return { success: true, action, imageId: image.id, imageWasSent: true };
+  } catch (error) {
+    console.error(`Could not send ${action}:`, error.message);
+    return failure("The animal image service failed.", unavailableMessage);
+  }
+}
+
+async function getWeather(args, openMeteoApi) {
+  try {
+    const weather = await openMeteoApi?.getWeather(args.date);
+    if (!weather) return failure("The weather service is unavailable.", MESSAGES.WEATHER_UNAVAILABLE);
+    return { success: true, action: "get_weather", message: MESSAGES.WEATHER_REPORT(weather) };
+  } catch (error) {
+    console.error("Could not fetch weather:", error.message);
+    return failure("The weather service failed.", error.message === "Invalid weather date." ? MESSAGES.WEATHER_USAGE : MESSAGES.WEATHER_UNAVAILABLE);
+  }
 }
 
 function listClasses(context, classStore) {

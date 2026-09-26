@@ -8,7 +8,7 @@ const TEST_CHAT_ID = process.env.TEST_CHAT_ID?.trim() || "";
 
 const { generateResponse, generateSummary, suggestSimilarCommand, completeToolCall } = require("./muninAI");
 const { createAiToolExecutor } = require("./aiToolExecutor");
-const { Client, LocalAuth, Poll } = require("whatsapp-web.js");
+const { Client, LocalAuth, MessageMedia, Poll } = require("whatsapp-web.js");
 const CommandHandler = require("./commandHandler");
 const PendingStore = require("./pendingStore");
 const PendingScheduler = require("./pendingScheduler");
@@ -22,6 +22,9 @@ const AdminStore = require("./adminStore");
 const UserStatsStore = require("./userStatsStore");
 const WeeklyReportStore = require("./weeklyReportStore");
 const WeeklyReportScheduler = require("./weeklyReportScheduler");
+const TheCatApi = require("./theCatApi");
+const TheDogApi = require("./theDogApi");
+const OpenMeteoApi = require("./openMeteoApi");
 const { Summarizer } = require("./summarizer");
 const { loadBotLid, saveBotLid } = require("./botIdentityStore");
 const { MESSAGES } = require("./commandConstants");
@@ -63,6 +66,9 @@ const classScheduler = new ClassScheduler(classStore, sendMessage);
 const adminStore = new AdminStore();
 const userStatsStore = new UserStatsStore();
 const weeklyReportStore = new WeeklyReportStore();
+const theCatApi = new TheCatApi();
+const theDogApi = new TheDogApi();
+const openMeteoApi = new OpenMeteoApi();
 const summarizer = new Summarizer();
 const aiToolExecutor = createAiToolExecutor({
   pendingStore,
@@ -71,6 +77,9 @@ const aiToolExecutor = createAiToolExecutor({
   savedMessageStore,
   customCommandStore,
   userStatsStore,
+  sendCatImage,
+  sendDogImage,
+  openMeteoApi,
   classStore,
   classScheduler,
   scheduleTimer,
@@ -95,6 +104,9 @@ const commandHandler = new CommandHandler(
   suggestSimilarCommand,
   userStatsStore,
   weeklyReportStore,
+  sendCatImage,
+  sendDogImage,
+  openMeteoApi,
 );
 
 const weeklyReportScheduler = new WeeklyReportScheduler(weeklyReportStore, userStatsStore, buildGroupReport, sendMessage);
@@ -107,6 +119,21 @@ function buildGroupReport(chatId) {
   const report = userStatsStore.getGroupReport(chatId);
   report.currentPendings = pendingStore.getAll(chatId).length;
   return MESSAGES.GROUP_REPORT(report);
+}
+
+async function sendCatImage(chatId) {
+  return sendAnimalImage(chatId, theCatApi);
+}
+
+async function sendDogImage(chatId) {
+  return sendAnimalImage(chatId, theDogApi);
+}
+
+async function sendAnimalImage(chatId, animalApi) {
+  const image = await animalApi.getRandomImage();
+  const media = await MessageMedia.fromUrl(image.url, { unsafeMime: true });
+  await sendMessage(chatId, media);
+  return image;
 }
 
 function scheduleTimer(duration, callback) {
@@ -330,6 +357,10 @@ async function handleMention(message, chatId, sender, isMention = isBotMention(m
     // the follow-up model completion cannot omit or paraphrase the command list.
     if (toolResult.success && toolResult.action === "show_help") {
       await sendMessage(chatId, toolResult.help);
+      return;
+    }
+
+    if (toolResult.success && ["send_cat_image", "send_dog_image"].includes(toolResult.action)) {
       return;
     }
 

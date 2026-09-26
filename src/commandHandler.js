@@ -39,6 +39,9 @@ class CommandHandler {
     suggestSimilarCommand,
     userStatsStore,
     weeklyReportStore,
+    sendCatImage,
+    sendDogImage,
+    openMeteoApi,
   ) {
     Object.assign(this, {
       sendMessage,
@@ -58,6 +61,9 @@ class CommandHandler {
       suggestSimilarCommand,
       userStatsStore,
       weeklyReportStore,
+      sendCatImage,
+      sendDogImage,
+      openMeteoApi,
     });
   }
 
@@ -112,6 +118,9 @@ class CommandHandler {
       [COMMANDS.STATS]: this.handleStats,
       [COMMANDS.REPORT]: this.handleReport,
       [COMMANDS.USE_REPORT]: this.handleToggleWeeklyReport,
+      [COMMANDS.CAT]: this.handleCat,
+      [COMMANDS.DOG]: this.handleDog,
+      [COMMANDS.WEATHER]: this.handleWeather,
     };
   }
 
@@ -238,9 +247,13 @@ class CommandHandler {
     if (args.length > 1 || !Number.isInteger(page) || !MESSAGES.HELP_PAGE(page)) return this.sendMessage(chatId, MESSAGES.HELP_PAGE_USAGE);
     await this.sendMessage(chatId, MESSAGES.HELP_PAGE(page));
   }
-  /** Inputs: chat ID and requesting sender. Shows that sender's persisted Munin activity. Output: the sent-message promise. */
-  async handleStats(chatId, args, quotedMessage, sender) {
-    const stats = this.userStatsStore?.get(chatId, sender?.mentionId);
+  /** Inputs: chat ID, sender, and command message. Shows mentioned-user activity or the sender's when no one is mentioned. Output: the sent-message promise. */
+  async handleStats(chatId, args, quotedMessage, sender, command, message) {
+    const mentionedIds = (message?.mentionedIds || []).map((mention) => (typeof mention === "string" ? mention : mention?._serialized)).filter(Boolean);
+    if (mentionedIds.length > 1) return this.sendMessage(chatId, MESSAGES.STATS_USAGE);
+
+    const targetMentionId = mentionedIds[0] || sender?.mentionId;
+    const stats = this.userStatsStore?.get(chatId, targetMentionId);
     await this.sendMessage(chatId, stats ? MESSAGES.USER_STATS(stats) : MESSAGES.STATS_UNAVAILABLE);
   }
   /** Inputs: chat ID. Shows the current week's stored group activity and current open-item totals. Output: the sent-message promise. */
@@ -253,6 +266,33 @@ class CommandHandler {
   async handleToggleWeeklyReport(chatId) {
     const enabled = this.weeklyReportStore?.toggle(chatId);
     await this.sendMessage(chatId, enabled ? MESSAGES.WEEKLY_REPORT_ENABLED : MESSAGES.WEEKLY_REPORT_DISABLED);
+  }
+  /** Inputs: chat ID. Fetches and sends a random cat image. Output: the sent-message promise. */
+  async handleCat(chatId) {
+    await this.handleAnimalImage(chatId, this.sendCatImage, MESSAGES.CAT_UNAVAILABLE, "cat");
+  }
+  /** Inputs: chat ID. Fetches and sends a random dog image. Output: the sent-message promise. */
+  async handleDog(chatId) {
+    await this.handleAnimalImage(chatId, this.sendDogImage, MESSAGES.DOG_UNAVAILABLE, "dog");
+  }
+  async handleAnimalImage(chatId, sendImage, unavailableMessage, animal) {
+    try {
+      await sendImage(chatId);
+    } catch (error) {
+      console.error(`Could not send ${animal} image:`, error.message);
+      await this.sendMessage(chatId, unavailableMessage);
+    }
+  }
+  /** Inputs: chat ID and optional dd/mm date. Sends the daily forecast for Munin's configured location. Output: the sent-message promise. */
+  async handleWeather(chatId, args) {
+    if (args.length > 1) return this.sendMessage(chatId, MESSAGES.WEATHER_USAGE);
+    try {
+      const weather = await this.openMeteoApi?.getWeather(args[0]);
+      await this.sendMessage(chatId, weather ? MESSAGES.WEATHER_REPORT(weather) : MESSAGES.WEATHER_UNAVAILABLE);
+    } catch (error) {
+      console.error("Could not fetch weather:", error.message);
+      await this.sendMessage(chatId, error.message === "Invalid weather date." ? MESSAGES.WEATHER_USAGE : MESSAGES.WEATHER_UNAVAILABLE);
+    }
   }
   /** Inputs: chat ID and unknown command name. Asks the LLM for a close, existing command name. Output: the sent-message promise. */
   async handleUnknown(chatId, args, quotedMessage, sender, command) {

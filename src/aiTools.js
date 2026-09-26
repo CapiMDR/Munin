@@ -177,6 +177,33 @@ const TOOLS = [
   {
     type: "function",
     function: {
+      name: "send_cat_image",
+      description: "Fetch and send one random cat image directly to the current group.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "send_dog_image",
+      description: "Fetch and send one random dog image directly to the current group.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_weather",
+      description: "Get the daily weather forecast at Munin's configured location. Use today when no date is requested; otherwise use dd/mm.",
+      parameters: {
+        type: "object",
+        properties: { date: { type: "string", description: "Optional requested date in dd/mm format." } },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "list_classes",
       description: "List all classes for the current group with their one-based global indexes and bell status.",
       parameters: { type: "object", properties: {} },
