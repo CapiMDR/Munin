@@ -37,6 +37,8 @@ class CommandHandler {
     summarizer,
     generateSummary,
     suggestSimilarCommand,
+    userStatsStore,
+    weeklyReportStore,
   ) {
     Object.assign(this, {
       sendMessage,
@@ -54,6 +56,8 @@ class CommandHandler {
       summarizer,
       generateSummary,
       suggestSimilarCommand,
+      userStatsStore,
+      weeklyReportStore,
     });
   }
 
@@ -105,6 +109,9 @@ class CommandHandler {
       [COMMANDS.DELETE_CLASS]: this.handleDeleteClass,
       [COMMANDS.BELL]: this.handleBell,
       [COMMANDS.HELP]: this.handleHelp,
+      [COMMANDS.STATS]: this.handleStats,
+      [COMMANDS.REPORT]: this.handleReport,
+      [COMMANDS.USE_REPORT]: this.handleToggleWeeklyReport,
     };
   }
 
@@ -191,6 +198,7 @@ class CommandHandler {
     const quotedMessageId = `${fromMe}_${chatId}_${message._data.quotedStanzaID}_${quotedParticipant}`;
 
     const alreadyExists = this.savedMessageStore.set(chatId, title, quotedMessageId);
+    this.userStatsStore?.recordAction(chatId, sender?.mentionId, "messagesSaved");
 
     await this.sendMessage(chatId, alreadyExists ? MESSAGES.SAVED_MESSAGE_UPDATED(title) : MESSAGES.SAVED_MESSAGE_CREATED(title));
   }
@@ -229,6 +237,22 @@ class CommandHandler {
     const page = args.length === 0 ? 1 : Number(args[0]);
     if (args.length > 1 || !Number.isInteger(page) || !MESSAGES.HELP_PAGE(page)) return this.sendMessage(chatId, MESSAGES.HELP_PAGE_USAGE);
     await this.sendMessage(chatId, MESSAGES.HELP_PAGE(page));
+  }
+  /** Inputs: chat ID and requesting sender. Shows that sender's persisted Munin activity. Output: the sent-message promise. */
+  async handleStats(chatId, args, quotedMessage, sender) {
+    const stats = this.userStatsStore?.get(chatId, sender?.mentionId);
+    await this.sendMessage(chatId, stats ? MESSAGES.USER_STATS(stats) : MESSAGES.STATS_UNAVAILABLE);
+  }
+  /** Inputs: chat ID. Shows the current week's stored group activity and current open-item totals. Output: the sent-message promise. */
+  async handleReport(chatId) {
+    const report = this.userStatsStore?.getGroupReport(chatId) || emptyGroupReport();
+    report.currentPendings = this.pendingStore.getAll(chatId).length;
+    await this.sendMessage(chatId, MESSAGES.GROUP_REPORT(report));
+  }
+  /** Inputs: chat ID. Toggles the group's automatic Sunday weekly report. Output: the sent-message promise. */
+  async handleToggleWeeklyReport(chatId) {
+    const enabled = this.weeklyReportStore?.toggle(chatId);
+    await this.sendMessage(chatId, enabled ? MESSAGES.WEEKLY_REPORT_ENABLED : MESSAGES.WEEKLY_REPORT_DISABLED);
   }
   /** Inputs: chat ID and unknown command name. Asks the LLM for a close, existing command name. Output: the sent-message promise. */
   async handleUnknown(chatId, args, quotedMessage, sender, command) {
@@ -306,7 +330,7 @@ class CommandHandler {
     const recurrenceMatch = args[1]?.match(/^x(\d+)$/i);
     const repeatsForever = args[1]?.toLowerCase() === INFINITE_TOKEN;
     return recurrenceMatch || repeatsForever
-      ? this.handleAddRecurringReminder(chatId, durationText, recurrenceMatch?.[1], args.slice(2), quotedMessage)
+      ? this.handleAddRecurringReminder(chatId, durationText, recurrenceMatch?.[1], args.slice(2), quotedMessage, sender)
       : this.handleAddReminder(chatId, durationText, args.slice(1), quotedMessage, sender);
   }
 
@@ -316,6 +340,7 @@ class CommandHandler {
     const content = contentArgs.join(" ").trim() || quotedMessage?.body?.trim();
     if (!content || !duration) return this.sendMessage(chatId, MESSAGES.REMINDER_USAGE);
     const reminder = this.reminderStore.add(chatId, content, Date.now() + duration);
+    this.userStatsStore?.recordAction(chatId, sender?.mentionId, "remindersCreated");
     this.reminderScheduler?.schedule({ chatId, ...reminder });
     await this.sendMessage(
       chatId,
@@ -327,13 +352,14 @@ class CommandHandler {
     );
   }
   /** Inputs: chat ID, interval text, optional repetition count, content arguments, and optional quote. Creates a recurring reminder. Output: confirmation or usage response. */
-  async handleAddRecurringReminder(chatId, intervalText, repetitionCount, contentArgs, quotedMessage) {
+  async handleAddRecurringReminder(chatId, intervalText, repetitionCount, contentArgs, quotedMessage, sender) {
     const interval = parseDuration(intervalText);
     const content = contentArgs.join(" ").trim() || quotedMessage?.body?.trim();
     const remaining = repetitionCount ? Number(repetitionCount) : null;
     if (!content || !interval || interval < 600000 || (remaining !== null && (!Number.isInteger(remaining) || remaining < 1)))
       return this.sendMessage(chatId, MESSAGES.REMINDER_USAGE);
     const reminder = this.reminderStore.addRecurring(chatId, content, Date.now() + interval, interval, remaining);
+    this.userStatsStore?.recordAction(chatId, sender?.mentionId, "remindersCreated");
     this.reminderScheduler?.schedule({ chatId, ...reminder });
     const repetitions = remaining === null ? "infinitas veces" : `${remaining} veces`;
     await this.sendMessage(
@@ -396,6 +422,7 @@ class CommandHandler {
       .filter(Boolean);
     if (options.length < 2) return this.sendMessage(chatId, MESSAGES.POLL_USAGE);
     await this.sendPoll(chatId, title, options, command.toLowerCase() === COMMANDS.MULTIPLE_POLL);
+    this.userStatsStore?.recordAction(chatId, sender?.mentionId, "pollsCreated");
   }
 
   /** Inputs: chat ID and a s/m/h duration. Schedules a one-shot timer. Output: confirmation or usage response. */
@@ -621,5 +648,25 @@ function formatClassLine(cls) {
 /** Inputs: matching class records. Formats ambiguity choices. Output: an array of formatted lines. */
 function formatClassMatches(classes) {
   return classes.map((cls) => `  ${formatClassLine(cls)}`);
+}
+
+function emptyGroupReport() {
+  const counters = {
+    messages: 0,
+    nightMessages: 0,
+    repliesSent: 0,
+    mentionsSent: 0,
+    mentionsReceived: 0,
+    muninMentions: 0,
+    stickers: 0,
+    images: 0,
+    voiceNotes: 0,
+    words: 0,
+    commandsUsed: 0,
+    remindersCreated: 0,
+    messagesSaved: 0,
+    pollsCreated: 0,
+  };
+  return { memberCount: 0, members: [], daily: counters, weekly: counters, currentPendings: 0 };
 }
 module.exports = CommandHandler;

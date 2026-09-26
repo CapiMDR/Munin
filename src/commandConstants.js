@@ -33,6 +33,9 @@ const COMMANDS = Object.freeze({
   DELETE_CLASS: "!eliminarclase",
   BELL: "!campana",
   HELP: "!ayuda",
+  STATS: "!stats",
+  REPORT: "!reporte",
+  USE_REPORT: "!usarreporte",
 });
 
 const COIN_SIDES = Object.freeze(["cara", "cruz"]);
@@ -77,6 +80,9 @@ const HELP_PAGES = Object.freeze([
     "",
     "**Hablar con Munin**",
     "`!munin`  `!ping`  `!echo hola`",
+    "Consulta tus estadísticas: `!stats`",
+    "Consulta el reporte semanal del grupo: `!reporte`",
+    "Activa o desactiva el reporte automático semanal: `!usarreporte`",
     "",
     "**Resúmenes**",
     'Dime *"resume los últimos 20 mensajes"*.',
@@ -170,6 +176,93 @@ const MESSAGES = Object.freeze({
   WELCOME: `¡Hola! Soy Munin 🐦‍⬛, un bot asistente de WhatsApp creado por Capi. Escribe ${COMMANDS.HELP} para ver los comandos disponibles.`,
 
   PONG: "pong",
+  USER_STATS: (stats) =>
+    `🐦‍⬛ Estadísticas de ${stats.name}:\n\n*Total*\nMensajes: ${stats.lifetime.messages} · Palabras: ${stats.lifetime.words}\nRespuestas: ${stats.lifetime.repliesSent}\nMenciones enviadas/recibidas: ${stats.lifetime.mentionsSent}/${stats.lifetime.mentionsReceived}\nMenciones a Munin: ${stats.lifetime.muninMentions}\nStickers/imágenes/notas de voz: ${stats.lifetime.stickers}/${stats.lifetime.images}/${stats.lifetime.voiceNotes}\nComandos: ${stats.lifetime.commandsUsed} · Recordatorios: ${stats.lifetime.remindersCreated}\nMensajes guardados: ${stats.lifetime.messagesSaved} · Encuestas: ${stats.lifetime.pollsCreated}\n\n*Esta semana*\nMensajes: ${stats.weekly.messages} · Palabras: ${stats.weekly.words}\nRespuestas: ${stats.weekly.repliesSent}\nMenciones enviadas/recibidas: ${stats.weekly.mentionsSent}/${stats.weekly.mentionsReceived}\nMenciones a Munin: ${stats.weekly.muninMentions}\nStickers/imágenes/notas de voz: ${stats.weekly.stickers}/${stats.weekly.images}/${stats.weekly.voiceNotes}\nComandos: ${stats.weekly.commandsUsed} · Recordatorios: ${stats.weekly.remindersCreated}\nMensajes guardados: ${stats.weekly.messagesSaved} · Encuestas: ${stats.weekly.pollsCreated}\n\n*Hoy*\nMensajes: ${stats.daily.messages} · Palabras: ${stats.daily.words}\nRespuestas: ${stats.daily.repliesSent}\nMenciones enviadas/recibidas: ${stats.daily.mentionsSent}/${stats.daily.mentionsReceived}\nMenciones a Munin: ${stats.daily.muninMentions}\nStickers/imágenes/notas de voz: ${stats.daily.stickers}/${stats.daily.images}/${stats.daily.voiceNotes}\n\n*Récords*\nMensaje más largo: ${stats.records.longestMessage} palabras\nRacha más larga: ${stats.records.longestStreak} mensajes`,
+  STATS_UNAVAILABLE: "No pude encontrar tus estadísticas todavía.",
+  WEEKLY_REPORT_ENABLED: "Reporte semanal automático activado. Lo enviaré cada domingo a las 08:00.",
+  WEEKLY_REPORT_DISABLED: "Reporte semanal automático desactivado.",
+  GROUP_REPORT: (stats) =>
+    [
+      "🐦‍⬛ El reporte que le daré a Odín",
+      "",
+      "*Lo que observé hoy*",
+      `${stats.daily.messages} mensajes · ${stats.daily.words} palabras`,
+      `${stats.daily.repliesSent} respuestas · ${stats.daily.mentionsSent} menciones`,
+      `${stats.daily.stickers} stickers · ${stats.daily.images} imágenes · ${stats.daily.voiceNotes} audios`,
+      "",
+      "*Lo que observé esta semana*",
+      `${stats.weekly.messages} mensajes · ${stats.weekly.words} palabras`,
+      `${stats.weekly.stickers} stickers · ${stats.weekly.images} imágenes · ${stats.weekly.voiceNotes} audios`,
+      "",
+      formatGroupLeader(
+        stats.members,
+        "messages",
+        "El más ruidoso",
+        "mensajes",
+        "El grupo guarda un silencio sospechoso.",
+        "El cuervo no puede elegir entre tanto ruido",
+      ),
+      "",
+      formatGroupLeader(
+        stats.members,
+        "repliesSent",
+        "El contestón",
+        "respuestas",
+        "Nadie ha respondido a un mensaje todavía.",
+        "El cuervo declara un empate de réplicas",
+      ),
+      "",
+      formatGroupLeader(
+        stats.members,
+        "mentionsReceived",
+        "El favorito",
+        "menciones recibidas",
+        "Nadie ha sido mencionado todavía.",
+        "El cuervo ve popularidad compartida",
+      ),
+      "",
+      formatGroupLeader(
+        stats.members,
+        "muninMentions",
+        "El invocador",
+        "menciones a Munin",
+        "Nadie me ha convocado aún.",
+        "El cuervo escucha un llamado compartido",
+      ),
+      "",
+      formatGroupLeader(
+        stats.members,
+        "stickers",
+        "El que usa demasiados stickers",
+        "stickers",
+        "Nadie ha usado stickers todavía.",
+        "El cuervo detecta una ciencia de stickers compartida",
+      ),
+      "",
+      formatGroupLeader(
+        stats.members,
+        "images",
+        "El fotógrafo",
+        "imágenes",
+        "Nadie ha compartido imágenes todavía.",
+        "El cuervo ve una galería compartida",
+      ),
+      "",
+      formatGroupLeader(
+        stats.members,
+        "nightMessages",
+        "El búho nocturno",
+        "mensajes nocturnos",
+        "Nadie ha desvelado al cuervo todavía.",
+        "El cuervo detecta una vigilia compartida",
+      ),
+      "",
+      "Trabajo para el cuervo",
+      `${stats.weekly.commandsUsed} comandos · ${stats.weekly.remindersCreated} recordatorios`,
+      `${stats.weekly.messagesSaved} mensajes guardados · ${stats.weekly.pollsCreated} encuestas`,
+      "",
+      getWeeklyReportComment(stats.weekly, getWeeklyStatLeaders(stats.members), stats.currentPendings || 0),
+    ].join("\n"),
   MUTATION_WITH_LIST: (confirmation, list) => `${confirmation}\n\n${list}`,
   SUMMARY_USAGE: (maxAmount) => `Uso: ${COMMANDS.SUMMARY} <cantidad entre 1 y ${maxAmount}>`,
   SUMMARY_NO_MESSAGES: "No hay mensajes anteriores para resumir en este chat.",
@@ -302,6 +395,102 @@ const MESSAGES = Object.freeze({
   HELP_PAGE: (page) => HELP_PAGES[page - 1],
   HELP_PAGE_USAGE: `Uso: ${COMMANDS.HELP} <página del 1 al ${HELP_PAGE_COUNT}>`,
 });
+
+function formatGroupLeader(members, metric, title, unit, zeroMessage, tieMessage) {
+  const highest = Math.max(0, ...members.map((member) => member.weekly?.[metric] || 0));
+  if (highest === 0) return `${title}\n> ${zeroMessage}`;
+
+  const leaders = members.filter((member) => (member.weekly?.[metric] || 0) === highest).map((member) => member.name);
+  const displayUnit = highest === 1 ? singularGroupUnit(unit) : unit;
+  if (leaders.length === 1) return `${title}\n> ${leaders[0]} — ${highest} ${displayUnit}`;
+  return `${title}\n> ${tieMessage}: ${leaders.join(", ")} — ${highest} ${displayUnit}`;
+}
+
+const STICKER_THRESHOLD = 30;
+const STICKER_PROPORTION_THRESHOLD = 0.3;
+const MUNIN_MENTIONS_THRESHOLD = 30;
+const PENDING_THRESHOLD = 5;
+const REMINDER_THRESHOLD = 4;
+const POLL_THRESHOLD = 3;
+const LOW_MESSAGE_THRESHOLD = 15;
+
+function getWeeklyReportComment(weekly, leaders, currentPendings) {
+  let observations = "";
+  if (weekly.stickers > STICKER_THRESHOLD) {
+    const stickerLeaders = leaders.stickers.names.join(", ");
+    observations += `\nEl cuervo concluye que ${stickerLeaders} ya domina el idioma de los stickers.`;
+  }
+
+  if (weekly.stickers > weekly.messages * STICKER_PROPORTION_THRESHOLD) {
+    observations += "\nUna parte preocupante de esta conversación fueron stickers.";
+  }
+
+  if (weekly.muninMentions > MUNIN_MENTIONS_THRESHOLD) {
+    observations += `\nMe invocaron ${weekly.muninMentions} veces. Empiezo a creer que el grupo depende de mí.`;
+  }
+
+  if (currentPendings >= PENDING_THRESHOLD) {
+    observations += `\nHay ${currentPendings} pendientes abiertos. Este grupo siempre está ocupado.`;
+  }
+
+  if (weekly.remindersCreated >= REMINDER_THRESHOLD) {
+    observations += `\nCrearon ${weekly.remindersCreated} recordatorios. A este grupo siempre se le olvida todo.`;
+  }
+
+  if (weekly.pollsCreated >= POLL_THRESHOLD) {
+    observations += `\nHicieron ${weekly.pollsCreated} encuestas. Son muy indecisos todos.`;
+  }
+
+  if (weekly.messages < LOW_MESSAGE_THRESHOLD) {
+    observations += `\nEl cuervo ahora está en Valhalla (muerto).`;
+  }
+
+  observations += `\nEl cuervo archivó ${weekly.messages} mensajes esta semana y aún conserva algunas plumas.\nSeguiré observando...`;
+  return observations;
+}
+
+function getWeeklyStatLeaders(members) {
+  const metrics = [
+    "messages",
+    "nightMessages",
+    "repliesSent",
+    "mentionsSent",
+    "mentionsReceived",
+    "muninMentions",
+    "stickers",
+    "images",
+    "voiceNotes",
+    "words",
+    "commandsUsed",
+    "remindersCreated",
+    "messagesSaved",
+    "pollsCreated",
+  ];
+
+  return Object.fromEntries(metrics.map((metric) => [metric, getWeeklyStatLeader(members, metric)]));
+}
+
+function getWeeklyStatLeader(members, metric) {
+  const value = Math.max(0, ...members.map((member) => member.weekly?.[metric] || 0));
+  return {
+    value,
+    names: value ? members.filter((member) => (member.weekly?.[metric] || 0) === value).map((member) => member.name) : [],
+  };
+}
+
+function singularGroupUnit(unit) {
+  return (
+    {
+      mensajes: "mensaje",
+      respuestas: "respuesta",
+      "menciones recibidas": "mención recibida",
+      "menciones a Munin": "mención a Munin",
+      stickers: "sticker",
+      imágenes: "imagen",
+      "mensajes nocturnos": "mensaje nocturno",
+    }[unit] || unit
+  );
+}
 
 module.exports = {
   COIN_SIDES,

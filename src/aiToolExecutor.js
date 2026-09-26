@@ -25,6 +25,7 @@ function createAiToolExecutor({
   reminderScheduler,
   savedMessageStore,
   customCommandStore,
+  userStatsStore,
   classStore,
   classScheduler,
   scheduleTimer,
@@ -32,19 +33,20 @@ function createAiToolExecutor({
   summarizer,
 }) {
   const handlers = {
-    save_message: (args, context) => saveMessage(args, context, savedMessageStore),
+    save_message: (args, context) => saveMessage(args, context, savedMessageStore, userStatsStore),
     view_saved_message: (args, context) => viewSavedMessage(args, context, savedMessageStore, sendMessage),
     list_saved_messages: (args, context) => listSavedMessages(context, savedMessageStore),
     create_pending: (args, context) => createPending(args, context, pendingStore),
     list_pendings: (args, context) => listPendings(context, pendingStore),
     delete_pending: (args, context) => deletePending(args, context, pendingStore),
-    create_reminder: (args, context) => createReminder(args, context, reminderStore, reminderScheduler),
+    create_reminder: (args, context) => createReminder(args, context, reminderStore, reminderScheduler, userStatsStore),
     list_reminders: (args, context) => listReminders(context, reminderStore),
     delete_reminder: (args, context) => deleteReminder(args, context, reminderStore, reminderScheduler),
     start_timer: (args, context) => startTimer(args, context, scheduleTimer, sendMessage),
     summarize_messages: (args, context) => summarizeMessages(args, context, summarizer),
     show_help: (args) => showHelp(args),
     create_custom_command: (args, context) => createCustomCommand(args, context, customCommandStore),
+    show_user_stats: (args, context) => showUserStats(context, userStatsStore),
     list_classes: (args, context) => listClasses(context, classStore),
     list_classes_today: (args, context) => listClassesToday(context, classStore),
     add_class: (args, context) => addClass(args, context, classStore, classScheduler),
@@ -77,7 +79,7 @@ function parseToolArguments(toolCall) {
   }
 }
 
-function saveMessage(args, context, savedMessageStore) {
+function saveMessage(args, context, savedMessageStore, userStatsStore) {
   const title = args.title?.trim();
   const quotedStanzaId = context.message._data?.quotedStanzaID;
   const quotedParticipant = context.message._data?.quotedParticipant;
@@ -89,6 +91,7 @@ function saveMessage(args, context, savedMessageStore) {
 
   const quotedMessageId = `false_${context.chatId}_${quotedStanzaId}_${quotedParticipant}`;
   const updated = savedMessageStore.set(context.chatId, title, quotedMessageId);
+  userStatsStore?.recordAction(context.chatId, context.sender?.mentionId, "messagesSaved");
   return { success: true, action: "save_message", title, updated };
 }
 
@@ -145,7 +148,7 @@ function deletePending(args, context, pendingStore) {
   };
 }
 
-function createReminder(args, context, reminderStore, reminderScheduler) {
+function createReminder(args, context, reminderStore, reminderScheduler, userStatsStore) {
   const content = args.content?.trim();
   const hasDuration = args.duration !== undefined;
   const hasAbsoluteTime = args.due_date !== undefined || args.due_time !== undefined;
@@ -177,6 +180,7 @@ function createReminder(args, context, reminderStore, reminderScheduler) {
   const reminder = hasRepeatCount || repeatForever
     ? reminderStore.addRecurring(context.chatId, content, dueAt, duration, repeatForever ? null : remaining)
     : reminderStore.add(context.chatId, content, dueAt);
+  userStatsStore?.recordAction(context.chatId, context.sender?.mentionId, "remindersCreated");
 
   reminderScheduler.schedule({ chatId: context.chatId, ...reminder });
   const confirmation = hasRepeatCount || repeatForever
@@ -254,6 +258,13 @@ function createCustomCommand(args, context, customCommandStore) {
     updated,
     message: updated ? MESSAGES.CUSTOM_COMMAND_UPDATED(command) : MESSAGES.CUSTOM_COMMAND_CREATED(command, reply),
   };
+}
+
+function showUserStats(context, userStatsStore) {
+  const stats = userStatsStore?.get(context.chatId, context.sender?.mentionId);
+  if (!stats) return failure("No statistics are available for this user.", MESSAGES.STATS_UNAVAILABLE);
+
+  return { success: true, action: "show_user_stats", message: MESSAGES.USER_STATS(stats) };
 }
 
 function listClasses(context, classStore) {

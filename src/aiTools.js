@@ -169,6 +169,14 @@ const TOOLS = [
   {
     type: "function",
     function: {
+      name: "show_user_stats",
+      description: "Show the requesting user's persisted activity statistics: messages sent, stickers sent, replies to any message, Munin uses, and total messages sent in the current group today.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "list_classes",
       description: "List all classes for the current group with their one-based global indexes and bell status.",
       parameters: { type: "object", properties: {} },
