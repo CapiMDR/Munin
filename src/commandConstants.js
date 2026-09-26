@@ -67,7 +67,7 @@ const EIGHT_BALL_RESPONSES = Object.freeze([
   "Puedes confiar en ello",
 ]);
 
-const HELP_PAGE_COUNT = 5;
+const HELP_PAGE_COUNT = 6;
 const HELP_SECTION_INDEX = [
   "Puedes hablar conmigo mencionando a @Munin o usar comandos con !.",
   "Usa `!ayuda <pagina>` para abrir una seccion:",
@@ -76,6 +76,7 @@ const HELP_SECTION_INDEX = [
   "3. Diversion y herramientas rapidas",
   "4. Clases",
   "5. Administracion",
+  "6. Plumas del cuervo",
 ].join("\n");
 const HELP_PAGES = Object.freeze([
   [
@@ -145,7 +146,7 @@ const HELP_PAGES = Object.freeze([
     "Manda un gato al grupo: `!gato`",
     "Manda un perro al grupo: `!perro`",
     '> Dime *"Dame el pronóstico de hoy"*.',
-    "Consulta el clima de hoy o una fecha: `!clima`  `!clima 25/12`",
+    "Consulta el clima de una ubicación y fecha opcional: `!clima`  `!clima San Francisco`  `!clima mañana San Francisco`",
     "",
     "**Estadísticas**",
     "Consulta tus estadísticas o las de alguien: `!stats`  `!stats @usuario`",
@@ -187,6 +188,17 @@ const HELP_PAGES = Object.freeze([
     `Pausa respuestas en este grupo: \`!pausa 30m\`  |  Indefinidamente: \`!pausa ${INFINITE_TOKEN}\``,
     "Reanuda respuestas: `!despausa`",
   ].join("\n"),
+  [
+    `=== Ayuda 6/${HELP_PAGE_COUNT}: Plumas del cuervo ===`,
+    HELP_SECTION_INDEX,
+    "",
+
+    `> "De vez en cuando encuentro un mensaje que merece algo más que una respuesta.`,
+    "> Puede ser particularmente gracioso, ingenioso, interesante o simplemente demasiado bueno para dejarlo pasar.",
+    "> Cuando eso ocurre, dejo una pluma.",
+    "> No puedes pedirlas. No puedes darlas. Y no prometo ser justo.",
+    `> Si tienes una, es porque algo que dijiste le gustó mucho a un cuervo." - 🐦‍⬛`,
+  ].join("\n"),
 ]);
 const MESSAGES = Object.freeze({
   WELCOME: `¡Hola! Soy Munin 🐦‍⬛, un bot asistente de WhatsApp creado por Capi. Escribe ${COMMANDS.HELP} para ver los comandos disponibles.`,
@@ -194,7 +206,7 @@ const MESSAGES = Object.freeze({
   PONG: "pong",
   CAT_UNAVAILABLE: "No pude encontrar un gato ahora. Inténtalo de nuevo más tarde.",
   DOG_UNAVAILABLE: "No pude encontrar un perro ahora. Inténtalo de nuevo más tarde.",
-  WEATHER_USAGE: `Uso: ${COMMANDS.WEATHER} [dd/mm]`,
+  WEATHER_USAGE: `Uso: ${COMMANDS.WEATHER} [fecha] [ubicación]`,
   WEATHER_UNAVAILABLE: "No pude consultar el clima para esa fecha. Inténtalo con una fecha próxima.",
   WEATHER_REPORT: (weather) =>
     `🌦️ ${weather.forecastLabel} en ${weather.location}\n${weather.condition}\nMin: ${weather.minTemperature}°C – Max: ${weather.maxTemperature}°C\nLluvia: ${weather.precipitationChance}% (${weather.precipitation} mm) · Viento: ${weather.maxWindSpeed} km/h`,
@@ -202,7 +214,7 @@ const MESSAGES = Object.freeze({
   TRIVIA_UNAVAILABLE: "No pude conseguir preguntas de trivia ahora. Inténtalo de nuevo más tarde.",
   TRIVIA_ALREADY_ACTIVE: "Ya hay una trivia en curso en este grupo. Terminen esa antes de empezar otra.",
   TRIVIA_STARTING: (seconds) =>
-    `🧠 La trivia comienza en ${seconds} segundos, contesten con A, B, C o D. No es necesario mencionarme para contestar. ¡Que gane aquel con mejor memoria!`,
+    `🧠 La trivia comienza en ${seconds} segundos, contesten con A, B, C o D. No es necesario mencionarme para contestar, reaccionaré con "🐦‍⬛" cuando vea tu respuesta. ¡Que gane aquel con mejor memoria!`,
   TRIVIA_QUESTION: (trivia) => formatTriviaQuestion(trivia),
   TRIVIA_SESSION_QUESTION: (question, number, total, durationSeconds) =>
     [
@@ -235,11 +247,11 @@ const MESSAGES = Object.freeze({
       "*Lo que observé hoy*",
       `${stats.daily.messages} mensajes · ${stats.daily.words} palabras`,
       `${stats.daily.repliesSent} respuestas · ${stats.daily.mentionsSent} menciones`,
-      `${stats.daily.stickers} stickers · ${stats.daily.images} imágenes · ${stats.daily.voiceNotes} audios`,
+      `${stats.daily.stickers} stickers · ${stats.daily.images} imágenes · ${stats.daily.voiceNotes} audios · ${stats.daily.feathers} plumas`,
       "",
       "*Lo que observé esta semana*",
       `${stats.weekly.messages} mensajes · ${stats.weekly.words} palabras`,
-      `${stats.weekly.stickers} stickers · ${stats.weekly.images} imágenes · ${stats.weekly.voiceNotes} audios`,
+      `${stats.weekly.stickers} stickers · ${stats.weekly.images} imágenes · ${stats.weekly.voiceNotes} audios · ${stats.weekly.feathers} plumas`,
       "",
       "*Trabajo para el cuervo*",
       `${stats.weekly.commandsUsed} comandos · ${stats.weekly.remindersCreated} recordatorios`,
@@ -309,6 +321,15 @@ const MESSAGES = Object.freeze({
         "mensajes nocturnos",
         "Nadie ha desvelado al cuervo todavía.",
         "El cuervo detecta una vigilia compartida",
+      ),
+      "",
+      formatGroupLeader(
+        stats.members,
+        "feathers",
+        "El favorito del cuervo",
+        "plumas",
+        "El cuervo no ha entregado plumas todavía.",
+        "El cuervo reparte sus plumas por igual",
       ),
       "",
       formatTriviaLeader(stats.members, "gamesWon", "El tryhard", "Nadie ha ganado una trivia todavía.", "El cuervo declara una victoria compartida"),
@@ -485,15 +506,16 @@ function formatLowestTriviaCorrectAnswers(members, title) {
 
   const lowest = Math.min(...players.map((member) => member.weekly.trivia.correctAnswers || 0));
   const leaders = players.filter((member) => (member.weekly.trivia.correctAnswers || 0) === lowest).map((member) => member.name);
-  if (leaders.length === 1) return `${title}\n> ${leaders[0]} — ${lowest}`;
-  return `${title}\n> El cuervo encuentra un empate: ${leaders.join(", ")} — ${lowest}`;
+  const unit = lowest === 1 ? "respuesta correcta" : "respuestas correctas";
+  if (leaders.length === 1) return `${title}\n> ${leaders[0]} — ${lowest} ${unit}`;
+  return `${title}\n> El cuervo encuentra un empate: ${leaders.join(", ")} — ${lowest} ${unit}`;
 }
 
 function formatUserStats(stats) {
   const lifetimeTrivia = stats.lifetime.trivia || {};
   const weeklyTrivia = stats.weekly.trivia || {};
   const dailyTrivia = stats.daily.trivia || {};
-  return `🐦‍⬛ Estadísticas de ${stats.name}:\n\n*Total*\nMensajes: ${stats.lifetime.messages} · Palabras: ${stats.lifetime.words}\nRespuestas: ${stats.lifetime.repliesSent}\nMenciones enviadas/recibidas: ${stats.lifetime.mentionsSent}/${stats.lifetime.mentionsReceived}\nMenciones a Munin: ${stats.lifetime.muninMentions}\nStickers/imágenes/notas de voz: ${stats.lifetime.stickers}/${stats.lifetime.images}/${stats.lifetime.voiceNotes}\nComandos: ${stats.lifetime.commandsUsed} · Recordatorios: ${stats.lifetime.remindersCreated}\nMensajes guardados: ${stats.lifetime.messagesSaved} · Encuestas: ${stats.lifetime.pollsCreated}\nTrivia: ${lifetimeTrivia.gamesPlayed || 0} jugadas · ${lifetimeTrivia.gamesWon || 0} ganadas\nRespuestas correctas: ${lifetimeTrivia.correctAnswers || 0}/${lifetimeTrivia.questionsAnswered || 0}\n\n*Esta semana*\nMensajes: ${stats.weekly.messages} · Palabras: ${stats.weekly.words}\nRespuestas: ${stats.weekly.repliesSent}\nMenciones enviadas/recibidas: ${stats.weekly.mentionsSent}/${stats.weekly.mentionsReceived}\nMenciones a Munin: ${stats.weekly.muninMentions}\nStickers/imágenes/notas de voz: ${stats.weekly.stickers}/${stats.weekly.images}/${stats.weekly.voiceNotes}\nComandos: ${stats.weekly.commandsUsed} · Recordatorios: ${stats.weekly.remindersCreated}\nMensajes guardados: ${stats.weekly.messagesSaved} · Encuestas: ${stats.weekly.pollsCreated}\nTrivia: ${weeklyTrivia.gamesPlayed || 0} jugadas · ${weeklyTrivia.gamesWon || 0} ganadas\nRespuestas correctas: ${weeklyTrivia.correctAnswers || 0}/${weeklyTrivia.questionsAnswered || 0}\n\n*Hoy*\nMensajes: ${stats.daily.messages} · Palabras: ${stats.daily.words}\nRespuestas: ${stats.daily.repliesSent}\nMenciones enviadas/recibidas: ${stats.daily.mentionsSent}/${stats.daily.mentionsReceived}\nMenciones a Munin: ${stats.daily.muninMentions}\nStickers/imágenes/notas de voz: ${stats.daily.stickers}/${stats.daily.images}/${stats.daily.voiceNotes}\nTrivia: ${dailyTrivia.gamesPlayed || 0} jugadas · ${dailyTrivia.gamesWon || 0} ganadas\nRespuestas correctas: ${dailyTrivia.correctAnswers || 0}/${dailyTrivia.questionsAnswered || 0}\n\n*Récords*\nMensaje más largo: ${stats.records.longestMessage} palabras\nRacha más larga: ${stats.records.longestStreak} mensajes\nRacha de respuestas correctas actual/mejor: ${lifetimeTrivia.currentCorrectStreak || 0}/${lifetimeTrivia.bestCorrectStreak || 0}`;
+  return `🐦‍⬛ Estadísticas de ${stats.name}:\n\n*Total*\nMensajes: ${stats.lifetime.messages} · Palabras: ${stats.lifetime.words}\nRespuestas: ${stats.lifetime.repliesSent}\nMenciones enviadas/recibidas: ${stats.lifetime.mentionsSent}/${stats.lifetime.mentionsReceived}\nMenciones a Munin: ${stats.lifetime.muninMentions}\nStickers/imágenes/notas de voz: ${stats.lifetime.stickers}/${stats.lifetime.images}/${stats.lifetime.voiceNotes}\nPlumas: ${stats.lifetime.feathers}\nComandos: ${stats.lifetime.commandsUsed} · Recordatorios: ${stats.lifetime.remindersCreated}\nMensajes guardados: ${stats.lifetime.messagesSaved} · Encuestas: ${stats.lifetime.pollsCreated}\nTrivia: ${lifetimeTrivia.gamesPlayed || 0} jugadas · ${lifetimeTrivia.gamesWon || 0} ganadas\nRespuestas correctas: ${lifetimeTrivia.correctAnswers || 0}/${lifetimeTrivia.questionsAnswered || 0}\n\n*Esta semana*\nMensajes: ${stats.weekly.messages} · Palabras: ${stats.weekly.words}\nRespuestas: ${stats.weekly.repliesSent}\nMenciones enviadas/recibidas: ${stats.weekly.mentionsSent}/${stats.weekly.mentionsReceived}\nMenciones a Munin: ${stats.weekly.muninMentions}\nStickers/imágenes/notas de voz: ${stats.weekly.stickers}/${stats.weekly.images}/${stats.weekly.voiceNotes}\nPlumas: ${stats.weekly.feathers}\nComandos: ${stats.weekly.commandsUsed} · Recordatorios: ${stats.weekly.remindersCreated}\nMensajes guardados: ${stats.weekly.messagesSaved} · Encuestas: ${stats.weekly.pollsCreated}\nTrivia: ${weeklyTrivia.gamesPlayed || 0} jugadas · ${weeklyTrivia.gamesWon || 0} ganadas\nRespuestas correctas: ${weeklyTrivia.correctAnswers || 0}/${weeklyTrivia.questionsAnswered || 0}\n\n*Hoy*\nMensajes: ${stats.daily.messages} · Palabras: ${stats.daily.words}\nRespuestas: ${stats.daily.repliesSent}\nMenciones enviadas/recibidas: ${stats.daily.mentionsSent}/${stats.daily.mentionsReceived}\nMenciones a Munin: ${stats.daily.muninMentions}\nStickers/imágenes/notas de voz: ${stats.daily.stickers}/${stats.daily.images}/${stats.daily.voiceNotes}\nPlumas: ${stats.daily.feathers}\nTrivia: ${dailyTrivia.gamesPlayed || 0} jugadas · ${dailyTrivia.gamesWon || 0} ganadas\nRespuestas correctas: ${dailyTrivia.correctAnswers || 0}/${dailyTrivia.questionsAnswered || 0}\n\n*Récords*\nMensaje más largo: ${stats.records.longestMessage} palabras\nRacha más larga: ${stats.records.longestStreak} mensajes\nRacha de respuestas correctas actual/mejor: ${lifetimeTrivia.currentCorrectStreak || 0}/${lifetimeTrivia.bestCorrectStreak || 0}`;
 }
 
 function formatTriviaQuestion(trivia) {
@@ -604,6 +626,7 @@ function getWeeklyStatLeaders(members) {
     "stickers",
     "images",
     "voiceNotes",
+    "feathers",
     "words",
     "commandsUsed",
     "remindersCreated",
@@ -645,6 +668,7 @@ function singularGroupUnit(unit) {
       "menciones a Munin": "mención a Munin",
       stickers: "sticker",
       imágenes: "imagen",
+      plumas: "pluma",
       "mensajes nocturnos": "mensaje nocturno",
     }[unit] || unit
   );

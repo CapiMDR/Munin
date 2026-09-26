@@ -53,12 +53,12 @@ const TOOLS = [
     type: "function",
     function: {
       name: "create_pending",
-      description: "Create a pending item for the current group. Optionally assign it a calendar date in dd/mm format and/or a time in HH:mm format.",
+      description: "Create a pending item for the current group. Optionally assign it a calendar date using dd/mm or Spanish relative dates such as hoy, mañana, ayer, pasado mañana, or a weekday; optionally add a time in HH:mm.",
       parameters: {
         type: "object",
         properties: {
           content: { type: "string", description: "The pending item's text." },
-          date: { type: "string", description: "Optional due date in dd/mm format, for example 25/12." },
+          date: { type: "string", description: "Optional due date in dd/mm or Spanish relative form, for example mañana, pasado mañana, lunes, or 25/12." },
           time: { type: "string", description: "Optional time in HH:mm format, for example 10:00." },
         },
         required: ["content"],
@@ -89,13 +89,13 @@ const TOOLS = [
     type: "function",
     function: {
       name: "create_reminder",
-      description: "Create a reminder for the current group. Use either a relative duration such as 30m, 2h, or 1d, or an absolute today/tomorrow time. Optional repetition is only for relative reminders.",
+      description: "Create a reminder for the current group. Use either a relative duration such as 30m, 2h, or 1d, or an absolute date and time. Dates accept dd/mm or Spanish relative words such as hoy, mañana, pasado mañana, or a weekday. Optional repetition is only for relative reminders.",
       parameters: {
         type: "object",
         properties: {
           content: { type: "string", description: "The reminder text." },
           duration: { type: "string", description: "A positive duration using m, h, or d; for example 30m." },
-          due_date: { type: "string", enum: ["today", "tomorrow"], description: "Use for an absolute reminder date instead of duration." },
+          due_date: { type: "string", description: "Use for an absolute reminder date instead of duration. Accepts dd/mm or Spanish relative dates such as hoy, mañana, pasado mañana, or lunes." },
           due_time: { type: "string", description: "24-hour HH:mm time for an absolute reminder; for example 10:00." },
           repeat_count: { type: "integer", description: "Optional total number of deliveries for a recurring reminder. Must be at least 1." },
           repeat_forever: { type: "boolean", description: "Set true to repeat indefinitely. Do not combine with repeat_count." },
@@ -194,10 +194,13 @@ const TOOLS = [
     type: "function",
     function: {
       name: "get_weather",
-      description: "Get the daily weather forecast at Munin's configured location. Use today when no date is requested; otherwise use dd/mm.",
+      description: "Get the daily weather forecast at Munin's configured or requested location. Accepts dd/mm or Spanish relative dates such as hoy, mañana, ayer, pasado mañana, or a weekday.",
       parameters: {
         type: "object",
-        properties: { date: { type: "string", description: "Optional requested date in dd/mm format." } },
+        properties: {
+          date: { type: "string", description: "Optional requested date in dd/mm or Spanish relative form, such as mañana or lunes." },
+          location: { type: "string", description: "Optional city or place name, such as San Francisco or París, Francia. Use Munin's configured location when omitted." },
+        },
       },
     },
   },

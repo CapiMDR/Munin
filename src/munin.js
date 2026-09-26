@@ -5,8 +5,9 @@ const TEST_MODE = false;
 // maintenance notice there instead of silently ignoring incoming messages.
 const TEST_MODE_SEND_MAINTENANCE_MESSAGE = false;
 const TEST_CHAT_ID = process.env.TEST_CHAT_ID?.trim() || "";
+const FEATHER_COOLDOWN_MS = 60 * 60 * 1_000;
 
-const { generateResponse, generateSummary, translateTrivia, suggestSimilarCommand, completeToolCall } = require("./muninAI");
+const { generateResponse, generateSummary, shouldAwardFeather, translateTrivia, suggestSimilarCommand, completeToolCall } = require("./muninAI");
 const { createAiToolExecutor } = require("./aiToolExecutor");
 const { Client, LocalAuth, MessageMedia, Poll } = require("whatsapp-web.js");
 const CommandHandler = require("./commandHandler");
@@ -241,8 +242,10 @@ async function handleMessageCreate(message) {
     });
 
     const answer = body.trim().toUpperCase();
+    // Look for A-D answers ONLY when a trivia session is active
     if (triviaManager.isWaitingForAnswers(chatId) && /^[ABCD]$/.test(answer)) {
       triviaManager.submitAnswer(chatId, sender.mentionId, answer);
+      await reactToMessage(message, "🐦‍⬛"); // React to accepted answer
       return;
     }
 
@@ -358,8 +361,13 @@ async function handleMention(message, chatId, sender, isMention = isBotMention(m
   // Give the model explicit context instead of dropping that message silently.
   const prompt = (await getLLMPrompt(message)) || "El usuario te mencionó sin escribir ningún mensaje.";
 
+  const featherDecision = shouldAwardFeather(prompt).catch((error) => {
+    console.warn("Could not judge feather award:", error.message);
+    return false;
+  });
   const aiResult = await generateResponse(chatId, sender.name, prompt);
   if (!aiResult) return;
+  if (await featherDecision) await awardFeather(message, chatId, sender);
   // Normal conversation
   if (aiResult.type === "message") {
     await client.sendMessage(chatId, aiResult.content);
@@ -414,6 +422,18 @@ async function handleMention(message, chatId, sender, isMention = isBotMention(m
     }
 
     return;
+  }
+}
+
+async function awardFeather(message, chatId, sender) {
+  const mentionId = getSenderMentionId(message, sender);
+  if (!adminStore.isGlobalAdmin(mentionId) && !userStatsStore.canReceiveFeather(chatId, mentionId)) return;
+
+  try {
+    await reactToMessage(message, "🪶");
+    userStatsStore.recordFeather(chatId, mentionId, FEATHER_COOLDOWN_MS);
+  } catch (error) {
+    console.warn("Could not award feather:", error.message);
   }
 }
 
@@ -485,13 +505,21 @@ function sanitizeQuotedContent(content) {
 
 function getSerializedMessageId(message) {
   const ids = [message.id, message._data?.id];
+
+  // Prefer an ID already serialized by WhatsApp
   for (const id of ids) {
     if (typeof id === "string") return id;
     if (id?._serialized) return id._serialized;
+    if (id?.$1) return id.$1;
   }
+
+  // Last-resort reconstruction
   for (const id of ids) {
-    if (typeof id?.fromMe === "boolean" && id.remote && id.id) return `${id.fromMe}_${id.remote}_${id.id}`;
+    if (typeof id?.fromMe === "boolean" && id.remote && id.id) {
+      return `${id.fromMe}_${id.remote}_${id.id}`;
+    }
   }
+
   return undefined;
 }
 
@@ -514,6 +542,16 @@ async function getSender(message) {
     console.warn("Could not retrieve sender contact:", error.message);
     return undefined;
   }
+}
+
+async function reactToMessage(message, reaction) {
+  const messageId = getSerializedMessageId(message);
+
+  if (!messageId) {
+    throw new Error("Could not determine serialized message ID.");
+  }
+
+  return client.sendReaction(messageId, reaction);
 }
 
 function printReceivedMessage(message, sender) {

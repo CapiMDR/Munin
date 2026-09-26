@@ -1,6 +1,7 @@
-const { getMexicoCityDateParts } = require("./timeUtils");
+const { resolveMexicoCityDate } = require("./dateUtils");
 
 const FORECAST_URL = "https://api.open-meteo.com/v1/forecast";
+const GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search";
 const REQUEST_TIMEOUT_MS = 10_000;
 const DEFAULT_LOCATION = { latitude: 19.4326, longitude: -99.1332, name: "Ciudad de México", timeZone: "America/Mexico_City" };
 
@@ -17,14 +18,15 @@ class OpenMeteoApi {
     this.fetch = fetchImpl;
   }
 
-  async getWeather(dateInput) {
+  async getWeather(dateInput, locationInput) {
     const date = parseWeatherDate(dateInput);
     if (!date) throw new Error("Invalid weather date.");
+    const location = locationInput?.trim() ? await this.findLocation(locationInput) : { ...DEFAULT_LOCATION, name: this.locationName };
 
     const params = new URLSearchParams({
-      latitude: String(this.latitude),
-      longitude: String(this.longitude),
-      timezone: DEFAULT_LOCATION.timeZone,
+      latitude: String(location.latitude),
+      longitude: String(location.longitude),
+      timezone: location.timeZone || DEFAULT_LOCATION.timeZone,
       start_date: date.iso,
       end_date: date.iso,
       daily: "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,wind_speed_10m_max",
@@ -42,7 +44,7 @@ class OpenMeteoApi {
       return {
         date: date.display,
         forecastLabel: dateInput === undefined || dateInput === null || dateInput === "" ? "Pronóstico de hoy" : `Pronóstico para el ${date.display}`,
-        location: this.locationName,
+        location: location.name,
         condition: weatherCodeDescription(daily.weather_code?.[0]),
         minTemperature: daily.temperature_2m_min?.[0],
         maxTemperature: daily.temperature_2m_max?.[0],
@@ -54,25 +56,35 @@ class OpenMeteoApi {
       clearTimeout(timeout);
     }
   }
+
+  async findLocation(locationName) {
+    const params = new URLSearchParams({ name: locationName.trim(), count: "1", language: "es", format: "json" });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    try {
+      const response = await this.fetch(`${GEOCODING_URL}?${params}`, { signal: controller.signal });
+      if (!response.ok) throw new Error(`Open-Meteo geocoding responded with ${response.status}.`);
+      const location = (await response.json())?.results?.[0];
+      if (!location || !Number.isFinite(location.latitude) || !Number.isFinite(location.longitude)) throw new Error("Location not found.");
+      return {
+        latitude: location.latitude,
+        longitude: location.longitude,
+        timeZone: location.timezone,
+        name: formatLocationName(location),
+      };
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+}
+
+function formatLocationName(location) {
+  return [...new Set([location.name, location.admin1, location.country].filter(Boolean))].join(", ");
 }
 
 function parseWeatherDate(input) {
-  const { year, month, day } = getMexicoCityDateParts();
-  if (input === undefined || input === null || input === "") return formatDate(year, month, day);
-  const match = String(input)
-    .trim()
-    .match(/^(\d{1,2})\/(\d{1,2})$/);
-  if (!match) return undefined;
-  return formatDate(year, Number(match[2]), Number(match[1]));
-}
-
-function formatDate(year, month, day) {
-  const date = new Date(Date.UTC(year, month - 1, day));
-  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return undefined;
-  return {
-    iso: `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
-    display: `${String(day).padStart(2, "0")}/${String(month).padStart(2, "0")}`,
-  };
+  const date = input === undefined || input === null || input === "" ? resolveMexicoCityDate("hoy") : resolveMexicoCityDate(String(input));
+  return date && { iso: date.iso, display: date.ddmm };
 }
 
 function numberOrDefault(value, fallback) {

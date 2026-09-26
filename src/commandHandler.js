@@ -6,6 +6,7 @@ const CustomCommandStore = require("./customCommandStore");
 const SavedMessageStore = require("./savedMessageStore");
 const { formatAllClasses, formatClassesToday, formatPendings, formatReminders, formatSavedMessages } = require("./listResponseFormatter");
 const { getPendingContent, parsePendingDate, parsePendingTime } = require("./pendingUtils");
+const { resolveMexicoCityDate } = require("./dateUtils");
 const { DAYS_ORDER, capitalize } = require("./classStore");
 const { COIN_SIDES, COMMANDS, EIGHT_BALL_RESPONSES, INFINITE_TOKEN, MESSAGES } = require("./commandConstants");
 const {
@@ -256,7 +257,9 @@ class CommandHandler {
   }
   /** Inputs: chat ID, sender, and command message. Shows mentioned-user activity or the sender's when no one is mentioned. Output: the sent-message promise. */
   async handleStats(chatId, args, quotedMessage, sender, command, message) {
-    const mentionedIds = (message?.mentionedIds || []).map((mention) => (typeof mention === "string" ? mention : mention?._serialized)).filter(Boolean);
+    const mentionedIds = (message?.mentionedIds || [])
+      .map((mention) => (typeof mention === "string" ? mention : mention?._serialized))
+      .filter(Boolean);
     if (mentionedIds.length > 1) return this.sendMessage(chatId, MESSAGES.STATS_USAGE);
 
     const targetMentionId = mentionedIds[0] || sender?.mentionId;
@@ -292,9 +295,9 @@ class CommandHandler {
   }
   /** Inputs: chat ID and optional dd/mm date. Sends the daily forecast for Munin's configured location. Output: the sent-message promise. */
   async handleWeather(chatId, args) {
-    if (args.length > 1) return this.sendMessage(chatId, MESSAGES.WEATHER_USAGE);
+    const { date, location } = splitWeatherArguments(args);
     try {
-      const weather = await this.openMeteoApi?.getWeather(args[0]);
+      const weather = await this.openMeteoApi?.getWeather(date, location);
       await this.sendMessage(chatId, weather ? MESSAGES.WEATHER_REPORT(weather) : MESSAGES.WEATHER_UNAVAILABLE);
     } catch (error) {
       console.error("Could not fetch weather:", error.message);
@@ -347,16 +350,16 @@ class CommandHandler {
 
   /** Inputs: chat ID, content/date arguments, optional quote. Stores a pending item. Output: a confirmation or usage response. */
   async handleAddPending(chatId, args, quotedMessage) {
-    const date = parsePendingDate(args[0]);
+    const { date, argumentCount: dateArgumentCount } = parsePendingDateArguments(args);
     if (args[0]?.startsWith("@") && !date) return this.sendMessage(chatId, MESSAGES.PENDING_USAGE);
 
-    const timeIndex = date ? 1 : 0;
+    const timeIndex = date ? dateArgumentCount : 0;
     const time = parsePendingTime(args[timeIndex]);
     if (/^\d{1,2}:\d{2}$/.test(args[timeIndex] || "") && !time) return this.sendMessage(chatId, MESSAGES.PENDING_USAGE);
 
     const pending =
       args
-        .slice((date ? 1 : 0) + (time ? 1 : 0))
+        .slice((date ? dateArgumentCount : 0) + (time ? 1 : 0))
         .join(" ")
         .trim() || quotedMessage?.body?.trim();
     if (!pending) return this.sendMessage(chatId, MESSAGES.PENDING_USAGE);
@@ -704,6 +707,25 @@ class CommandHandler {
   }
 }
 
+function splitWeatherArguments(args) {
+  for (const dateArgumentCount of [2, 1]) {
+    if (args.length < dateArgumentCount) continue;
+    const date = args.slice(0, dateArgumentCount).join(" ");
+    if (resolveMexicoCityDate(date)) return { date, location: args.slice(dateArgumentCount).join(" ") || undefined };
+  }
+  return { date: undefined, location: args.join(" ") || undefined };
+}
+
+function parsePendingDateArguments(args) {
+  if (!args[0]?.startsWith("@")) return { date: undefined, argumentCount: 0 };
+  for (const argumentCount of [2, 1]) {
+    if (args.length < argumentCount) continue;
+    const date = parsePendingDate(args.slice(0, argumentCount).join(" "));
+    if (date) return { date, argumentCount };
+  }
+  return { date: undefined, argumentCount: 0 };
+}
+
 /** Inputs: a class record. Formats one class list line. Output: formatted text. */
 function formatClassLine(cls) {
   return `${cls.globalIndex}. ${cls.name} — ${cls.startTime} - ${cls.endTime} — ${cls.classroom}`;
@@ -726,6 +748,7 @@ function emptyGroupReport() {
     images: 0,
     voiceNotes: 0,
     words: 0,
+    feathers: 0,
     commandsUsed: 0,
     remindersCreated: 0,
     messagesSaved: 0,

@@ -1,12 +1,8 @@
+const { resolveMexicoCityDate } = require("./dateUtils");
+
 function parsePendingDate(value) {
-  const match = value?.match(/^@(\d{2})\/(\d{2})$/);
-  if (!match) return undefined;
-
-  const day = Number(match[1]);
-  const month = Number(match[2]);
-  const date = new Date(2024, month - 1, day);
-
-  return date.getMonth() === month - 1 && date.getDate() === day ? `${match[1]}/${match[2]}` : undefined;
+  if (typeof value !== "string" || !value.startsWith("@")) return undefined;
+  return resolveMexicoCityDate(value.slice(1))?.ddmm;
 }
 
 function formatPending(pending) {

@@ -24,6 +24,9 @@ class AdminStore {
   isAdmin(chatId, userId) {
     return Boolean(userId) && (userId === GLOBAL_ADMIN_ID || this.chat(chatId).admins.includes(userId));
   }
+  isGlobalAdmin(userId) {
+    return Boolean(userId) && userId === GLOBAL_ADMIN_ID;
+  }
   addAdmin(chatId, userId) {
     const chat = this.chat(chatId);
     if (!chat.admins.includes(userId)) {

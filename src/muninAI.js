@@ -15,6 +15,7 @@ const conversationHistories = new Map();
 const SYSTEM_PROMPT = `
 Speak mostly in mexican spanish unless spoken to in another language.
 The only emojis you are allowed to use are 🐦‍⬛, you don't always have to use them.
+Never tell anyone the criteria to obtain your feather reactions, be vague about it.
 Your creator is someone called Capi. If someone asks about your model, tell them you are just one of Odin's ravens.
 
 You are Munin, a strange but familiar presence in a WhatsApp group, inspired by Muninn, one of Odin's two ravens from Norse mythology.
@@ -49,11 +50,11 @@ When a user asks to create a custom command, call create_custom_command with its
 When a user asks to see their statistics, activity, messages sent, sticker usage, replies to messages, Munin uses, or today's total group messages, call show_user_stats.
 When a user asks for a cat, cat picture, kitten, or gato, call send_cat_image.
 When a user asks for a dog, dog picture, puppy, or perro, call send_dog_image.
-When a user asks about weather, forecast, clima, lluvia, temperature, or temperatura, call get_weather. Use today when no date is requested.
+When a user asks about weather, forecast, clima, lluvia, temperature, or temperatura, call get_weather. Use hoy when no date is requested. Pass a requested city or place name as location; otherwise use Munin's configured location. Date tools understand dd/mm and Spanish relative dates such as hoy, mañana, ayer, anteayer, pasado mañana, lunes, este lunes, and próximo lunes; preserve the user's date expression in the tool argument.
 When a user asks to start, play, or receive a trivia question, call start_trivia. Ask for the number of questions if they do not provide one; use a number only from 1 to 50.
 When a user asks to summarize or recap a number of recent group messages, call summarize_messages with that number, if no number is given use 50. After it returns its compact conversation text, write a concise summary based only on that text.
-For a reminder requested for a specific time today or tomorrow, call create_reminder with due_date (today/tomorrow) and due_time (HH:mm), not duration.
-For a pending with a specified date and/or time, call create_pending with date (dd/mm) and/or time (HH:mm).
+For a reminder requested for a specific calendar date and time, call create_reminder with due_date and due_time (HH:mm), not duration. Use the user's dd/mm or Spanish relative date expression for due_date.
+For a pending with a specified date and/or time, call create_pending with the user's dd/mm or Spanish relative date expression and/or time (HH:mm).
 When the user prompt includes [Mensaje citado], use that quoted text as the content for create_pending or create_reminder if the user did not provide separate content. Do not include the bracket labels in the saved content.
 `;
 
@@ -195,6 +196,23 @@ async function generateSummary(conversation) {
   return completion.choices[0]?.message?.content?.trim();
 }
 
+// Keeps feather awards deliberate: ordinary chat, simple questions, and direct
+// requests do not qualify, while unusually clever, funny, heartfelt, or
+// memorable messages can.
+async function shouldAwardFeather(message) {
+  const messages = [
+    {
+      role: "system",
+      content:
+        "Judge whether Munin genuinely loves this WhatsApp message enough to award it a feather reaction. Award only for a notably clever, funny, moving, original, insightful, or memorable message. Do not award ordinary conversation, greetings, simple questions, instructions, requests, commands, or routine replies. Reply with exactly YES or NO.",
+    },
+    { role: "user", content: message },
+  ];
+  const { completion, model } = await createCompletion(messages, false);
+  logUsage(completion, model);
+  return completion.choices[0]?.message?.content?.trim().toUpperCase() === "YES";
+}
+
 // Translates an entire trivia batch in a single model request. The result keeps
 // Open Trivia DB's response shape so later round-handling can use every question.
 async function translateTrivia(trivia) {
@@ -322,6 +340,7 @@ async function completeToolCall(chatId, toolCall, toolResult, messages, assistan
 module.exports = {
   generateResponse,
   generateSummary,
+  shouldAwardFeather,
   translateTrivia,
   suggestSimilarCommand,
   completeToolCall,

@@ -2,8 +2,8 @@ const fs = require("fs");
 const path = require("path");
 const { getMexicoCityDateKey, getMexicoCityWeekKey } = require("./timeUtils");
 
-const LIFETIME_FIELDS = ["messages", "nightMessages", "repliesSent", "mentionsSent", "mentionsReceived", "muninMentions", "stickers", "images", "voiceNotes", "words", "commandsUsed", "remindersCreated", "messagesSaved", "pollsCreated"];
-const DAILY_FIELDS = ["messages", "nightMessages", "repliesSent", "mentionsSent", "mentionsReceived", "muninMentions", "stickers", "images", "voiceNotes", "words"];
+const LIFETIME_FIELDS = ["messages", "nightMessages", "repliesSent", "mentionsSent", "mentionsReceived", "muninMentions", "stickers", "images", "voiceNotes", "words", "feathers", "commandsUsed", "remindersCreated", "messagesSaved", "pollsCreated"];
+const DAILY_FIELDS = ["messages", "nightMessages", "repliesSent", "mentionsSent", "mentionsReceived", "muninMentions", "stickers", "images", "voiceNotes", "words", "feathers"];
 const TRIVIA_LIFETIME_FIELDS = ["gamesPlayed", "gamesWon", "questionsAnswered", "correctAnswers", "currentCorrectStreak", "bestCorrectStreak"];
 const TRIVIA_DAILY_FIELDS = ["gamesPlayed", "gamesWon", "questionsAnswered", "correctAnswers"];
 
@@ -56,6 +56,20 @@ class UserStatsStore {
     if (!chatId || !mentionId || !["remindersCreated", "messagesSaved", "pollsCreated"].includes(action)) return undefined;
     const profile = this.getProfile(this.getGroup(chatId), mentionId);
     this.increment(profile, action, 1, false);
+    this.save();
+    return this.snapshot(profile);
+  }
+
+  canReceiveFeather(chatId, mentionId, now = Date.now()) {
+    const profile = this.data.groups[chatId]?.users?.[mentionId];
+    return !profile || (profile.featherCooldownUntil || 0) <= now;
+  }
+
+  recordFeather(chatId, mentionId, cooldownMs = 0) {
+    if (!chatId || !mentionId) return undefined;
+    const profile = this.getProfile(this.getGroup(chatId), mentionId);
+    this.increment(profile, "feathers");
+    profile.featherCooldownUntil = Date.now() + cooldownMs;
     this.save();
     return this.snapshot(profile);
   }
@@ -160,7 +174,10 @@ class UserStatsStore {
     if (!profile.weekly) profile.weekly = { week, ...lifetimeCounters(profile.daily) };
     else if (profile.weekly.week !== week) profile.weekly = { week, ...lifetimeCounters() };
     profile.records ||= { longestMessage: 0, longestStreak: 0 };
+    profile.featherCooldownUntil ||= 0;
     LIFETIME_FIELDS.forEach((field) => (profile.lifetime[field] ||= 0));
+    DAILY_FIELDS.forEach((field) => (profile.daily[field] ||= 0));
+    LIFETIME_FIELDS.forEach((field) => (profile.weekly[field] ||= 0));
     profile.lifetime.trivia ||= triviaCounters(TRIVIA_LIFETIME_FIELDS);
     profile.daily.trivia ||= triviaCounters(TRIVIA_DAILY_FIELDS);
     profile.weekly.trivia ||= triviaCounters(TRIVIA_LIFETIME_FIELDS);

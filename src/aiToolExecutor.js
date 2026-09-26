@@ -3,7 +3,6 @@ const {
   formatMexicoCityDateTime,
   formatDuration,
   formatTimerDuration,
-  getMexicoCityDateParts,
   mexicoCityDateTimeToTimestamp,
   parseClockTime,
   parseDuration,
@@ -14,6 +13,7 @@ const { DAYS_ORDER, capitalize } = require("./classStore");
 const { COMMANDS, MESSAGES } = require("./commandConstants");
 const { formatAllClasses, formatClassesToday, formatPendings, formatReminders, formatSavedMessages } = require("./listResponseFormatter");
 const { getMexicoCityTime } = require("./timeUtils");
+const { resolveMexicoCityDate } = require("./dateUtils");
 
 const MINIMUM_RECURRING_REMINDER_MS = 10 * 60_000;
 
@@ -291,7 +291,7 @@ async function sendRandomImageForGroup(context, sendImage, action, unavailableMe
 
 async function getWeather(args, openMeteoApi) {
   try {
-    const weather = await openMeteoApi?.getWeather(args.date);
+    const weather = await openMeteoApi?.getWeather(args.date, args.location);
     if (!weather) return failure("The weather service is unavailable.", MESSAGES.WEATHER_UNAVAILABLE);
     return { success: true, action: "get_weather", message: MESSAGES.WEATHER_REPORT(weather) };
   } catch (error) {
@@ -343,23 +343,14 @@ function summarizeMessages(args, context, summarizer) {
 }
 
 function getAbsoluteReminderDueAt(args) {
-  const dateName = args.due_date?.trim().toLowerCase();
-  const normalizedDate = dateName === "hoy" ? "today" : dateName === "mañana" || dateName === "manana" ? "tomorrow" : dateName;
+  const date = resolveMexicoCityDate(args.due_date);
   const clockTime = parseClockTime(args.due_time);
-  if (!clockTime || !["today", "tomorrow"].includes(normalizedDate)) {
+  if (!clockTime || !date) {
     return failure("A valid absolute reminder date and time are required.", MESSAGES.REMINDER_INVALID_ABSOLUTE_TIME);
   }
 
-  const date = getMexicoCityDateParts();
-  if (normalizedDate === "tomorrow") {
-    const tomorrow = new Date(Date.UTC(date.year, date.month - 1, date.day + 1));
-    date.year = tomorrow.getUTCFullYear();
-    date.month = tomorrow.getUTCMonth() + 1;
-    date.day = tomorrow.getUTCDate();
-  }
-
   const dueAt = mexicoCityDateTimeToTimestamp({ ...date, ...clockTime });
-  if (normalizedDate === "today" && dueAt <= Date.now()) {
+  if (dueAt <= Date.now()) {
     return failure("The requested reminder time has already passed.", MESSAGES.REMINDER_TIME_ALREADY_PASSED);
   }
 
