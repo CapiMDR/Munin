@@ -19,9 +19,13 @@ const ReminderStore = require("./reminderStore");
 const ClassStore = require("./classStore");
 const ClassScheduler = require("./classScheduler");
 const AdminStore = require("./adminStore");
+const UserStatsStore = require("./userStatsStore");
+const WeeklyReportStore = require("./weeklyReportStore");
+const WeeklyReportScheduler = require("./weeklyReportScheduler");
 const { Summarizer } = require("./summarizer");
 const { loadBotLid, saveBotLid } = require("./botIdentityStore");
 const { MESSAGES } = require("./commandConstants");
+const { getMexicoCityTime } = require("./timeUtils");
 
 process.on("unhandledRejection", (reason) => {
   console.error("UNHANDLED REJECTION:");
@@ -57,6 +61,8 @@ const reminderScheduler = new ReminderScheduler(reminderStore, sendMessage);
 const classStore = new ClassStore();
 const classScheduler = new ClassScheduler(classStore, sendMessage);
 const adminStore = new AdminStore();
+const userStatsStore = new UserStatsStore();
+const weeklyReportStore = new WeeklyReportStore();
 const summarizer = new Summarizer();
 const aiToolExecutor = createAiToolExecutor({
   pendingStore,
@@ -64,6 +70,7 @@ const aiToolExecutor = createAiToolExecutor({
   reminderScheduler,
   savedMessageStore,
   customCommandStore,
+  userStatsStore,
   classStore,
   classScheduler,
   scheduleTimer,
@@ -86,10 +93,21 @@ const commandHandler = new CommandHandler(
   summarizer,
   generateSummary,
   suggestSimilarCommand,
+  userStatsStore,
+  weeklyReportStore,
 );
+
+const weeklyReportScheduler = new WeeklyReportScheduler(weeklyReportStore, userStatsStore, buildGroupReport, sendMessage);
 
 reminderScheduler.start();
 classScheduler.start();
+weeklyReportScheduler.start();
+
+function buildGroupReport(chatId) {
+  const report = userStatsStore.getGroupReport(chatId);
+  report.currentPendings = pendingStore.getAll(chatId).length;
+  return MESSAGES.GROUP_REPORT(report);
+}
 
 function scheduleTimer(duration, callback) {
   return setTimeout(() => {
@@ -161,6 +179,24 @@ async function handleMessageCreate(message) {
     const isCommand = body.startsWith("!");
     const isMention = isBotMention(message);
 
+    // Track every group message from people, including ordinary conversation
+    // that does not require a response from Munin.
+    const sender = await getSender(message);
+    userStatsStore.recordMessage(chatId, {
+      mentionId: getSenderMentionId(message, sender),
+      name: sender?.name || sender?.tag,
+      replyToMentionId: getQuotedParticipantId(message),
+      isReply: isReplyToMessage(message),
+      mentionedIds: getMentionIds(message),
+      botMentionId: botLid,
+      isSticker: isSticker(message),
+      isImage: isImage(message),
+      isVoiceNote: isVoiceNote(message),
+      isNightMessage: isNightMessage(message),
+      words: countWords(body),
+      isCommand,
+    });
+
     // Ignore random messages
     if (!isCommand && !isMention) return;
 
@@ -172,7 +208,6 @@ async function handleMessageCreate(message) {
       return;
     }
 
-    const sender = await getSender(message);
     //printReceivedMessage(message, sender);
 
     if (isCommand) return handleFormalCommand(message, chatId, sender);
@@ -208,6 +243,47 @@ function getChatId(message) {
 
 function getMessageBody(message) {
   return typeof message?.body === "string" ? message.body : "";
+}
+
+function getSenderMentionId(message, sender) {
+  return sender?.mentionId || message?.author || message?.id?.participant || message?._data?.id?.participant;
+}
+
+function isReplyToMessage(message) {
+  return Boolean(message?.hasQuotedMsg);
+}
+
+function getQuotedParticipantId(message) {
+  if (!isReplyToMessage(message)) return undefined;
+  const participant = message?._data?.quotedParticipant;
+  return typeof participant === "string" ? participant : participant?._serialized;
+}
+
+function getMentionIds(message) {
+  return (message?.mentionedIds || []).map((mention) => (typeof mention === "string" ? mention : mention?._serialized)).filter(Boolean);
+}
+
+function isSticker(message) {
+  return message?.type === "sticker" || message?._data?.type === "sticker";
+}
+
+function isImage(message) {
+  return message?.type === "image" || message?._data?.type === "image";
+}
+
+function isVoiceNote(message) {
+  return message?.type === "ptt" || message?._data?.type === "ptt";
+}
+
+function isNightMessage(message) {
+  const timestamp = Number(message?.timestamp);
+  const sentAt = Number.isFinite(timestamp) ? new Date(timestamp * 1_000) : new Date();
+  return getMexicoCityTime(sentAt).minutes < 6 * 60;
+}
+
+function countWords(text) {
+  const words = text.trim().match(/\S+/g);
+  return words ? words.length : 0;
 }
 
 function isExcludedByTestMode(chatId) {
@@ -247,6 +323,7 @@ async function handleMention(message, chatId, sender, isMention = isBotMention(m
     const toolResult = await aiToolExecutor.execute(aiResult.toolCall, {
       chatId,
       message,
+      sender,
     });
 
     // Help is already complete, canonical message text. Deliver it directly so

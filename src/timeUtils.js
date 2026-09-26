@@ -192,6 +192,21 @@ function getMexicoCityDateKey(date = new Date()) {
   return `${values.year}-${values.month}-${values.day}`;
 }
 
+function getMexicoCityWeekKey(date = new Date()) {
+  const { year, month, day } = getMexicoCityDateParts(date);
+  const utcDate = new Date(Date.UTC(year, month - 1, day));
+  const isoWeekday = utcDate.getUTCDay() || 7;
+  utcDate.setUTCDate(utcDate.getUTCDate() + 4 - isoWeekday);
+
+  const weekYear = utcDate.getUTCFullYear();
+  const firstThursday = new Date(Date.UTC(weekYear, 0, 4));
+  const firstIsoWeekday = firstThursday.getUTCDay() || 7;
+  firstThursday.setUTCDate(firstThursday.getUTCDate() + 4 - firstIsoWeekday);
+  const week = 1 + Math.round((utcDate - firstThursday) / 604_800_000);
+
+  return `${weekYear}-W${String(week).padStart(2, "0")}`;
+}
+
 function millisecondsUntilTime(time, targetMinutes) {
   const currentSeconds = time.minutes * 60 + time.seconds;
   const targetSeconds = targetMinutes * 60;
@@ -203,4 +218,4 @@ function millisecondsUntilNextDay(time) {
   return (24 * 60 * 60 - time.minutes * 60 - time.seconds) * 1_000;
 }
 
-module.exports = { formatDuration, formatMexicoCityDateTime, formatReminder, formatRemainingDuration, formatTimerDuration, getMexicoCityDate, getMexicoCityDateKey, getMexicoCityDateParts, getMexicoCityTime, mexicoCityDateTimeToTimestamp, millisecondsUntilNextDay, millisecondsUntilTime, parseClockTime, parseDuration, parseTimeRange, parseTimerDuration, timeToMinutes };
+module.exports = { formatDuration, formatMexicoCityDateTime, formatReminder, formatRemainingDuration, formatTimerDuration, getMexicoCityDate, getMexicoCityDateKey, getMexicoCityDateParts, getMexicoCityTime, getMexicoCityWeekKey, mexicoCityDateTimeToTimestamp, millisecondsUntilNextDay, millisecondsUntilTime, parseClockTime, parseDuration, parseTimeRange, parseTimerDuration, timeToMinutes };
