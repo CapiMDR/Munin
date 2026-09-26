@@ -154,6 +154,21 @@ const TOOLS = [
   {
     type: "function",
     function: {
+      name: "create_custom_command",
+      description: "Create or update a group-specific custom command that sends a fixed reply. The command name must begin with ! and contain only letters, numbers, underscores, or hyphens.",
+      parameters: {
+        type: "object",
+        properties: {
+          command: { type: "string", description: "The custom command name, for example !saludo." },
+          reply: { type: "string", description: "The exact fixed reply sent when the custom command is used." },
+        },
+        required: ["command", "reply"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "list_classes",
       description: "List all classes for the current group with their one-based global indexes and bell status.",
       parameters: { type: "object", properties: {} },

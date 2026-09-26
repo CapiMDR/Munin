@@ -11,7 +11,7 @@ const {
   parseTimerDuration,
 } = require("./timeUtils");
 const { DAYS_ORDER, capitalize } = require("./classStore");
-const { MESSAGES } = require("./commandConstants");
+const { COMMANDS, MESSAGES } = require("./commandConstants");
 const { formatAllClasses, formatClassesToday, formatPendings, formatReminders, formatSavedMessages } = require("./listResponseFormatter");
 const { getMexicoCityTime } = require("./timeUtils");
 
@@ -24,6 +24,7 @@ function createAiToolExecutor({
   reminderStore,
   reminderScheduler,
   savedMessageStore,
+  customCommandStore,
   classStore,
   classScheduler,
   scheduleTimer,
@@ -43,6 +44,7 @@ function createAiToolExecutor({
     start_timer: (args, context) => startTimer(args, context, scheduleTimer, sendMessage),
     summarize_messages: (args, context) => summarizeMessages(args, context, summarizer),
     show_help: (args) => showHelp(args),
+    create_custom_command: (args, context) => createCustomCommand(args, context, customCommandStore),
     list_classes: (args, context) => listClasses(context, classStore),
     list_classes_today: (args, context) => listClassesToday(context, classStore),
     add_class: (args, context) => addClass(args, context, classStore, classScheduler),
@@ -229,6 +231,29 @@ function showHelp(args) {
 
   if (!helpPage) return failure(MESSAGES.HELP_PAGE_USAGE);
   return { success: true, action: "show_help", page, help: helpPage };
+}
+
+// Mirrors !comando: members may create or update their group's fixed-reply
+// commands, except for names reserved by Munin's built-in command handlers.
+function createCustomCommand(args, context, customCommandStore) {
+  const command = typeof args.command === "string" ? args.command.trim().toLowerCase() : "";
+  const reply = typeof args.reply === "string" ? args.reply.trim() : "";
+
+  if (!command || !/^![a-z0-9_-]+$/i.test(command) || !reply) {
+    return failure("A valid command name and reply are required.", MESSAGES.CUSTOM_COMMAND_USAGE);
+  }
+  if (Object.values(COMMANDS).includes(command)) {
+    return failure(`The command ${command} is built in.`, MESSAGES.CUSTOM_COMMAND_BUILTIN_CONFLICT(command));
+  }
+
+  const updated = customCommandStore.set(context.chatId, command, reply);
+  return {
+    success: true,
+    action: "create_custom_command",
+    command,
+    updated,
+    message: updated ? MESSAGES.CUSTOM_COMMAND_UPDATED(command) : MESSAGES.CUSTOM_COMMAND_CREATED(command, reply),
+  };
 }
 
 function listClasses(context, classStore) {

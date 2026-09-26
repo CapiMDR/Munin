@@ -36,6 +36,7 @@ class CommandHandler {
     getBotLid = () => undefined,
     summarizer,
     generateSummary,
+    suggestSimilarCommand,
   ) {
     Object.assign(this, {
       sendMessage,
@@ -52,6 +53,7 @@ class CommandHandler {
       getBotLid,
       summarizer,
       generateSummary,
+      suggestSimilarCommand,
     });
   }
 
@@ -148,7 +150,7 @@ class CommandHandler {
     if (Object.hasOwn(this.getHandlers(), command)) return this.sendMessage(chatId, MESSAGES.CUSTOM_COMMAND_BUILTIN_CONFLICT(command));
 
     const alreadyExists = this.customCommandStore.set(chatId, command, reply);
-    await this.sendMessage(chatId, alreadyExists ? MESSAGES.CUSTOM_COMMAND_UPDATED(command) : MESSAGES.CUSTOM_COMMAND_CREATED(command));
+    await this.sendMessage(chatId, alreadyExists ? MESSAGES.CUSTOM_COMMAND_UPDATED(command) : MESSAGES.CUSTOM_COMMAND_CREATED(command, reply));
   }
   /** Inputs: chat ID. Lists custom commands in the current group. Output: the sent-message promise. */
   async handleListCustomCommands(chatId) {
@@ -228,8 +230,17 @@ class CommandHandler {
     if (args.length > 1 || !Number.isInteger(page) || !MESSAGES.HELP_PAGE(page)) return this.sendMessage(chatId, MESSAGES.HELP_PAGE_USAGE);
     await this.sendMessage(chatId, MESSAGES.HELP_PAGE(page));
   }
-  /** Inputs: chat ID and unknown command name. Sends command-specific guidance. Output: the sent-message promise. */
+  /** Inputs: chat ID and unknown command name. Asks the LLM for a close, existing command name. Output: the sent-message promise. */
   async handleUnknown(chatId, args, quotedMessage, sender, command) {
+    const availableCommands = [...Object.keys(this.getHandlers()), ...this.customCommandStore.getAll(chatId).map(({ command: name }) => name)];
+
+    try {
+      const suggestion = await this.suggestSimilarCommand?.(command.toLowerCase(), availableCommands);
+      if (suggestion) return this.sendMessage(chatId, MESSAGES.SUGGEST_SIMILAR_COMMAND(suggestion));
+    } catch (error) {
+      console.warn("Could not suggest a similar command:", error.message);
+    }
+
     await this.sendMessage(chatId, MESSAGES.UNKNOWN_COMMAND(command));
   }
 
@@ -508,7 +519,10 @@ class CommandHandler {
     this.classScheduler?.rescheduleForChat(chatId);
     await this.sendMessage(
       chatId,
-      MESSAGES.MUTATION_WITH_LIST(MESSAGES.CLASS_ADDED(cls, capitalize(cls.day)), formatAllClasses(this.classStore.getAllSorted(chatId), undefined, this.classStore.getBell(chatId))),
+      MESSAGES.MUTATION_WITH_LIST(
+        MESSAGES.CLASS_ADDED(cls, capitalize(cls.day)),
+        formatAllClasses(this.classStore.getAllSorted(chatId), undefined, this.classStore.getBell(chatId)),
+      ),
     );
   }
 
@@ -526,7 +540,10 @@ class CommandHandler {
     this.classScheduler?.rescheduleForChat(chatId);
     await this.sendMessage(
       chatId,
-      MESSAGES.MUTATION_WITH_LIST(MESSAGES.CLASS_EDITED(cls, capitalize(cls.day)), formatAllClasses(this.classStore.getAllSorted(chatId), undefined, this.classStore.getBell(chatId))),
+      MESSAGES.MUTATION_WITH_LIST(
+        MESSAGES.CLASS_EDITED(cls, capitalize(cls.day)),
+        formatAllClasses(this.classStore.getAllSorted(chatId), undefined, this.classStore.getBell(chatId)),
+      ),
     );
   }
 
@@ -539,7 +556,10 @@ class CommandHandler {
     this.classScheduler?.rescheduleForChat(chatId);
     await this.sendMessage(
       chatId,
-      MESSAGES.MUTATION_WITH_LIST(MESSAGES.CLASS_DELETED(cls.name), formatAllClasses(this.classStore.getAllSorted(chatId), undefined, this.classStore.getBell(chatId))),
+      MESSAGES.MUTATION_WITH_LIST(
+        MESSAGES.CLASS_DELETED(cls.name),
+        formatAllClasses(this.classStore.getAllSorted(chatId), undefined, this.classStore.getBell(chatId)),
+      ),
     );
   }
 

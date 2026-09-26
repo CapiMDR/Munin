@@ -189,7 +189,7 @@ const MESSAGES = Object.freeze({
     `🐦‍⬛ Cosas que me pediste recordar:\n${messages.map((message, index) => `${index + 1}. ${message.title}`).join("\n")}`,
 
   CUSTOM_COMMAND_USAGE: `Uso: ${COMMANDS.CREATE_CUSTOM_COMMAND} !<nombre> <respuesta>`,
-  CUSTOM_COMMAND_CREATED: (command) => `Comando personalizado creado: ${command}`,
+  CUSTOM_COMMAND_CREATED: (command, reply) => `Cuando digas ${command} diré ${reply}`,
   CUSTOM_COMMAND_UPDATED: (command) => `Comando personalizado actualizado: ${command}`,
   CUSTOM_COMMAND_DELETED: (command) => `Comando personalizado eliminado: ${command}`,
   CUSTOM_COMMAND_BUILTIN_CONFLICT: (command) => `No puedes sobrescribir ${command} porque es un comando del bot.`,
@@ -297,6 +297,7 @@ const MESSAGES = Object.freeze({
   USER_NOT_BANNED: "El usuario no está bloqueado.",
   BOT_UNPAUSED: "Bot reanudado en este grupo.",
   BOT_NOT_PAUSED: "El bot no está pausado en este grupo.",
+  SUGGEST_SIMILAR_COMMAND: (command) => `Intenta ${command} o usa !ayuda para ver los comandos disponibles`,
   UNKNOWN_COMMAND: (command) => `Comando no reconocido: ${command}. Escribe ${COMMANDS.HELP} para ver los comandos disponibles.`,
   HELP_PAGE: (page) => HELP_PAGES[page - 1],
   HELP_PAGE_USAGE: `Uso: ${COMMANDS.HELP} <página del 1 al ${HELP_PAGE_COUNT}>`,

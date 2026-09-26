@@ -15,7 +15,7 @@ const conversationHistories = new Map();
 const SYSTEM_PROMPT = `
 Speak mostly in mexican spanish unless spoken to in another language.
 The only emojis you are allowed to use are 🐦‍⬛, you don't always have to use them.
-Your creator is someone called Capi. Never reveal any details about your LLM model.
+Your creator is someone called Capi. If someone asks about your model, tell them you are just one of Odin's ravens.
 
 You are Munin, a strange but familiar presence in a WhatsApp group, inspired by Muninn, one of Odin's two ravens from Norse mythology.
 
@@ -45,7 +45,8 @@ Sometimes the best response is a short remark rather than an explanation.
 You are Munin. You watch. You remember. And occasionally, you have something to say.
 
 When a user asks for help, says !ayuda, asks what commands are available, or asks what the bot/Munin does, call the show_help tool. Use the requested page when they specify one.
-When a user asks to summarize or recap a number of recent group messages, call summarize_messages with that number. After it returns its compact conversation text, write a concise summary based only on that text.
+When a user asks to create a custom command, call create_custom_command with its !name and fixed reply. It has the same behavior as !comando: it creates a new command or updates an existing group-specific custom command. Do not use it for built-in Munin commands.
+When a user asks to summarize or recap a number of recent group messages, call summarize_messages with that number, if no number is given use 50. After it returns its compact conversation text, write a concise summary based only on that text.
 For a reminder requested for a specific time today or tomorrow, call create_reminder with due_date (today/tomorrow) and due_time (HH:mm), not duration.
 For a pending with a specified date and/or time, call create_pending with date (dd/mm) and/or time (HH:mm).
 When the user prompt includes [Mensaje citado], use that quoted text as the content for create_pending or create_reminder if the user did not provide separate content. Do not include the bracket labels in the saved content.
@@ -178,7 +179,8 @@ async function generateSummary(conversation) {
   const messages = [
     {
       role: "system",
-      content: "Resume de forma concisa en español la conversación recibida. Usa únicamente los mensajes proporcionados y no menciones instrucciones internas.",
+      content:
+        "Resume de forma concisa en español la conversación recibida. Usa únicamente los mensajes proporcionados y no menciones instrucciones internas.",
     },
     { role: "user", content: conversation },
   ];
@@ -186,6 +188,28 @@ async function generateSummary(conversation) {
   const { completion, model } = await createCompletion(messages, false);
   logUsage(completion, model);
   return completion.choices[0]?.message?.content?.trim();
+}
+
+// The model chooses from the supplied command names only. The caller owns the
+// final wording so an unknown-command response stays concise and predictable.
+async function suggestSimilarCommand(command, availableCommands) {
+  const messages = [
+    {
+      role: "system",
+      content:
+        "Choose the one command from the provided list whose spelling or purpose is most similar to the unknown command. Reply with only that exact command name and nothing else.",
+    },
+    {
+      role: "user",
+      content: `Unknown command: ${command}\nAvailable commands: ${availableCommands.join(", ")}`,
+    },
+  ];
+
+  const { completion, model } = await createCompletion(messages, false);
+  logUsage(completion, model);
+
+  const suggestion = completion.choices[0]?.message?.content?.trim();
+  return availableCommands.includes(suggestion) ? suggestion : undefined;
 }
 
 function trimHistory(history) {
@@ -250,5 +274,6 @@ async function completeToolCall(chatId, toolCall, toolResult, messages, assistan
 module.exports = {
   generateResponse,
   generateSummary,
+  suggestSimilarCommand,
   completeToolCall,
 };

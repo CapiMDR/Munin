@@ -6,7 +6,7 @@ const TEST_MODE = false;
 const TEST_MODE_SEND_MAINTENANCE_MESSAGE = false;
 const TEST_CHAT_ID = process.env.TEST_CHAT_ID?.trim() || "";
 
-const { generateResponse, generateSummary, completeToolCall } = require("./muninAI");
+const { generateResponse, generateSummary, suggestSimilarCommand, completeToolCall } = require("./muninAI");
 const { createAiToolExecutor } = require("./aiToolExecutor");
 const { Client, LocalAuth, Poll } = require("whatsapp-web.js");
 const CommandHandler = require("./commandHandler");
@@ -63,6 +63,7 @@ const aiToolExecutor = createAiToolExecutor({
   reminderStore,
   reminderScheduler,
   savedMessageStore,
+  customCommandStore,
   classStore,
   classScheduler,
   scheduleTimer,
@@ -84,6 +85,7 @@ const commandHandler = new CommandHandler(
   () => botLid,
   summarizer,
   generateSummary,
+  suggestSimilarCommand,
 );
 
 reminderScheduler.start();
@@ -296,16 +298,13 @@ function getQuotedMessage(message) {
   return message._data?.quotedMsg;
 }
 
-function removeMuninMention(body) {
-  return body.replace(/^@\S+\s*/, "").trim();
-}
-
 // Builds the text the LLM receives. WhatsApp message bodies represent mentions
 // as raw JIDs/numbers, so replace each one with its contact display name first.
 async function getLLMPrompt(message) {
-  let content = removeMuninMention(message.body || "");
+  let content = message.body || "";
   const mentionedIds = message.mentionedIds || [];
   let contacts = [];
+
   if (mentionedIds.length) {
     try {
       contacts = await message.getMentions();
@@ -316,18 +315,36 @@ async function getLLMPrompt(message) {
 
   mentionedIds.forEach((mention, index) => {
     const mentionId = typeof mention === "string" ? mention : mention?._serialized;
+
     if (!mentionId) return;
 
-    const contact = contacts[index];
-    const displayName = contact?.pushname || contact?.name || contact?.shortName || contact?.number || "alguien";
     const rawMention = `@${mentionId.split("@")[0]}`;
+
+    // Replace Munin's WhatsApp mention with its name.
+    if (mentionId === botLid) {
+      content = content.split(rawMention).join("Munin");
+
+      return;
+    }
+
+    const contact = contacts[index];
+
+    const displayName = contact?.pushname || contact?.name || contact?.shortName || contact?.number || "alguien";
+
     content = content.split(rawMention).join(`@${displayName}`);
   });
 
   const quotedContent = getQuotedMessage(message)?.body?.trim();
-  if (!quotedContent) return content.trim();
 
-  return `${content.trim()}\n\n[Mensaje citado]\n${sanitizeQuotedContent(quotedContent)}\n[/Mensaje citado]`;
+  if (!quotedContent) {
+    return content.trim();
+  }
+
+  return `${content.trim()}
+
+[Mensaje citado]
+${sanitizeQuotedContent(quotedContent)}
+[/Mensaje citado]`;
 }
 
 function sanitizeQuotedContent(content) {
