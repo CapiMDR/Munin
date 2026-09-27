@@ -131,7 +131,6 @@ const weeklyReportScheduler = new WeeklyReportScheduler(weeklyReportStore, userS
 
 reminderScheduler.start();
 classScheduler.start();
-weeklyReportScheduler.start();
 
 function buildGroupReport(chatId) {
   const report = userStatsStore.getGroupReport(chatId);
@@ -178,6 +177,7 @@ let pendingSchedulerStarted = false;
 client.on("ready", () => {
   console.log("READY");
   startPendingScheduler();
+  weeklyReportScheduler.start();
 });
 
 function startPendingScheduler() {

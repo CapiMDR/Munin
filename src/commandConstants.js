@@ -238,7 +238,7 @@ const MESSAGES = Object.freeze({
   USER_STATS: (stats) => formatUserStats(stats),
   STATS_UNAVAILABLE: "No pude encontrar tus estadísticas todavía.",
   STATS_USAGE: `Uso: ${COMMANDS.STATS} [@usuario]`,
-  WEEKLY_REPORT_ENABLED: "Reporte semanal automático activado. Lo enviaré cada domingo a las 08:00.",
+  WEEKLY_REPORT_ENABLED: "Reporte semanal automático activado. Lo enviaré cada domingo a las 18:00.",
   WEEKLY_REPORT_DISABLED: "Reporte semanal automático desactivado.",
   GROUP_REPORT: (stats) =>
     [
