@@ -214,11 +214,17 @@ async function handleMessageCreate(message) {
     // Ignore bot messages to avoid infinite command intake (looking at you !echo !echo...)
     if (myOwnMessage(message)) return;
 
-    summarizer.addMessage(message);
-
     const chatId = getChatId(message);
     // Munin is NOT a personal assistant
     if (!isGroupChat(chatId)) return;
+
+    const sender = await getSender(message);
+    const senderMentionId = getSenderMentionId(message, sender);
+    // Banned members are invisible to every Munin feature: commands, LLM
+    // mentions, trivia answers, summaries, reactions, and statistics.
+    if (isSenderBanned(chatId, message, sender)) return;
+
+    summarizer.addMessage(message);
 
     const body = getMessageBody(message);
     const isCommand = body.startsWith("!");
@@ -226,9 +232,8 @@ async function handleMessageCreate(message) {
 
     // Track every group message from people, including ordinary conversation
     // that does not require a response from Munin.
-    const sender = await getSender(message);
     userStatsStore.recordMessage(chatId, {
-      mentionId: getSenderMentionId(message, sender),
+      mentionId: senderMentionId,
       name: sender?.name || sender?.tag,
       replyToMentionId: getQuotedParticipantId(message),
       isReply: isReplyToMessage(message),
@@ -300,6 +305,19 @@ function getMessageBody(message) {
 
 function getSenderMentionId(message, sender) {
   return sender?.mentionId || message?.author || message?.id?.participant || message?._data?.id?.participant;
+}
+
+function isSenderBanned(chatId, message, sender) {
+  const senderIds = [
+    sender?.mentionId,
+    message?.author,
+    message?.id?.participant,
+    message?._data?.id?.participant,
+  ]
+    .map((id) => (typeof id === "string" ? id : id?._serialized))
+    .filter(Boolean);
+
+  return senderIds.some((senderId) => adminStore.isBanned(chatId, senderId));
 }
 
 function isReplyToMessage(message) {
