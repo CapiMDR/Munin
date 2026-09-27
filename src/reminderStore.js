@@ -17,7 +17,12 @@ class ReminderStore {
         throw new Error("The reminders file must contain an object keyed by chat ID.");
       }
 
-      return remindersByChat;
+      const { remindersByChat: normalized, changed } = normalizeReminders(remindersByChat);
+      if (changed) {
+        this.remindersByChat = normalized;
+        this.save();
+      }
+      return normalized;
     } catch (error) {
       if (error.code === "ENOENT") {
         return {};
@@ -27,12 +32,28 @@ class ReminderStore {
     }
   }
 
-  add(chatId, content, dueAt) {
-    return this.addReminder(chatId, { content, dueAt });
+  add(chatId, text, startAt, messageId) {
+    return this.addReminder(chatId, createReminder({ text, startAt, messageId }));
   }
 
-  addRecurring(chatId, content, dueAt, intervalMs, remaining) {
-    return this.addReminder(chatId, { content, dueAt, intervalMs, remaining });
+  addRecurring(chatId, text, startAt, intervalMs, count, messageId) {
+    return this.addReminder(chatId, createReminder({
+      text,
+      startAt,
+      messageId,
+      recurrence: {
+        frequency: "relative",
+        interval: intervalMs,
+        daysOfWeek: null,
+        dayOfMonth: null,
+        until: null,
+        count,
+      },
+    }));
+  }
+
+  addWeekly(chatId, text, startAt, recurrence, messageId) {
+    return this.addReminder(chatId, createReminder({ text, startAt, recurrence, messageId }));
   }
 
   addReminder(chatId, reminderData) {
@@ -40,10 +61,7 @@ class ReminderStore {
       this.remindersByChat[chatId] = [];
     }
 
-    const reminder = {
-      id: crypto.randomUUID(),
-      ...reminderData,
-    };
+    const reminder = reminderData.id ? reminderData : { id: crypto.randomUUID(), ...reminderData };
 
     this.remindersByChat[chatId].push(reminder);
     this.save();
@@ -94,6 +112,66 @@ class ReminderStore {
     fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
     fs.writeFileSync(this.filePath, JSON.stringify(this.remindersByChat, null, 2));
   }
+}
+
+function createReminder({ text, startAt, recurrence = null, messageId }) {
+  const startTimestamp = toTimestamp(startAt);
+  const now = new Date().toISOString();
+  return {
+    id: `rem_${crypto.randomUUID()}`,
+    text,
+    ...(messageId ? { messageId } : {}),
+    startAt: new Date(startTimestamp).toISOString(),
+    recurrence,
+    nextTriggerAt: new Date(startTimestamp).toISOString(),
+    lastTriggeredAt: null,
+    triggerCount: 0,
+    status: "active",
+    createdAt: now,
+  };
+}
+
+function normalizeReminders(remindersByChat) {
+  let changed = false;
+  const normalized = {};
+
+  for (const [chatId, reminders] of Object.entries(remindersByChat)) {
+    if (!Array.isArray(reminders)) throw new Error("Each chat's reminders must be an array.");
+    normalized[chatId] = reminders.map((reminder) => {
+      if (reminder.text && reminder.startAt && reminder.nextTriggerAt) return reminder;
+      changed = true;
+      const dueAt = toTimestamp(reminder.dueAt);
+      const recurrence = reminder.intervalMs
+        ? {
+            frequency: "relative",
+            interval: reminder.intervalMs,
+            daysOfWeek: null,
+            dayOfMonth: null,
+            until: null,
+            count: reminder.remaining ?? null,
+          }
+        : null;
+      return {
+        id: reminder.id || crypto.randomUUID(),
+        text: reminder.content,
+        startAt: new Date(dueAt).toISOString(),
+        recurrence,
+        nextTriggerAt: new Date(dueAt).toISOString(),
+        lastTriggeredAt: null,
+        triggerCount: 0,
+        status: "active",
+        createdAt: new Date().toISOString(),
+      };
+    });
+  }
+
+  return { remindersByChat: normalized, changed };
+}
+
+function toTimestamp(value) {
+  const timestamp = typeof value === "number" ? value : Date.parse(value);
+  if (!Number.isFinite(timestamp)) throw new Error("Reminder timestamps must be valid.");
+  return timestamp;
 }
 
 module.exports = ReminderStore;

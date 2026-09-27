@@ -34,7 +34,33 @@ function formatDuration(value) {
 }
 
 function formatReminder(reminder) {
-  return `${reminder.content} (vence ${formatMexicoCityDateTime(reminder.dueAt)})`;
+  const next = formatMexicoCityDateTime(reminder.nextTriggerAt);
+  if (!reminder.recurrence) return `${reminder.text} (vence ${next})`;
+  if (reminder.recurrence.frequency !== "week") {
+    const count = reminder.recurrence.count;
+    const limit = count === null ? " para siempre" : count ? ` por ${count} veces` : "";
+    return `${reminder.text} (próxima ${next}${limit})`;
+  }
+
+  const { interval, daysOfWeek, time, until, count } = reminder.recurrence;
+  const cadence = interval === 1 ? "cada semana" : `cada ${interval} semanas`;
+  const limit = until ? ` hasta ${formatMexicoCityDateTime(until)}` : count === null ? " para siempre" : count ? ` por ${count} veces` : "";
+  const weekdays = daysOfWeek.map(formatWeekday).join(", ");
+  return `${reminder.text} (${cadence}: ${weekdays} a las ${time} >  próxima ${next}${limit})`;
+}
+
+function formatWeekday(day) {
+  return (
+    {
+      monday: "lunes",
+      tuesday: "martes",
+      wednesday: "miércoles",
+      thursday: "jueves",
+      friday: "viernes",
+      saturday: "sábado",
+      sunday: "domingo",
+    }[day] || day
+  );
 }
 
 function formatMexicoCityDateTime(value) {
@@ -218,4 +244,23 @@ function millisecondsUntilNextDay(time) {
   return (24 * 60 * 60 - time.minutes * 60 - time.seconds) * 1_000;
 }
 
-module.exports = { formatDuration, formatMexicoCityDateTime, formatReminder, formatRemainingDuration, formatTimerDuration, getMexicoCityDate, getMexicoCityDateKey, getMexicoCityDateParts, getMexicoCityTime, getMexicoCityWeekKey, mexicoCityDateTimeToTimestamp, millisecondsUntilNextDay, millisecondsUntilTime, parseClockTime, parseDuration, parseTimeRange, parseTimerDuration, timeToMinutes };
+module.exports = {
+  formatDuration,
+  formatMexicoCityDateTime,
+  formatReminder,
+  formatRemainingDuration,
+  formatTimerDuration,
+  getMexicoCityDate,
+  getMexicoCityDateKey,
+  getMexicoCityDateParts,
+  getMexicoCityTime,
+  getMexicoCityWeekKey,
+  mexicoCityDateTimeToTimestamp,
+  millisecondsUntilNextDay,
+  millisecondsUntilTime,
+  parseClockTime,
+  parseDuration,
+  parseTimeRange,
+  parseTimerDuration,
+  timeToMinutes,
+};
