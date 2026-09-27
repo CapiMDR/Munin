@@ -1,23 +1,38 @@
-const { getPendingContent, parsePendingDate, parsePendingTime } = require("./pendingUtils");
+const { parsePendingDate, parsePendingTime } = require("./utils/pendingUtils");
 const {
+  DAYS_ORDER,
   formatMexicoCityDateTime,
   formatDuration,
   formatTimerDuration,
-  getMexicoCityDateParts,
-  mexicoCityDateTimeToTimestamp,
-  parseClockTime,
-  parseDuration,
+  getDays,
   parseTimeRange,
   parseTimerDuration,
-} = require("./timeUtils");
-const { DAYS_ORDER, capitalize } = require("./classStore");
+} = require("./utils/timeUtils");
 const { COMMANDS, MESSAGES } = require("./commandConstants");
-const { formatAllClasses, formatClassesToday, formatPendings, formatReminders, formatSavedMessages } = require("./listResponseFormatter");
-const { getMexicoCityTime } = require("./timeUtils");
-const { resolveMexicoCityDate } = require("./dateUtils");
-const { WEEKDAYS, getNextWeeklyTrigger, parseTime, toIso } = require("./reminderSchedule");
-
-const MINIMUM_RECURRING_REMINDER_MS = 10 * 60_000;
+const { formatAllClasses, formatClassesToday } = require("./listResponseFormatter");
+const { getMexicoCityTime } = require("./utils/timeUtils");
+const pendingOperations = require("./services/pendingService");
+const reminderOperations = require("./services/reminderService");
+const savedMessageOperations = require("./services/savedMessageService");
+const { presentPendingResult } = require("./presenters/pendingPresenter");
+const { presentSavedMessageResult } = require("./presenters/savedMessagePresenter");
+const { presentReminderResult } = require("./presenters/reminderPresenter");
+const { presentClassResult } = require("./presenters/classPresenter");
+const customCommandService = require("./services/customCommandService");
+const { presentCustomCommandResult } = require("./presenters/customCommandPresenter");
+const { presentWeatherResult } = require("./presenters/weatherPresenter");
+const { presentTriviaResult } = require("./presenters/triviaPresenter");
+const statsService = require("./services/statsService");
+const { presentStatsResult } = require("./presenters/statsPresenter");
+const helpService = require("./services/helpService");
+const { presentHelpResult } = require("./presenters/helpPresenter");
+const animalImageService = require("./services/animalImageService");
+const { presentAnimalImageResult } = require("./presenters/animalImagePresenter");
+const summaryService = require("./services/summaryService");
+const { presentSummaryResult } = require("./presenters/summaryPresenter");
+const classService = require("./services/classService");
+const triviaService = require("./services/triviaService");
+const weatherService = require("./services/weatherService");
 
 // This factory receives the application dependencies once at startup. Each tool
 // execution then receives only request-specific context such as chatId/message.
@@ -28,8 +43,7 @@ function createAiToolExecutor({
   savedMessageStore,
   customCommandStore,
   userStatsStore,
-  sendCatImage,
-  sendDogImage,
+  sendAnimalImage,
   reactToInvokingMessage,
   openMeteoApi,
   openTriviaApi,
@@ -56,8 +70,7 @@ function createAiToolExecutor({
     show_help: (args) => showHelp(args),
     create_custom_command: (args, context) => createCustomCommand(args, context, customCommandStore),
     show_user_stats: (args, context) => showUserStats(context, userStatsStore),
-    send_cat_image: (args, context) => sendRandomImageForGroup(context, sendCatImage, "send_cat_image", MESSAGES.CAT_UNAVAILABLE),
-    send_dog_image: (args, context) => sendRandomImageForGroup(context, sendDogImage, "send_dog_image", MESSAGES.DOG_UNAVAILABLE),
+    send_animal_image: (args, context) => sendRandomImageForGroup(context, sendAnimalImage, args.animal),
     react_to_message: (args, context) => reactToInvokingMessageTool(args, context, reactToInvokingMessage),
     get_weather: (args) => getWeather(args, openMeteoApi),
     start_trivia: (args, context) => startTrivia(args, context, openTriviaApi, translateTrivia, triviaManager),
@@ -95,34 +108,43 @@ function parseToolArguments(toolCall) {
 
 function saveMessage(args, context, savedMessageStore, userStatsStore) {
   const title = args.title?.trim();
-  const quotedStanzaId = context.message._data?.quotedStanzaID;
-  const quotedParticipant = context.message._data?.quotedParticipant;
-
   if (!title) return failure("A title is required.");
-  if (!context.message.hasQuotedMsg || !quotedStanzaId || !quotedParticipant) {
+  if (!context.message.hasQuotedMsg) {
     return failure("The user did not reply to a message. Tell them they must reply to the message they want to save.");
   }
-
-  const quotedMessageId = `false_${context.chatId}_${quotedStanzaId}_${quotedParticipant}`;
-  const updated = savedMessageStore.set(context.chatId, title, quotedMessageId);
-  userStatsStore?.recordAction(context.chatId, context.sender?.mentionId, "messagesSaved");
-  return { success: true, action: "save_message", title, updated };
+  const savedMessage = savedMessageOperations.saveMessage(
+    {
+      chatId: context.chatId,
+      title,
+      quotedStanzaId: context.message._data?.quotedStanzaID,
+      quotedParticipant: context.message._data?.quotedParticipant,
+      botLid: context.botLid,
+      senderMentionId: context.sender?.mentionId,
+    },
+    savedMessageStore,
+    userStatsStore,
+  );
+  const presentation = presentSavedMessageResult(savedMessage, { title });
+  return presentation.ok
+    ? { success: true, action: presentation.action, updated: savedMessage.data.updated, message: presentation.message }
+    : failure(presentation.code, presentation.message);
 }
 
 async function viewSavedMessage(args, context, savedMessageStore, sendMessage) {
   const title = args.title?.trim();
   if (!title) return failure("A title is required.");
 
-  const savedMessage = savedMessageStore.get(context.chatId, title);
-  if (!savedMessage) return failure(`There is no saved message titled "${title}".`);
-
-  await sendMessage(context.chatId, `Mensaje guardado: ${savedMessage.title}`, { quotedMessageId: savedMessage.messageId });
-  return { success: true, action: "view_saved_message", title: savedMessage.title, messageWasShown: true };
+  const result = savedMessageOperations.getSavedMessage(context.chatId, title, savedMessageStore);
+  const presentation = presentSavedMessageResult(result, { title });
+  if (!presentation.ok) return failure(presentation.code, presentation.message);
+  await sendMessage(context.chatId, presentation.message, presentation.sendOptions);
+  return { success: true, action: presentation.action, title, messageWasShown: true };
 }
 
 function listSavedMessages(context, savedMessageStore) {
-  const savedMessages = savedMessageStore.getAll(context.chatId);
-  return { success: true, action: "list_saved_messages", message: formatSavedMessages(savedMessages) };
+  const result = savedMessageOperations.listSavedMessages(context.chatId, savedMessageStore);
+  const presentation = presentSavedMessageResult(result);
+  return { success: true, action: presentation.action, message: presentation.message };
 }
 
 function createPending(args, context, pendingStore) {
@@ -133,160 +155,73 @@ function createPending(args, context, pendingStore) {
   if (args.date !== undefined && !date) return failure("The pending date must use a real dd/mm date.");
   if (args.time !== undefined && !time) return failure("The pending time must use HH:mm.", MESSAGES.PENDING_USAGE);
 
-  pendingStore.add(context.chatId, content, date, time);
-  return {
-    success: true,
-    action: "create_pending",
-    content,
-    date: date || null,
-    time: time || null,
-    message: MESSAGES.MUTATION_WITH_LIST(MESSAGES.PENDING_ADDED(content, date, time), formatPendings(pendingStore.getAll(context.chatId))),
-  };
+  const pendingResult = pendingOperations.createPending({ chatId: context.chatId, content, date, time }, pendingStore);
+  const presentation = presentPendingResult(pendingResult);
+  return presentation.ok
+    ? { success: true, action: presentation.action, content, date: date || null, time: time || null, message: presentation.message }
+    : failure(presentation.code, presentation.message);
 }
 
 function listPendings(context, pendingStore) {
-  const pendings = pendingStore.getAll(context.chatId);
-  return { success: true, action: "list_pendings", message: formatPendings(pendings) };
+  const result = pendingOperations.listPendings(context.chatId, pendingStore);
+  const presentation = presentPendingResult(result);
+  return { success: true, action: presentation.action, message: presentation.message };
 }
 
 function deletePending(args, context, pendingStore) {
   if (!isOneBasedIndex(args.index)) return failure("A positive pending index is required.");
-  const pending = pendingStore.remove(context.chatId, args.index - 1);
-  if (!pending) return failure(`There is no pending item at index ${args.index}.`);
-  return {
-    success: true,
-    action: "delete_pending",
-    index: args.index,
-    content: getPendingContent(pending),
-    message: MESSAGES.MUTATION_WITH_LIST(MESSAGES.PENDING_DELETED(args.index, getPendingContent(pending)), formatPendings(pendingStore.getAll(context.chatId))),
-  };
+  const pendingResult = pendingOperations.deletePending(context.chatId, args.index - 1, pendingStore);
+  const presentation = presentPendingResult(pendingResult, { index: args.index });
+  return presentation.ok
+    ? { success: true, action: presentation.action, index: args.index, message: presentation.message }
+    : failure(presentation.code, presentation.message);
 }
 
 function createReminder(args, context, reminderStore, reminderScheduler, userStatsStore) {
-  const content = args.content?.trim();
-  const hasDuration = args.duration !== undefined;
-  const hasAbsoluteTime = args.due_date !== undefined || args.due_time !== undefined;
-  const hasRepeatCount = args.repeat_count !== undefined;
-  const repeatForever = args.repeat_forever === true;
-  const weeklyRecurrence = args.weekly_recurrence;
-
-  if (!content) return failure("Reminder content is required.");
-  if (weeklyRecurrence) return createWeeklyReminder(args, context, reminderStore, reminderScheduler, userStatsStore);
-  if (hasDuration && hasAbsoluteTime) return failure("Use either duration or due_date/due_time, not both.");
-  if (!hasDuration && !hasAbsoluteTime) return failure("A reminder time is required.", MESSAGES.REMINDER_INVALID_DURATION);
-  if (repeatForever && hasRepeatCount) return failure("Use either repeat_count or repeat_forever, not both.");
-
-  let duration;
-  let dueAt;
-  if (hasAbsoluteTime) {
-    if (hasRepeatCount || repeatForever) return failure("Absolute reminders cannot repeat.");
-    const absoluteDueAt = getAbsoluteReminderDueAt(args);
-    if (absoluteDueAt.error) return absoluteDueAt;
-    dueAt = absoluteDueAt.dueAt;
-  } else {
-    duration = parseDuration(args.duration);
-    if (!duration) return failure("A valid reminder duration is required.", MESSAGES.REMINDER_INVALID_DURATION);
-    dueAt = Date.now() + duration;
-  }
-
-  const remaining = hasRepeatCount ? Number(args.repeat_count) : undefined;
-  if (hasRepeatCount && (!Number.isInteger(remaining) || remaining < 1)) return failure("repeat_count must be a positive integer.");
-  if ((hasRepeatCount || repeatForever) && duration < MINIMUM_RECURRING_REMINDER_MS) return failure("Recurring reminders require a minimum duration of 10m.");
-
-  const reminder = hasRepeatCount || repeatForever
-    ? reminderStore.addRecurring(context.chatId, content, dueAt, duration, repeatForever ? null : remaining, context.messageId)
-    : reminderStore.add(context.chatId, content, dueAt, context.messageId);
-  userStatsStore?.recordAction(context.chatId, context.sender?.mentionId, "remindersCreated");
-
-  reminderScheduler.schedule({ chatId: context.chatId, ...reminder });
-  const confirmation = hasRepeatCount || repeatForever
-    ? MESSAGES.RECURRING_REMINDER_ADDED(formatDuration(args.duration), repeatForever ? "infinitas veces" : `${remaining} veces`, content)
-    : MESSAGES.REMINDER_CREATED(content, formatMexicoCityDateTime(dueAt));
-
+  const result = reminderOperations.createReminder(
+    {
+      chatId: context.chatId,
+      text: args.content,
+      duration: args.duration,
+      dueDate: args.due_date,
+      dueTime: args.due_time,
+      repeatCount: args.repeat_count,
+      repeatForever: args.repeat_forever === true,
+      weeklyRecurrence: args.weekly_recurrence,
+      messageId: context.messageId,
+      senderMentionId: context.sender?.mentionId,
+    },
+    reminderStore,
+    reminderScheduler,
+    userStatsStore,
+  );
+  const presentation = presentReminderResult(result, { duration: args.duration });
+  if (!presentation.ok) return failure(presentation.code, presentation.message);
   return {
     success: true,
-    action: "create_reminder",
-    content,
-    dueAt: formatMexicoCityDateTime(dueAt),
+    action: presentation.action,
+    content: result.data.reminder.text,
+    dueAt: presentation.dueAt,
     timeZone: "America/Mexico_City",
-    absolute: hasAbsoluteTime,
-    recurring: hasRepeatCount || repeatForever,
-    repetitions: repeatForever ? "infinite" : remaining || null,
-    message: MESSAGES.MUTATION_WITH_LIST(confirmation, formatReminders(reminderStore.getAll(context.chatId))),
+    absolute: result.data.kind === "absolute",
+    recurring: result.data.kind !== "absolute" && result.data.kind !== "relative",
+    repetitions: result.data.count === null ? "infinite" : (result.data.count ?? null),
+    message: presentation.message,
   };
 }
 
 function listReminders(context, reminderStore) {
-  const reminders = reminderStore.getAll(context.chatId);
-  return { success: true, action: "list_reminders", message: formatReminders(reminders) };
+  const presentation = presentReminderResult(reminderOperations.listReminders(context.chatId, reminderStore));
+  return { success: true, action: presentation.action, message: presentation.message };
 }
 
 function deleteReminder(args, context, reminderStore, reminderScheduler) {
   if (!isOneBasedIndex(args.index)) return failure("A positive reminder index is required.");
-  const reminder = reminderStore.remove(context.chatId, args.index - 1);
-  if (!reminder) return failure(`There is no reminder at index ${args.index}.`);
-  reminderScheduler.cancel(reminder.id);
-  return {
-    success: true,
-    action: "delete_reminder",
-    index: args.index,
-    content: reminder.text,
-    message: MESSAGES.MUTATION_WITH_LIST(MESSAGES.REMINDER_DELETED(args.index, reminder.text), formatReminders(reminderStore.getAll(context.chatId))),
-  };
-}
-
-function createWeeklyReminder(args, context, reminderStore, reminderScheduler, userStatsStore) {
-  const content = args.content?.trim();
-  const weekly = args.weekly_recurrence;
-  if (args.duration !== undefined || args.due_date !== undefined || args.due_time !== undefined || args.repeat_count !== undefined || args.repeat_forever === true) {
-    return failure("Weekly calendar reminders cannot be combined with relative or absolute reminder fields.");
-  }
-  if (!weekly || typeof weekly !== "object" || Array.isArray(weekly)) return failure("A weekly recurrence is required.");
-
-  const interval = weekly.interval === undefined ? 1 : Number(weekly.interval);
-  const daysOfWeek = Array.isArray(weekly.days_of_week) ? [...new Set(weekly.days_of_week.map((day) => String(day).toLowerCase()))] : [];
-  const time = typeof weekly.time === "string" ? weekly.time : "";
-  const count = weekly.count === undefined ? null : Number(weekly.count);
-  if (!content || !Number.isInteger(interval) || interval < 1 || !daysOfWeek.length || !daysOfWeek.every((day) => WEEKDAYS.includes(day)) || !parseTime(time)) {
-    return failure("Weekly reminders need valid weekdays, a HH:mm time, and a positive week interval.", MESSAGES.REMINDER_INVALID_ABSOLUTE_TIME);
-  }
-  if (count !== null && (!Number.isInteger(count) || count < 1)) return failure("A weekly reminder count must be a positive integer.");
-
-  const startDate = weekly.start_date === undefined ? getMexicoCityDateParts() : resolveMexicoCityDate(weekly.start_date);
-  const untilDate = weekly.until_date === undefined ? undefined : resolveMexicoCityDate(weekly.until_date);
-  if (!startDate || (weekly.until_date !== undefined && !untilDate)) return failure("Weekly reminder dates must be valid.", MESSAGES.REMINDER_INVALID_ABSOLUTE_TIME);
-
-  const recurrence = {
-    frequency: "week",
-    interval,
-    daysOfWeek,
-    dayOfMonth: null,
-    time,
-    until: untilDate ? toIso(mexicoCityDateTimeToTimestamp({ ...untilDate, ...parseTime(time) })) : null,
-    count,
-  };
-  const startBoundary = mexicoCityDateTimeToTimestamp({ ...startDate, hour: 0, minute: 0 });
-  // The first matching weekday starts the recurrence cycle. Subsequent
-  // occurrences then honor the requested every-N-weeks cadence.
-  const firstTrigger = getNextWeeklyTrigger(
-    { startAt: toIso(startBoundary), recurrence: { ...recurrence, interval: 1 } },
-    startBoundary - 1,
-  );
-  if (!firstTrigger) return failure("The weekly reminder has no occurrence before its end date.", MESSAGES.REMINDER_TIME_ALREADY_PASSED);
-
-  const reminder = reminderStore.addWeekly(context.chatId, content, firstTrigger, recurrence, context.messageId);
-  userStatsStore?.recordAction(context.chatId, context.sender?.mentionId, "remindersCreated");
-  reminderScheduler.schedule({ chatId: context.chatId, ...reminder });
-
-  return {
-    success: true,
-    action: "create_reminder",
-    content,
-    dueAt: formatMexicoCityDateTime(firstTrigger),
-    timeZone: "America/Mexico_City",
-    recurring: true,
-    message: MESSAGES.MUTATION_WITH_LIST(MESSAGES.REMINDER_CREATED(content, formatMexicoCityDateTime(firstTrigger)), formatReminders(reminderStore.getAll(context.chatId))),
-  };
+  const result = reminderOperations.deleteReminder(context.chatId, args.index - 1, reminderStore, reminderScheduler);
+  const presentation = presentReminderResult(result, { index: args.index });
+  return presentation.ok
+    ? { success: true, action: presentation.action, index: args.index, message: presentation.message }
+    : failure(presentation.code, presentation.message);
 }
 
 function startTimer(args, context, scheduleTimer, sendMessage) {
@@ -300,64 +235,32 @@ function startTimer(args, context, scheduleTimer, sendMessage) {
 }
 
 function showHelp(args) {
-  const page = args.page === undefined ? 1 : args.page;
-  const helpPage = Number.isInteger(page) ? MESSAGES.HELP_PAGE(page) : undefined;
-
-  if (!helpPage) return failure(MESSAGES.HELP_PAGE_USAGE);
-  return { success: true, action: "show_help", page, help: helpPage };
+  const presentation = presentHelpResult(helpService.getHelp({ page: args.page }));
+  return presentation.ok ? { success: true, action: presentation.action, help: presentation.help } : failure(presentation.code, presentation.message);
 }
 
 // Mirrors !comando: members may create or update their group's fixed-reply
 // commands, except for names reserved by Munin's built-in command handlers.
 function createCustomCommand(args, context, customCommandStore) {
-  const command = typeof args.command === "string" ? args.command.trim().toLowerCase() : "";
-  const reply = typeof args.reply === "string" ? args.reply.trim() : "";
-
-  if (!command || !/^![a-z0-9_-]+$/i.test(command) || !reply) {
-    return failure("A valid command name and reply are required.", MESSAGES.CUSTOM_COMMAND_USAGE);
-  }
-  if (Object.values(COMMANDS).includes(command)) {
-    return failure(`The command ${command} is built in.`, MESSAGES.CUSTOM_COMMAND_BUILTIN_CONFLICT(command));
-  }
-
-  const updated = customCommandStore.set(context.chatId, command, reply);
-  return {
-    success: true,
-    action: "create_custom_command",
-    command,
-    updated,
-    message: updated ? MESSAGES.CUSTOM_COMMAND_UPDATED(command) : MESSAGES.CUSTOM_COMMAND_CREATED(command, reply),
-  };
+  const result = customCommandService.createCustomCommand({ chatId: context.chatId, command: args.command, reply: args.reply, builtInCommands: Object.values(COMMANDS) }, customCommandStore);
+  const presentation = presentCustomCommandResult(result);
+  return presentation.ok ? { success: true, action: presentation.action, message: presentation.message } : failure(presentation.code, presentation.message);
 }
 
 function showUserStats(context, userStatsStore) {
-  const stats = userStatsStore?.get(context.chatId, context.sender?.mentionId);
-  if (!stats) return failure("No statistics are available for this user.", MESSAGES.STATS_UNAVAILABLE);
-
-  return { success: true, action: "show_user_stats", message: MESSAGES.USER_STATS(stats) };
+  const presentation = presentStatsResult(statsService.getUserStats({ chatId: context.chatId, mentionId: context.sender?.mentionId }, userStatsStore));
+  return presentation.ok ? { success: true, action: presentation.action, message: presentation.message } : failure(presentation.code, presentation.message);
 }
 
-async function sendRandomImageForGroup(context, sendImage, action, unavailableMessage) {
-  if (!sendImage) return failure("The animal image service is unavailable.", unavailableMessage);
-
-  try {
-    const image = await sendImage(context.chatId);
-    return { success: true, action, imageId: image.id, imageWasSent: true };
-  } catch (error) {
-    console.error(`Could not send ${action}:`, error.message);
-    return failure("The animal image service failed.", unavailableMessage);
-  }
+async function sendRandomImageForGroup(context, sendAnimalImage, animal) {
+  const presentation = presentAnimalImageResult(await animalImageService.sendAnimalImage({ chatId: context.chatId, animal }, sendAnimalImage), animal);
+  return presentation.ok ? { success: true, action: presentation.action, imageId: presentation.imageId, imageWasSent: true } : failure(presentation.code, presentation.message);
 }
 
 async function getWeather(args, openMeteoApi) {
-  try {
-    const weather = await openMeteoApi?.getWeather(args.date, args.location);
-    if (!weather) return failure("The weather service is unavailable.", MESSAGES.WEATHER_UNAVAILABLE);
-    return { success: true, action: "get_weather", message: MESSAGES.WEATHER_REPORT(weather) };
-  } catch (error) {
-    console.error("Could not fetch weather:", error.message);
-    return failure("The weather service failed.", error.message === "Invalid weather date." ? MESSAGES.WEATHER_USAGE : MESSAGES.WEATHER_UNAVAILABLE);
-  }
+  const result = await weatherService.getWeather({ date: args.date, location: args.location }, openMeteoApi);
+  const presentation = presentWeatherResult(result);
+  return presentation.ok ? { success: true, action: presentation.action, message: presentation.message } : failure(presentation.code, presentation.message);
 }
 
 async function reactToInvokingMessageTool(args, context, reactToInvokingMessage) {
@@ -375,20 +278,9 @@ async function reactToInvokingMessageTool(args, context, reactToInvokingMessage)
 }
 
 async function startTrivia(args, context, openTriviaApi, translateTrivia, triviaManager) {
-  try {
-    if (triviaManager?.hasActiveSession(context.chatId)) {
-      await triviaManager.rejectNewSession(context.chatId);
-      return { success: true, action: "start_trivia" };
-    }
-    const triviaBatch = await openTriviaApi?.getTrivia(args.amount);
-    const trivia = await translateTrivia?.(triviaBatch);
-    if (!trivia) return failure("The trivia service is unavailable.", MESSAGES.TRIVIA_UNAVAILABLE);
-    await triviaManager?.start(context.chatId, trivia);
-    return { success: true, action: "start_trivia" };
-  } catch (error) {
-    console.error("Could not fetch trivia:", error.message);
-    return failure("The trivia service failed.", MESSAGES.TRIVIA_UNAVAILABLE);
-  }
+  const result = await triviaService.startTrivia({ chatId: context.chatId, amount: args.amount }, { openTriviaApi, translateTrivia, triviaManager });
+  const presentation = presentTriviaResult(result);
+  return presentation.ok ? { success: true, action: presentation.action } : failure(presentation.code, presentation.message);
 }
 
 function listClasses(context, classStore) {
@@ -402,33 +294,8 @@ function listClasses(context, classStore) {
 }
 
 function summarizeMessages(args, context, summarizer) {
-  const maxAmount = summarizer?.maxAmount;
-  const amount = args.amount;
-  if (!Number.isInteger(maxAmount) || !Number.isInteger(amount) || amount < 1 || amount > maxAmount) {
-    return failure("A valid summary amount is required.", MESSAGES.SUMMARY_USAGE(maxAmount));
-  }
-
-  // The buffer converts WhatsApp message objects into only "user: content"
-  // lines before this result is passed back to the LLM.
-  const conversation = summarizer.formatRecentMessages(context.chatId, amount, context.message);
-  if (!conversation) return failure("There are no messages to summarize.", MESSAGES.SUMMARY_NO_MESSAGES);
-
-  return { success: true, action: "summarize_messages", amount, conversation };
-}
-
-function getAbsoluteReminderDueAt(args) {
-  const date = resolveMexicoCityDate(args.due_date);
-  const clockTime = parseClockTime(args.due_time);
-  if (!clockTime || !date) {
-    return failure("A valid absolute reminder date and time are required.", MESSAGES.REMINDER_INVALID_ABSOLUTE_TIME);
-  }
-
-  const dueAt = mexicoCityDateTimeToTimestamp({ ...date, ...clockTime });
-  if (dueAt <= Date.now()) {
-    return failure("The requested reminder time has already passed.", MESSAGES.REMINDER_TIME_ALREADY_PASSED);
-  }
-
-  return { dueAt };
+  const presentation = presentSummaryResult(summaryService.prepareSummary({ chatId: context.chatId, amount: args.amount, excludedMessage: context.message }, summarizer));
+  return presentation.ok ? { success: true, action: presentation.action, amount: presentation.amount, conversation: presentation.conversation } : failure(presentation.code, presentation.message);
 }
 
 function listClassesToday(context, classStore) {
@@ -444,116 +311,50 @@ function listClassesToday(context, classStore) {
 
 function addClass(args, context, classStore, classScheduler) {
   if (!classStore) return failure("The class store is unavailable.");
-
-  const classData = validateNewClass(args);
-  if (classData.error) return classData;
-
-  const added = classStore.add(context.chatId, classData);
-  rescheduleClasses(classScheduler, context.chatId);
-  return classSuccess("add_class", added, context.chatId, classStore);
+  const result = classService.addClass(
+    { chatId: context.chatId, name: args.name, day: args.day, timeRange: args.time_range, classroom: args.classroom },
+    classStore,
+    classScheduler,
+  );
+  const presentation = presentClassResult(result);
+  return presentation.ok
+    ? { success: true, action: presentation.action, message: presentation.message }
+    : failure(presentation.code, presentation.message);
 }
 
 function editClass(args, context, classStore, classScheduler) {
   if (!classStore) return failure("The class store is unavailable.");
-  if (!isOneBasedIndex(args.index)) return failure("A positive class index is required.");
-
-  const existing = classStore.getByGlobalIndex(context.chatId, args.index);
-  if (!existing) return failure(`There is no class at index ${args.index}.`);
-
-  const updates = validateClassUpdates(args);
-  if (updates.error) return updates;
-
-  const updated = classStore.update(context.chatId, existing.id, updates);
-  rescheduleClasses(classScheduler, context.chatId);
-  return classSuccess("edit_class", updated, context.chatId, classStore);
+  const result = classService.updateClass(
+    {
+      chatId: context.chatId,
+      reference: args.index,
+      updates: { name: args.name, day: args.day, timeRange: args.time_range, classroom: args.classroom },
+    },
+    classStore,
+    classScheduler,
+  );
+  const presentation = presentClassResult(result);
+  return presentation.ok
+    ? { success: true, action: presentation.action, message: presentation.message }
+    : failure(presentation.code, presentation.message);
 }
 
 function deleteClass(args, context, classStore, classScheduler) {
   if (!classStore) return failure("The class store is unavailable.");
-  if (!isOneBasedIndex(args.index)) return failure("A positive class index is required.");
-
-  const existing = classStore.getByGlobalIndex(context.chatId, args.index);
-  if (!existing) return failure(`There is no class at index ${args.index}.`);
-
-  classStore.remove(context.chatId, existing.id);
-  rescheduleClasses(classScheduler, context.chatId);
-  return {
-    success: true,
-    action: "delete_class",
-    class: formatClass(existing),
-    message: MESSAGES.MUTATION_WITH_LIST(MESSAGES.CLASS_DELETED(existing.name), formatAllClassesForChat(classStore, context.chatId)),
-  };
+  const result = classService.deleteClass({ chatId: context.chatId, index: args.index }, classStore, classScheduler);
+  const presentation = presentClassResult(result);
+  return presentation.ok
+    ? { success: true, action: presentation.action, message: presentation.message }
+    : failure(presentation.code, presentation.message);
 }
 
 function setClassBell(args, context, classStore, classScheduler) {
   if (!classStore) return failure("The class store is unavailable.");
-  if (typeof args.enabled !== "boolean") return failure("The bell state must be true or false.");
-
-  const enabled = classStore.setBell(context.chatId, args.enabled);
-  rescheduleClasses(classScheduler, context.chatId);
-  return {
-    success: true,
-    action: "set_class_bell",
-    enabled,
-    message: MESSAGES.MUTATION_WITH_LIST(enabled ? MESSAGES.BELL_ON : MESSAGES.BELL_OFF, formatAllClassesForChat(classStore, context.chatId)),
-  };
-}
-
-function validateNewClass(args) {
-  const name = args.name?.trim();
-  const day = args.day?.trim().toLowerCase();
-  const classroom = args.classroom?.trim();
-  const timeRange = typeof args.time_range === "string" ? parseTimeRange(args.time_range.trim()) : undefined;
-
-  if (!name || !day || !classroom || !timeRange) {
-    return failure("A class needs a name, valid Spanish weekday, HH:mm-HH:mm time range, and classroom.");
-  }
-  if (!DAYS_ORDER.includes(day)) return failure("The class day must be a valid Spanish weekday.");
-
-  return { name, day, classroom, ...timeRange };
-}
-
-function validateClassUpdates(args) {
-  const updates = {};
-  const editableFields = ["name", "day", "time_range", "classroom"];
-  if (!editableFields.some((field) => args[field] !== undefined)) {
-    return failure("Provide at least one class field to update.");
-  }
-
-  if (args.name !== undefined) {
-    const name = typeof args.name === "string" ? args.name.trim() : "";
-    if (!name) return failure("The class name cannot be empty.");
-    updates.name = name;
-  }
-  if (args.classroom !== undefined) {
-    const classroom = typeof args.classroom === "string" ? args.classroom.trim() : "";
-    if (!classroom) return failure("The classroom cannot be empty.");
-    updates.classroom = classroom;
-  }
-  if (args.day !== undefined) {
-    const day = typeof args.day === "string" ? args.day.trim().toLowerCase() : "";
-    if (!DAYS_ORDER.includes(day)) return failure("The class day must be a valid Spanish weekday.");
-    updates.day = day;
-  }
-  if (args.time_range !== undefined) {
-    const timeRange = typeof args.time_range === "string" ? parseTimeRange(args.time_range.trim()) : undefined;
-    if (!timeRange) return failure("The class time range must use HH:mm-HH:mm.");
-    Object.assign(updates, timeRange);
-  }
-
-  return updates;
-}
-
-function classSuccess(action, classData, chatId, classStore) {
-  const indexed = classStore.getAllSorted(chatId).find((item) => item.id === classData.id);
-  const cls = indexed || classData;
-  const confirmation = action === "add_class" ? MESSAGES.CLASS_ADDED(cls, capitalize(cls.day)) : MESSAGES.CLASS_EDITED(cls, capitalize(cls.day));
-  return {
-    success: true,
-    action,
-    class: formatClass(cls),
-    message: MESSAGES.MUTATION_WITH_LIST(confirmation, formatAllClassesForChat(classStore, chatId)),
-  };
+  const result = classService.setBell({ chatId: context.chatId, enabled: args.enabled }, classStore, classScheduler);
+  const presentation = presentClassResult(result);
+  return presentation.ok
+    ? { success: true, action: presentation.action, message: presentation.message }
+    : failure(presentation.code, presentation.message);
 }
 
 function formatClass(classData) {
@@ -573,10 +374,6 @@ function formatAllClassesForChat(classStore, chatId) {
 
 function getBellState(classStore, chatId) {
   return classStore.getBell?.(chatId);
-}
-
-function rescheduleClasses(classScheduler, chatId) {
-  classScheduler?.rescheduleForChat(chatId);
 }
 
 function isOneBasedIndex(value) {
