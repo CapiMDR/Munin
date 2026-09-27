@@ -55,6 +55,7 @@ When a user asks about weather, forecast, clima, lluvia, temperature, or tempera
 When a user asks to start, play, or receive a trivia question, call start_trivia. Ask for the number of questions if they do not provide one; use a number only from 1 to 50.
 When a user asks to summarize or recap a number of recent group messages, call summarize_messages with that number, if no number is given use 50. After it returns its compact conversation text, write a concise summary based only on that text.
 For a reminder requested for a specific calendar date and time, call create_reminder with due_date and due_time (HH:mm), not duration. Use the user's dd/mm or Spanish relative date expression for due_date.
+For a weekly calendar reminder, use create_reminder.weekly_recurrence. It requires one or more weekday strings and a time. Ask the user for any missing weekday or time; do not invent either. Use until_date for an inclusive end date and count for a maximum number of deliveries.
 For a pending with a specified date and/or time, call create_pending with the user's dd/mm or Spanish relative date expression and/or time (HH:mm).
 When the user prompt includes [Mensaje citado], use that quoted text as the content for create_pending or create_reminder if the user did not provide separate content. Do not include the bracket labels in the saved content.
 `;

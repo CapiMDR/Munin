@@ -3,6 +3,7 @@ const {
   formatMexicoCityDateTime,
   formatDuration,
   formatTimerDuration,
+  getMexicoCityDateParts,
   mexicoCityDateTimeToTimestamp,
   parseClockTime,
   parseDuration,
@@ -14,6 +15,7 @@ const { COMMANDS, MESSAGES } = require("./commandConstants");
 const { formatAllClasses, formatClassesToday, formatPendings, formatReminders, formatSavedMessages } = require("./listResponseFormatter");
 const { getMexicoCityTime } = require("./timeUtils");
 const { resolveMexicoCityDate } = require("./dateUtils");
+const { WEEKDAYS, getNextWeeklyTrigger, parseTime, toIso } = require("./reminderSchedule");
 
 const MINIMUM_RECURRING_REMINDER_MS = 10 * 60_000;
 
@@ -166,8 +168,10 @@ function createReminder(args, context, reminderStore, reminderScheduler, userSta
   const hasAbsoluteTime = args.due_date !== undefined || args.due_time !== undefined;
   const hasRepeatCount = args.repeat_count !== undefined;
   const repeatForever = args.repeat_forever === true;
+  const weeklyRecurrence = args.weekly_recurrence;
 
   if (!content) return failure("Reminder content is required.");
+  if (weeklyRecurrence) return createWeeklyReminder(args, context, reminderStore, reminderScheduler, userStatsStore);
   if (hasDuration && hasAbsoluteTime) return failure("Use either duration or due_date/due_time, not both.");
   if (!hasDuration && !hasAbsoluteTime) return failure("A reminder time is required.", MESSAGES.REMINDER_INVALID_DURATION);
   if (repeatForever && hasRepeatCount) return failure("Use either repeat_count or repeat_forever, not both.");
@@ -190,8 +194,8 @@ function createReminder(args, context, reminderStore, reminderScheduler, userSta
   if ((hasRepeatCount || repeatForever) && duration < MINIMUM_RECURRING_REMINDER_MS) return failure("Recurring reminders require a minimum duration of 10m.");
 
   const reminder = hasRepeatCount || repeatForever
-    ? reminderStore.addRecurring(context.chatId, content, dueAt, duration, repeatForever ? null : remaining)
-    : reminderStore.add(context.chatId, content, dueAt);
+    ? reminderStore.addRecurring(context.chatId, content, dueAt, duration, repeatForever ? null : remaining, context.messageId)
+    : reminderStore.add(context.chatId, content, dueAt, context.messageId);
   userStatsStore?.recordAction(context.chatId, context.sender?.mentionId, "remindersCreated");
 
   reminderScheduler.schedule({ chatId: context.chatId, ...reminder });
@@ -226,8 +230,62 @@ function deleteReminder(args, context, reminderStore, reminderScheduler) {
     success: true,
     action: "delete_reminder",
     index: args.index,
-    content: reminder.content,
-    message: MESSAGES.MUTATION_WITH_LIST(MESSAGES.REMINDER_DELETED(args.index, reminder.content), formatReminders(reminderStore.getAll(context.chatId))),
+    content: reminder.text,
+    message: MESSAGES.MUTATION_WITH_LIST(MESSAGES.REMINDER_DELETED(args.index, reminder.text), formatReminders(reminderStore.getAll(context.chatId))),
+  };
+}
+
+function createWeeklyReminder(args, context, reminderStore, reminderScheduler, userStatsStore) {
+  const content = args.content?.trim();
+  const weekly = args.weekly_recurrence;
+  if (args.duration !== undefined || args.due_date !== undefined || args.due_time !== undefined || args.repeat_count !== undefined || args.repeat_forever === true) {
+    return failure("Weekly calendar reminders cannot be combined with relative or absolute reminder fields.");
+  }
+  if (!weekly || typeof weekly !== "object" || Array.isArray(weekly)) return failure("A weekly recurrence is required.");
+
+  const interval = weekly.interval === undefined ? 1 : Number(weekly.interval);
+  const daysOfWeek = Array.isArray(weekly.days_of_week) ? [...new Set(weekly.days_of_week.map((day) => String(day).toLowerCase()))] : [];
+  const time = typeof weekly.time === "string" ? weekly.time : "";
+  const count = weekly.count === undefined ? null : Number(weekly.count);
+  if (!content || !Number.isInteger(interval) || interval < 1 || !daysOfWeek.length || !daysOfWeek.every((day) => WEEKDAYS.includes(day)) || !parseTime(time)) {
+    return failure("Weekly reminders need valid weekdays, a HH:mm time, and a positive week interval.", MESSAGES.REMINDER_INVALID_ABSOLUTE_TIME);
+  }
+  if (count !== null && (!Number.isInteger(count) || count < 1)) return failure("A weekly reminder count must be a positive integer.");
+
+  const startDate = weekly.start_date === undefined ? getMexicoCityDateParts() : resolveMexicoCityDate(weekly.start_date);
+  const untilDate = weekly.until_date === undefined ? undefined : resolveMexicoCityDate(weekly.until_date);
+  if (!startDate || (weekly.until_date !== undefined && !untilDate)) return failure("Weekly reminder dates must be valid.", MESSAGES.REMINDER_INVALID_ABSOLUTE_TIME);
+
+  const recurrence = {
+    frequency: "week",
+    interval,
+    daysOfWeek,
+    dayOfMonth: null,
+    time,
+    until: untilDate ? toIso(mexicoCityDateTimeToTimestamp({ ...untilDate, ...parseTime(time) })) : null,
+    count,
+  };
+  const startBoundary = mexicoCityDateTimeToTimestamp({ ...startDate, hour: 0, minute: 0 });
+  // The first matching weekday starts the recurrence cycle. Subsequent
+  // occurrences then honor the requested every-N-weeks cadence.
+  const firstTrigger = getNextWeeklyTrigger(
+    { startAt: toIso(startBoundary), recurrence: { ...recurrence, interval: 1 } },
+    startBoundary - 1,
+  );
+  if (!firstTrigger) return failure("The weekly reminder has no occurrence before its end date.", MESSAGES.REMINDER_TIME_ALREADY_PASSED);
+
+  const reminder = reminderStore.addWeekly(context.chatId, content, firstTrigger, recurrence, context.messageId);
+  userStatsStore?.recordAction(context.chatId, context.sender?.mentionId, "remindersCreated");
+  reminderScheduler.schedule({ chatId: context.chatId, ...reminder });
+
+  return {
+    success: true,
+    action: "create_reminder",
+    content,
+    dueAt: formatMexicoCityDateTime(firstTrigger),
+    timeZone: "America/Mexico_City",
+    recurring: true,
+    message: MESSAGES.MUTATION_WITH_LIST(MESSAGES.REMINDER_CREATED(content, formatMexicoCityDateTime(firstTrigger)), formatReminders(reminderStore.getAll(context.chatId))),
   };
 }
 

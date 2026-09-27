@@ -381,6 +381,7 @@ async function handleMention(message, chatId, sender, isMention = isBotMention(m
     const toolResult = await aiToolExecutor.execute(aiResult.toolCall, {
       chatId,
       message,
+      messageId: getSerializedMessageId(message),
       sender,
     });
 

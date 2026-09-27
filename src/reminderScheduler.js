@@ -1,6 +1,7 @@
 const MAX_TIMEOUT = 2 ** 31 - 1;
 const RETRY_DELAY = 60_000;
 const { MESSAGES } = require("./commandConstants");
+const { getNextWeeklyTrigger, timestampOf, toIso } = require("./reminderSchedule");
 
 class ReminderScheduler {
   constructor(reminderStore, sendMessage) {
@@ -15,8 +16,9 @@ class ReminderScheduler {
 
   schedule(reminder) {
     this.cancel(reminder.id);
+    if (reminder.status !== "active") return;
 
-    const delay = Math.max(0, reminder.dueAt - Date.now());
+    const delay = Math.max(0, timestampOf(reminder.nextTriggerAt) - Date.now());
     const timeoutDelay = Math.min(delay, MAX_TIMEOUT);
     const timer = setTimeout(() => this.handleTimeout(reminder), timeoutDelay);
 
@@ -33,17 +35,29 @@ class ReminderScheduler {
   }
 
   async handleTimeout(reminder) {
-    if (reminder.dueAt > Date.now()) {
+    const nextTriggerAt = timestampOf(reminder.nextTriggerAt);
+    if (nextTriggerAt > Date.now()) {
       this.schedule(reminder);
       return;
     }
 
     try {
-      await this.sendMessage(reminder.chatId, MESSAGES.REMINDER_DUE(reminder.content));
-      if (reminder.intervalMs && (reminder.remaining === null || reminder.remaining > 1)) {
+      await this.sendMessage(
+        reminder.chatId,
+        MESSAGES.REMINDER_DUE(reminder.text),
+        reminder.messageId ? { quotedMessageId: reminder.messageId } : undefined,
+      );
+      const triggeredAt = Date.now();
+      const updates = {
+        lastTriggeredAt: toIso(triggeredAt),
+        triggerCount: reminder.triggerCount + 1,
+      };
+      const nextTrigger = getNextTrigger(reminder, triggeredAt, updates.triggerCount);
+
+      if (nextTrigger) {
         const nextReminder = this.reminderStore.updateById(reminder.chatId, reminder.id, {
-          dueAt: Date.now() + reminder.intervalMs,
-          remaining: reminder.remaining === null ? null : reminder.remaining - 1,
+          ...updates,
+          nextTriggerAt: toIso(nextTrigger),
         });
         this.schedule({ chatId: reminder.chatId, ...nextReminder });
       } else {
@@ -56,6 +70,21 @@ class ReminderScheduler {
       this.timers.set(reminder.id, timer);
     }
   }
+}
+
+function getNextTrigger(reminder, triggeredAt, triggerCount) {
+  const recurrence = reminder.recurrence;
+  if (!recurrence) return undefined;
+  if (recurrence.count !== null && triggerCount >= recurrence.count) return undefined;
+
+  if (recurrence.frequency === "relative") {
+    let next = timestampOf(reminder.nextTriggerAt) + recurrence.interval;
+    while (next <= triggeredAt) next += recurrence.interval;
+    return next;
+  }
+
+  if (recurrence.frequency === "week") return getNextWeeklyTrigger(reminder, triggeredAt);
+  return undefined;
 }
 
 module.exports = ReminderScheduler;

@@ -397,7 +397,7 @@ class CommandHandler {
   }
 
   /** Inputs: chat ID, arguments, optional quote, and sender. Adds, lists, or deletes reminders based on the !r syntax. Output: the sent-message promise. */
-  async handleReminder(chatId, args, quotedMessage, sender) {
+  async handleReminder(chatId, args, quotedMessage, sender, command, message, messageId) {
     if (args[0] === "-") return this.handleDeleteReminder(chatId, args.slice(1));
     if (args.length === 0) return this.handleListReminders(chatId);
 
@@ -405,16 +405,16 @@ class CommandHandler {
     const recurrenceMatch = args[1]?.match(/^x(\d+)$/i);
     const repeatsForever = args[1]?.toLowerCase() === INFINITE_TOKEN;
     return recurrenceMatch || repeatsForever
-      ? this.handleAddRecurringReminder(chatId, durationText, recurrenceMatch?.[1], args.slice(2), quotedMessage, sender)
-      : this.handleAddReminder(chatId, durationText, args.slice(1), quotedMessage, sender);
+      ? this.handleAddRecurringReminder(chatId, durationText, recurrenceMatch?.[1], args.slice(2), quotedMessage, sender, messageId)
+      : this.handleAddReminder(chatId, durationText, args.slice(1), quotedMessage, sender, messageId);
   }
 
   /** Inputs: chat ID, duration text, content arguments, optional quote and sender. Stores and schedules a one-time reminder. Output: confirmation or usage response. */
-  async handleAddReminder(chatId, durationText, contentArgs, quotedMessage, sender) {
+  async handleAddReminder(chatId, durationText, contentArgs, quotedMessage, sender, messageId) {
     const duration = parseDuration(durationText);
     const content = contentArgs.join(" ").trim() || quotedMessage?.body?.trim();
     if (!content || !duration) return this.sendMessage(chatId, MESSAGES.REMINDER_USAGE);
-    const reminder = this.reminderStore.add(chatId, content, Date.now() + duration);
+    const reminder = this.reminderStore.add(chatId, content, Date.now() + duration, messageId);
     this.userStatsStore?.recordAction(chatId, sender?.mentionId, "remindersCreated");
     this.reminderScheduler?.schedule({ chatId, ...reminder });
     await this.sendMessage(
@@ -427,13 +427,13 @@ class CommandHandler {
     );
   }
   /** Inputs: chat ID, interval text, optional repetition count, content arguments, and optional quote. Creates a recurring reminder. Output: confirmation or usage response. */
-  async handleAddRecurringReminder(chatId, intervalText, repetitionCount, contentArgs, quotedMessage, sender) {
+  async handleAddRecurringReminder(chatId, intervalText, repetitionCount, contentArgs, quotedMessage, sender, messageId) {
     const interval = parseDuration(intervalText);
     const content = contentArgs.join(" ").trim() || quotedMessage?.body?.trim();
     const remaining = repetitionCount ? Number(repetitionCount) : null;
     if (!content || !interval || interval < 600000 || (remaining !== null && (!Number.isInteger(remaining) || remaining < 1)))
       return this.sendMessage(chatId, MESSAGES.REMINDER_USAGE);
-    const reminder = this.reminderStore.addRecurring(chatId, content, Date.now() + interval, interval, remaining);
+    const reminder = this.reminderStore.addRecurring(chatId, content, Date.now() + interval, interval, remaining, messageId);
     this.userStatsStore?.recordAction(chatId, sender?.mentionId, "remindersCreated");
     this.reminderScheduler?.schedule({ chatId, ...reminder });
     const repetitions = remaining === null ? "infinitas veces" : `${remaining} veces`;
@@ -460,7 +460,7 @@ class CommandHandler {
     if (!reminder) return this.sendMessage(chatId, MESSAGES.DELETE_REMINDER_NOT_FOUND);
     await this.sendMessage(
       chatId,
-      MESSAGES.MUTATION_WITH_LIST(MESSAGES.REMINDER_DELETED(index, reminder.content), formatReminders(this.reminderStore.getAll(chatId))),
+      MESSAGES.MUTATION_WITH_LIST(MESSAGES.REMINDER_DELETED(index, reminder.text), formatReminders(this.reminderStore.getAll(chatId))),
     );
   }
 
