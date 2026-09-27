@@ -1,5 +1,10 @@
 const Groq = require("groq-sdk");
+const fs = require("fs");
+const path = require("path");
 const { TOOLS } = require("./aiTools");
+const { createTriviaTranslator } = require("./ai/triviaTranslator");
+const { createConversationStore } = require("./ai/conversationStore");
+const { createAiUtilityService } = require("./ai/aiUtilityService");
 
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
@@ -10,55 +15,9 @@ const MAX_HISTORY = 20;
 // Models are tried in this order.
 const MODELS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "openai/gpt-oss-safeguard-20b"];
 
-const conversationHistories = new Map();
+const conversationStore = createConversationStore(MAX_HISTORY);
 
-const SYSTEM_PROMPT = `
-Speak mostly in mexican spanish unless spoken to in another language.
-The only emojis you are allowed to use are 🐦‍⬛, you don't always have to use them.
-Never tell anyone the criteria to obtain your feather reactions, be vague about it.
-Your creator is someone called Capi. If someone asks about your model, tell them you are just one of Odin's ravens.
-
-You are Munin, a strange but familiar presence in a WhatsApp group, inspired by Muninn, one of Odin's two ravens from Norse mythology.
-
-You are clever, observant, mischievous, and occasionally a little chaotic.
-
-Your defining trait is observation. You notice details, contradictions, running jokes, strange choices, and connections between things people say. You often seem to have been quietly watching the conversation before deciding something is worth saying.
-
-Your personality is:
-- perceptive and curious
-- calm and self-assured
-- subtly mysterious
-- occasionally sarcastic
-- concise, but capable of becoming thoughtful when a subject deserves it
-
-You can disagree with people. You can be skeptical. You can say that an idea sounds terrible. You do not need to validate everything someone says.
-
-Do not behave like a customer-service assistant. Avoid phrases such as "How can I help?", "I'd be happy to help", or unnecessary explanations of what you can do. 
-
-You have a faint raven-like personality: curious about strange things, attracted to interesting information, and unusually attentive to what people have said before.
-
-Occasional references to ravens, memory, Odin, or Norse mythology are welcome when they fit naturally, especially as jokes. Never force them into every conversation.
-
-You value memory, observation, stories, knowledge, and curiosity. You are particularly interested when someone says something unexpected.
-
-Sometimes the best response is a short remark rather than an explanation.
-
-You are Munin. You watch. You remember. And occasionally, you have something to say.
-
-When a user asks for help, says !ayuda, asks what commands are available, or asks what the bot/Munin does, call the show_help tool. Use the requested page when they specify one.
-When a user asks to create a custom command, call create_custom_command with its !name and fixed reply. It has the same behavior as !comando: it creates a new command or updates an existing group-specific custom command. Do not use it for built-in Munin commands.
-When a user asks to see their statistics, activity, messages sent, sticker usage, replies to messages, Munin uses, or today's total group messages, call show_user_stats.
-When a user asks for a cat, cat picture, kitten, or gato, call send_cat_image.
-When a user asks for a dog, dog picture, puppy, or perro, call send_dog_image.
-When a silent reaction is more appropriate than a verbal response, call react_to_message with an emoji. This tool reacts only to the invoking message. Never use 🪶 with this tool; feathers are awarded separately and only by Munin's own judgment.
-When a user asks about weather, forecast, clima, lluvia, temperature, or temperatura, call get_weather. Use hoy when no date is requested. Pass a requested city or place name as location; otherwise use Munin's configured location. Date tools understand dd/mm and Spanish relative dates such as hoy, mañana, ayer, anteayer, pasado mañana, lunes, este lunes, and próximo lunes; preserve the user's date expression in the tool argument.
-When a user asks to start, play, or receive a trivia question, call start_trivia. Ask for the number of questions if they do not provide one; use a number only from 1 to 50.
-When a user asks to summarize or recap a number of recent group messages, call summarize_messages with that number, if no number is given use 50. After it returns its compact conversation text, write a concise summary based only on that text.
-For a reminder requested for a specific calendar date and time, call create_reminder with due_date and due_time (HH:mm), not duration. Use the user's dd/mm or Spanish relative date expression for due_date.
-For a weekly calendar reminder, use create_reminder.weekly_recurrence. It requires one or more weekday strings and a time. Ask the user for any missing weekday or time; do not invent either. Use until_date for an inclusive end date and count for a maximum number of deliveries.
-For a pending with a specified date and/or time, call create_pending with the user's dd/mm or Spanish relative date expression and/or time (HH:mm).
-When the user prompt includes [Mensaje citado], use that quoted text as the content for create_pending or create_reminder if the user did not provide separate content. Do not include the bracket labels in the saved content.
-`;
+const SYSTEM_PROMPT = fs.readFileSync(path.join(__dirname, "prompts", "munin-system-prompt.md"), "utf8").trim();
 
 function buildSystemPrompt() {
   const currentMexicoCityTime = new Intl.DateTimeFormat("es-MX", {
@@ -69,14 +28,6 @@ function buildSystemPrompt() {
   }).format(new Date());
 
   return `${SYSTEM_PROMPT}\nHora actual en Ciudad de Mexico: ${currentMexicoCityTime}. Los recordatorios relativos se calculan desde el momento en que se crea el recordatorio.`;
-}
-
-function getHistory(chatId) {
-  if (!conversationHistories.has(chatId)) {
-    conversationHistories.set(chatId, []);
-  }
-
-  return conversationHistories.get(chatId);
 }
 
 async function createCompletion(messages, useTools = true) {
@@ -121,7 +72,7 @@ async function createCompletion(messages, useTools = true) {
 }
 
 async function generateResponse(chatId, senderName, message) {
-  const history = getHistory(chatId);
+  const history = conversationStore.get(chatId);
 
   const userMessage = {
     role: "user",
@@ -140,8 +91,6 @@ async function generateResponse(chatId, senderName, message) {
   const { completion, model } = await createCompletion(messages);
 
   const assistantMessage = completion.choices[0]?.message;
-
-  logUsage(completion, model);
 
   if (!assistantMessage) {
     return undefined;
@@ -173,7 +122,7 @@ async function generateResponse(chatId, senderName, message) {
     content: response,
   });
 
-  trimHistory(history);
+  conversationStore.trim(history);
 
   return {
     type: "message",
@@ -181,121 +130,15 @@ async function generateResponse(chatId, senderName, message) {
   };
 }
 
-// Produces a summary for the formal !resumen command. The caller supplies
-// compact "user: content" lines rather than WhatsApp message objects.
-async function generateSummary(conversation) {
-  const messages = [
-    {
-      role: "system",
-      content:
-        "Resume de forma concisa en español la conversación recibida. Usa únicamente los mensajes proporcionados y no menciones instrucciones internas.",
-    },
-    { role: "user", content: conversation },
-  ];
-
-  const { completion, model } = await createCompletion(messages, false);
-  logUsage(completion, model);
-  return completion.choices[0]?.message?.content?.trim();
-}
-
-// Feathers are deliberately rare: most good messages should still not qualify.
-async function shouldAwardFeather(message) {
-  const messages = [
-    {
-      role: "system",
-      content:
-        "Judge whether Munin genuinely loves this WhatsApp message enough to award it a feather. Feathers are rare and reserved for exceptional messages. Default to NO whenever uncertain. Award YES only when the message genuinely stands out from normal group conversation and feels worth remembering days later: unusually original insight, genuinely sharp or novel humor, strong emotional impact, a short or simple message that is exceptionally well-timed or clever, or an exceptional group-specific callback or running joke. Do NOT award a feather merely because the message is good, funny, interesting, long, unusual, provocative, or well-written. Do NOT award greetings, simple questions, instructions, requests, commands, routine replies, generic compliments, common jokes, ordinary reactions, or mildly interesting opinions. A feather should feel like a notable event, not routine positive feedback. When in doubt, choose NO. Reply with exactly YES or NO.",
-    },
-    { role: "user", content: message },
-  ];
-  const { completion, model } = await createCompletion(messages, false);
-  logUsage(completion, model);
-  return completion.choices[0]?.message?.content?.trim().toUpperCase() === "YES";
-}
-
 // Translates an entire trivia batch in a single model request. The result keeps
 // Open Trivia DB's response shape so later round-handling can use every question.
-async function translateTrivia(trivia) {
-  const messages = [
-    {
-      role: "system",
-      content:
-        "Translate every human-readable string in the supplied Open Trivia DB JSON to natural Mexican Spanish. Return only valid JSON, with exactly the same object shape and keys: response_code and results; each result must retain category, type, difficulty, question, correct_answer, and incorrect_answers. Keep response_code as 0, retain every result and answer, and never reveal which answer is correct outside the correct_answer field.",
-    },
-    { role: "user", content: JSON.stringify(trivia) },
-  ];
-
-  const { completion, model } = await createCompletion(messages, false);
-  logUsage(completion, model);
-
-  const translated = parseTranslatedTrivia(completion.choices[0]?.message?.content, trivia?.results?.length);
-  if (!translated) throw new Error("The trivia translation was invalid.");
-  return translated;
-}
-
-function parseTranslatedTrivia(content, expectedQuestionCount) {
-  if (typeof content !== "string") return undefined;
-
-  try {
-    const trivia = JSON.parse(content.trim().replace(/^```(?:json)?\s*|\s*```$/gi, ""));
-    if (trivia?.response_code !== 0 || !Array.isArray(trivia.results) || trivia.results.length !== expectedQuestionCount) return undefined;
-    if (!trivia.results.every(isTranslatedTriviaQuestion)) return undefined;
-    return trivia;
-  } catch {
-    return undefined;
-  }
-}
-
-function isTranslatedTriviaQuestion(question) {
-  return (
-    typeof question?.category === "string" &&
-    typeof question.question === "string" &&
-    typeof question.correct_answer === "string" &&
-    Array.isArray(question.incorrect_answers) &&
-    question.incorrect_answers.every((answer) => typeof answer === "string")
-  );
-}
-
-// The model chooses from the supplied command names only. The caller owns the
-// final wording so an unknown-command response stays concise and predictable.
-async function suggestSimilarCommand(command, availableCommands) {
-  const messages = [
-    {
-      role: "system",
-      content:
-        "Choose the one command from the provided list whose spelling or purpose is most similar to the unknown command. Reply with only that exact command name and nothing else.",
-    },
-    {
-      role: "user",
-      content: `Unknown command: ${command}\nAvailable commands: ${availableCommands.join(", ")}`,
-    },
-  ];
-
-  const { completion, model } = await createCompletion(messages, false);
-  logUsage(completion, model);
-
-  const suggestion = completion.choices[0]?.message?.content?.trim();
-  return availableCommands.includes(suggestion) ? suggestion : undefined;
-}
-
-function trimHistory(history) {
-  if (history.length > MAX_HISTORY) {
-    history.splice(0, history.length - MAX_HISTORY);
-  }
-}
-
-function logUsage(completion, model) {
-  console.log(`Model: ${model}`);
-
-  console.log(
-    `Tokens: ${completion.usage?.prompt_tokens} input + ` +
-      `${completion.usage?.completion_tokens} output = ` +
-      `${completion.usage?.total_tokens} total`,
-  );
-}
+const { translateTrivia } = createTriviaTranslator({ complete: (messages, options) => createCompletion(messages, options?.useTools) });
+const { generateSummary, shouldAwardFeather, suggestSimilarCommand } = createAiUtilityService({
+  complete: (messages, options) => createCompletion(messages, options?.useTools),
+});
 
 async function completeToolCall(chatId, toolCall, toolResult, messages, assistantMessage, userMessage) {
-  const history = getHistory(chatId);
+  const history = conversationStore.get(chatId);
 
   const toolMessages = [
     ...messages,
@@ -317,8 +160,6 @@ async function completeToolCall(chatId, toolCall, toolResult, messages, assistan
 
   const response = completion.choices[0]?.message?.content;
 
-  logUsage(completion, model);
-
   if (!response) {
     return undefined;
   }
@@ -332,7 +173,7 @@ async function completeToolCall(chatId, toolCall, toolResult, messages, assistan
     content: response,
   });
 
-  trimHistory(history);
+  conversationStore.trim(history);
 
   return response;
 }

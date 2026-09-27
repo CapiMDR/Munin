@@ -1,7 +1,7 @@
-const { DAYS_ORDER, capitalize } = require("./classStore");
+const { DAYS_ORDER, getDays } = require("./utils/timeUtils");
 const { MESSAGES } = require("./commandConstants");
-const { groupPendingsByDate } = require("./pendingUtils");
-const { formatReminder, getMexicoCityDate, getMexicoCityTime, timeToMinutes } = require("./timeUtils");
+const { groupPendingsByDate } = require("./utils/pendingUtils");
+const { formatReminder, getMexicoCityDate, getMexicoCityTime, timeToMinutes } = require("./utils/timeUtils");
 
 function formatSavedMessages(savedMessages) {
   return savedMessages.length ? MESSAGES.SAVED_MESSAGES_LIST(savedMessages) : MESSAGES.NO_SAVED_MESSAGES;
@@ -26,7 +26,7 @@ function formatAllClasses(classes, currentTime = getMexicoCityTime(), bellEnable
           day === currentTime.day && currentTime.minutes >= timeToMinutes(cls.startTime) && currentTime.minutes < timeToMinutes(cls.endTime);
         return formatClassLine(cls, isActive);
       });
-      return `${capitalize(day)}:\n${lines.join("\n")}`;
+      return `${getDays()[DAYS_ORDER.indexOf(day)]}:\n${lines.join("\n")}`;
     });
   return MESSAGES.ALL_CLASSES(groups, bellEnabled);
 }
@@ -37,7 +37,7 @@ function formatClassesToday(day, classes, currentMinutes = getMexicoCityTime().m
     return formatClassLine(cls, isActive);
   });
 
-  return classes.length ? MESSAGES.CLASSES_TODAY(capitalize(day), lines, bellEnabled) : MESSAGES.NO_CLASSES_TODAY;
+  return classes.length ? MESSAGES.CLASSES_TODAY(getDays()[DAYS_ORDER.indexOf(day)], lines, bellEnabled) : MESSAGES.NO_CLASSES_TODAY;
 }
 
 function formatClassLine(cls, isActive = false) {

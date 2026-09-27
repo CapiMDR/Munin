@@ -1,13 +1,34 @@
-const PendingStore = require("./pendingStore");
-const ReminderStore = require("./reminderStore");
-const ClassStore = require("./classStore");
-const AdminStore = require("./adminStore");
-const CustomCommandStore = require("./customCommandStore");
-const SavedMessageStore = require("./savedMessageStore");
-const { formatAllClasses, formatClassesToday, formatPendings, formatReminders, formatSavedMessages } = require("./listResponseFormatter");
-const { getPendingContent, parsePendingDate, parsePendingTime } = require("./pendingUtils");
-const { resolveMexicoCityDate } = require("./dateUtils");
-const { DAYS_ORDER, capitalize } = require("./classStore");
+const PendingStore = require("./stores/pendingStore");
+const ReminderStore = require("./stores/reminderStore");
+const ClassStore = require("./stores/classStore");
+const AdminStore = require("./stores/adminStore");
+const CustomCommandStore = require("./stores/customCommandStore");
+const SavedMessageStore = require("./stores/savedMessageStore");
+const pendingService = require("./services/pendingService");
+const reminderService = require("./services/reminderService");
+const savedMessageOperations = require("./services/savedMessageService");
+const { presentPendingResult } = require("./presenters/pendingPresenter");
+const { presentSavedMessageResult } = require("./presenters/savedMessagePresenter");
+const { presentReminderResult } = require("./presenters/reminderPresenter");
+const { presentClassResult } = require("./presenters/classPresenter");
+const customCommandService = require("./services/customCommandService");
+const { presentCustomCommandResult } = require("./presenters/customCommandPresenter");
+const { presentWeatherResult } = require("./presenters/weatherPresenter");
+const { presentTriviaResult } = require("./presenters/triviaPresenter");
+const statsService = require("./services/statsService");
+const { presentStatsResult } = require("./presenters/statsPresenter");
+const helpService = require("./services/helpService");
+const { presentHelpResult } = require("./presenters/helpPresenter");
+const animalImageService = require("./services/animalImageService");
+const { presentAnimalImageResult } = require("./presenters/animalImagePresenter");
+const summaryService = require("./services/summaryService");
+const { presentSummaryResult } = require("./presenters/summaryPresenter");
+const classService = require("./services/classService");
+const triviaService = require("./services/triviaService");
+const weatherService = require("./services/weatherService");
+const { parsePendingDate, parsePendingTime } = require("./utils/pendingUtils");
+const { resolveMexicoCityDate } = require("./utils/dateUtils");
+const { DAYS_ORDER, getDays } = require("./utils/timeUtils");
 const { COIN_SIDES, COMMANDS, EIGHT_BALL_RESPONSES, INFINITE_TOKEN, MESSAGES } = require("./commandConstants");
 const {
   formatDuration,
@@ -18,11 +39,11 @@ const {
   parseTimeRange,
   parseTimerDuration,
   timeToMinutes,
-} = require("./timeUtils");
+} = require("./utils/timeUtils");
 
 class CommandHandler {
   /** Inputs: injected messaging, storage, and scheduler dependencies. Initializes the handler. Output: a configured instance. */
-  constructor(
+  constructor({
     sendMessage,
     pendingStore = new PendingStore(),
     reminderStore = new ReminderStore(),
@@ -40,13 +61,12 @@ class CommandHandler {
     suggestSimilarCommand,
     userStatsStore,
     weeklyReportStore,
-    sendCatImage,
-    sendDogImage,
+    sendAnimalImage,
     openMeteoApi,
     openTriviaApi,
     translateTrivia,
     triviaManager,
-  ) {
+  } = {}) {
     Object.assign(this, {
       sendMessage,
       pendingStore,
@@ -65,8 +85,7 @@ class CommandHandler {
       suggestSimilarCommand,
       userStatsStore,
       weeklyReportStore,
-      sendCatImage,
-      sendDogImage,
+      sendAnimalImage,
       openMeteoApi,
       openTriviaApi,
       translateTrivia,
@@ -146,50 +165,41 @@ class CommandHandler {
   }
   /** Inputs: chat ID, requested message count, and the command message. Summarizes recent prior group messages with the LLM. Output: the sent-message promise. */
   async handleSummary(chatId, args, quotedMessage, sender, command, message) {
-    const maxAmount = this.summarizer?.maxAmount;
-    if (!Number.isInteger(maxAmount) || typeof this.generateSummary !== "function") {
+    if (typeof this.generateSummary !== "function") {
       return this.sendMessage(chatId, MESSAGES.SUMMARY_UNAVAILABLE);
     }
-
     const amount = Number(args[0]);
-    if (args.length !== 1 || !Number.isInteger(amount) || amount < 1 || amount > maxAmount) {
-      return this.sendMessage(chatId, MESSAGES.SUMMARY_USAGE(maxAmount));
-    }
-
-    const conversation = this.summarizer.formatRecentMessages(chatId, amount, message);
-    if (!conversation) return this.sendMessage(chatId, MESSAGES.SUMMARY_NO_MESSAGES);
-
-    const summary = await this.generateSummary(conversation);
+    const result = summaryService.prepareSummary(
+      { chatId, amount: args.length === 1 ? amount : undefined, excludedMessage: message },
+      this.summarizer,
+    );
+    const presentation = presentSummaryResult(result);
+    if (!presentation.ok) return this.sendMessage(chatId, presentation.message);
+    const summary = await this.generateSummary(presentation.conversation);
     await this.sendMessage(chatId, summary || MESSAGES.SUMMARY_UNAVAILABLE);
   }
   /** Inputs: chat ID, command name, and reply arguments. Creates or updates a group-specific custom command. Output: confirmation or usage response. */
   async handleCreateCustomCommand(chatId, args) {
     if (args[0] === "-") return this.handleDeleteCustomCommand(chatId, args.slice(1));
 
-    const command = args[0]?.toLowerCase();
-    const reply = args.slice(1).join(" ").trim();
-    if (!command || !/^![a-z0-9_-]+$/i.test(command) || !reply) {
-      return this.sendMessage(chatId, MESSAGES.CUSTOM_COMMAND_USAGE);
-    }
-    if (Object.hasOwn(this.getHandlers(), command)) return this.sendMessage(chatId, MESSAGES.CUSTOM_COMMAND_BUILTIN_CONFLICT(command));
-
-    const alreadyExists = this.customCommandStore.set(chatId, command, reply);
-    await this.sendMessage(chatId, alreadyExists ? MESSAGES.CUSTOM_COMMAND_UPDATED(command) : MESSAGES.CUSTOM_COMMAND_CREATED(command, reply));
+    const result = customCommandService.createCustomCommand(
+      { chatId, command: args[0], reply: args.slice(1).join(" "), builtInCommands: Object.keys(this.getHandlers()) },
+      this.customCommandStore,
+    );
+    await this.sendMessage(chatId, presentCustomCommandResult(result).message);
   }
   /** Inputs: chat ID. Lists custom commands in the current group. Output: the sent-message promise. */
   async handleListCustomCommands(chatId) {
-    const commands = this.customCommandStore.getAll(chatId);
-    await this.sendMessage(chatId, commands.length ? MESSAGES.CUSTOM_COMMANDS_LIST(commands) : MESSAGES.NO_CUSTOM_COMMANDS);
+    const result = customCommandService.listCustomCommands(chatId, this.customCommandStore);
+    await this.sendMessage(chatId, presentCustomCommandResult(result).message);
   }
   /** Inputs: chat ID and custom-command index. Deletes a custom command. Output: confirmation, usage, or not-found response. */
   async handleDeleteCustomCommand(chatId, args) {
-    const index = Number(args[0]);
-    if (args.length !== 1 || !Number.isInteger(index) || index < 1) return this.sendMessage(chatId, MESSAGES.DELETE_CUSTOM_COMMAND_USAGE);
-    const deletedCommand = this.customCommandStore.removeAt(chatId, index - 1);
-    await this.sendMessage(
-      chatId,
-      deletedCommand ? MESSAGES.CUSTOM_COMMAND_DELETED(deletedCommand.command) : MESSAGES.CUSTOM_COMMAND_INDEX_NOT_FOUND,
+    const result = customCommandService.deleteCustomCommand(
+      { chatId, index: args.length === 1 ? Number(args[0]) : undefined },
+      this.customCommandStore,
     );
+    await this.sendMessage(chatId, presentCustomCommandResult(result).message);
   }
   /** Inputs: chat ID, command arguments, and command name. Replies with or deletes a group-specific custom command. Output: the sent-message promise. */
   async handleCustomCommand(chatId, args, quotedMessage, sender, command) {
@@ -204,20 +214,21 @@ class CommandHandler {
   async handleSaveMessage(chatId, args, quotedMessage, sender, command, message, messageId, botLid) {
     const title = args.join(" ").trim();
 
-    if (!title || !message.hasQuotedMsg || !message._data?.quotedStanzaID || !message._data?.quotedParticipant) {
-      return this.sendMessage(chatId, MESSAGES.SAVE_MESSAGE_USAGE);
-    }
-
-    const quotedParticipant = message._data.quotedParticipant?._serialized ?? message._data.quotedParticipant;
-
-    const fromMe = quotedParticipant === botLid;
-
-    const quotedMessageId = `${fromMe}_${chatId}_${message._data.quotedStanzaID}_${quotedParticipant}`;
-
-    const alreadyExists = this.savedMessageStore.set(chatId, title, quotedMessageId);
-    this.userStatsStore?.recordAction(chatId, sender?.mentionId, "messagesSaved");
-
-    await this.sendMessage(chatId, alreadyExists ? MESSAGES.SAVED_MESSAGE_UPDATED(title) : MESSAGES.SAVED_MESSAGE_CREATED(title));
+    if (!message.hasQuotedMsg) return this.sendMessage(chatId, MESSAGES.SAVE_MESSAGE_USAGE);
+    const savedMessage = savedMessageOperations.saveMessage(
+      {
+        chatId,
+        title,
+        quotedStanzaId: message._data?.quotedStanzaID,
+        quotedParticipant: message._data?.quotedParticipant,
+        botLid,
+        senderMentionId: sender?.mentionId,
+      },
+      this.savedMessageStore,
+      this.userStatsStore,
+    );
+    const presentation = presentSavedMessageResult(savedMessage, { title });
+    await this.sendMessage(chatId, presentation.message);
   }
   /** Inputs: chat ID and title arguments. Sends a bot message quoting the saved command message. Output: confirmation or not-found response. */
   async handleViewSavedMessage(chatId, args) {
@@ -227,33 +238,29 @@ class CommandHandler {
       return this.sendMessage(chatId, MESSAGES.VIEW_SAVED_MESSAGE_USAGE);
     }
 
-    const savedMessage = this.savedMessageStore.get(chatId, title);
+    const result = savedMessageOperations.getSavedMessage(chatId, title, this.savedMessageStore);
 
-    if (!savedMessage) {
-      return this.sendMessage(chatId, MESSAGES.SAVED_MESSAGE_NOT_FOUND(title));
-    }
-
-    await this.sendMessage(chatId, MESSAGES.SAVED_MESSAGE_REPLY(savedMessage.title), {
-      quotedMessageId: savedMessage.messageId,
-    });
+    const presentation = presentSavedMessageResult(result, { title });
+    await this.sendMessage(chatId, presentation.message, presentation.sendOptions);
   }
   /** Inputs: chat ID. Lists saved message titles for the current group. Output: the sent-message promise. */
   async handleListSavedMessages(chatId) {
-    const savedMessages = this.savedMessageStore.getAll(chatId);
-    await this.sendMessage(chatId, formatSavedMessages(savedMessages));
+    const result = savedMessageOperations.listSavedMessages(chatId, this.savedMessageStore);
+    const presentation = presentSavedMessageResult(result);
+    await this.sendMessage(chatId, presentation.message);
   }
   /** Inputs: chat ID and saved-message index. Deletes a saved message from the current group. Output: confirmation, usage, or not-found response. */
   async handleDeleteSavedMessage(chatId, args) {
     const index = Number(args[0]);
     if (args.length !== 1 || !Number.isInteger(index) || index < 1) return this.sendMessage(chatId, MESSAGES.DELETE_SAVED_MESSAGE_USAGE);
-    const savedMessage = this.savedMessageStore.removeAt(chatId, index - 1);
-    await this.sendMessage(chatId, savedMessage ? MESSAGES.SAVED_MESSAGE_DELETED(savedMessage.title) : MESSAGES.SAVED_MESSAGE_INDEX_NOT_FOUND);
+    const result = savedMessageOperations.deleteSavedMessage(chatId, index - 1, this.savedMessageStore);
+    const presentation = presentSavedMessageResult(result);
+    await this.sendMessage(chatId, result.ok ? presentation.message : MESSAGES.SAVED_MESSAGE_INDEX_NOT_FOUND);
   }
   /** Inputs: chat ID and an optional help-page number. Sends the requested help page. Output: the sent-message promise. */
   async handleHelp(chatId, args) {
-    const page = args.length === 0 ? 1 : Number(args[0]);
-    if (args.length > 1 || !Number.isInteger(page) || !MESSAGES.HELP_PAGE(page)) return this.sendMessage(chatId, MESSAGES.HELP_PAGE_USAGE);
-    await this.sendMessage(chatId, MESSAGES.HELP_PAGE(page));
+    const presentation = presentHelpResult(helpService.getHelp({ page: args.length === 0 ? 1 : args.length === 1 ? Number(args[0]) : undefined }));
+    await this.sendMessage(chatId, presentation.message);
   }
   /** Inputs: chat ID, sender, and command message. Shows mentioned-user activity or the sender's when no one is mentioned. Output: the sent-message promise. */
   async handleStats(chatId, args, quotedMessage, sender, command, message) {
@@ -270,9 +277,8 @@ class CommandHandler {
       targetMentionId = contact?.id?._serialized ?? contact?.id?.$1;
     }
 
-    const stats = this.userStatsStore?.get(chatId, targetMentionId);
-
-    await this.sendMessage(chatId, stats ? MESSAGES.USER_STATS(stats) : MESSAGES.STATS_UNAVAILABLE);
+    const presentation = presentStatsResult(statsService.getUserStats({ chatId, mentionId: targetMentionId }, this.userStatsStore));
+    await this.sendMessage(chatId, presentation.message);
   }
   /** Inputs: chat ID. Shows the current week's stored group activity and current open-item totals. Output: the sent-message promise. */
   async handleReport(chatId) {
@@ -287,47 +293,31 @@ class CommandHandler {
   }
   /** Inputs: chat ID. Fetches and sends a random cat image. Output: the sent-message promise. */
   async handleCat(chatId) {
-    await this.handleAnimalImage(chatId, this.sendCatImage, MESSAGES.CAT_UNAVAILABLE, "cat");
+    await this.handleAnimalImage(chatId, "cat", MESSAGES.CAT_UNAVAILABLE);
   }
   /** Inputs: chat ID. Fetches and sends a random dog image. Output: the sent-message promise. */
   async handleDog(chatId) {
-    await this.handleAnimalImage(chatId, this.sendDogImage, MESSAGES.DOG_UNAVAILABLE, "dog");
+    await this.handleAnimalImage(chatId, "dog", MESSAGES.DOG_UNAVAILABLE);
   }
-  async handleAnimalImage(chatId, sendImage, unavailableMessage, animal) {
-    try {
-      await sendImage(chatId);
-    } catch (error) {
-      console.error(`Could not send ${animal} image:`, error.message);
-      await this.sendMessage(chatId, unavailableMessage);
-    }
+  async handleAnimalImage(chatId, animal, unavailableMessage) {
+    const presentation = presentAnimalImageResult(await animalImageService.sendAnimalImage({ chatId, animal }, this.sendAnimalImage), animal);
+    if (!presentation.ok) await this.sendMessage(chatId, presentation.message || unavailableMessage);
   }
   /** Inputs: chat ID and optional dd/mm date. Sends the daily forecast for Munin's configured location. Output: the sent-message promise. */
   async handleWeather(chatId, args) {
     const { date, location } = splitWeatherArguments(args);
-    try {
-      const weather = await this.openMeteoApi?.getWeather(date, location);
-      await this.sendMessage(chatId, weather ? MESSAGES.WEATHER_REPORT(weather) : MESSAGES.WEATHER_UNAVAILABLE);
-    } catch (error) {
-      console.error("Could not fetch weather:", error.message);
-      await this.sendMessage(chatId, error.message === "Invalid weather date." ? MESSAGES.WEATHER_USAGE : MESSAGES.WEATHER_UNAVAILABLE);
-    }
+    const result = await weatherService.getWeather({ date, location }, this.openMeteoApi);
+    await this.sendMessage(chatId, presentWeatherResult(result).message);
   }
   /** Inputs: chat ID and a requested trivia-question count. Fetches a batch and sends its first question with shuffled answers. Output: the sent-message promise. */
   async handleTrivia(chatId, args) {
     const amount = Number(args[0]);
-    if (args.length !== 1 || !Number.isInteger(amount) || amount < 1 || amount > 50) {
+    if (args.length !== 1) {
       return this.sendMessage(chatId, MESSAGES.TRIVIA_USAGE);
     }
-    if (this.triviaManager?.hasActiveSession(chatId)) return this.triviaManager.rejectNewSession(chatId);
-    try {
-      const triviaBatch = await this.openTriviaApi?.getTrivia(amount);
-      const trivia = await this.translateTrivia?.(triviaBatch);
-      if (!trivia) return this.sendMessage(chatId, MESSAGES.TRIVIA_UNAVAILABLE);
-      await this.triviaManager?.start(chatId, trivia);
-    } catch (error) {
-      console.error("Could not fetch trivia:", error.message);
-      await this.sendMessage(chatId, MESSAGES.TRIVIA_UNAVAILABLE);
-    }
+    const result = await triviaService.startTrivia({ chatId, amount }, this);
+    const presentation = presentTriviaResult(result);
+    if (!presentation.ok) await this.sendMessage(chatId, presentation.message);
   }
   /** Inputs: chat ID and unknown command name. Asks the LLM for a close, existing command name. Output: the sent-message promise. */
   async handleUnknown(chatId, args, quotedMessage, sender, command) {
@@ -371,29 +361,23 @@ class CommandHandler {
         .join(" ")
         .trim() || quotedMessage?.body?.trim();
     if (!pending) return this.sendMessage(chatId, MESSAGES.PENDING_USAGE);
-    this.pendingStore.add(chatId, pending, date, time);
-    await this.sendMessage(
-      chatId,
-      MESSAGES.MUTATION_WITH_LIST(MESSAGES.PENDING_ADDED(pending, date, time), formatPendings(this.pendingStore.getAll(chatId))),
-    );
+    const result = pendingService.createPending({ chatId, content: pending, date, time }, this.pendingStore);
+    const presentation = presentPendingResult(result);
+    await this.sendMessage(chatId, presentation.message);
   }
 
   /** Inputs: chat ID. Lists pending items for that chat. Output: the sent-message promise. */
   async handleListPending(chatId) {
-    const pendings = this.pendingStore.getAll(chatId);
-    await this.sendMessage(chatId, formatPendings(pendings));
+    const result = pendingService.listPendings(chatId, this.pendingStore);
+    await this.sendMessage(chatId, presentPendingResult(result).message);
   }
 
   /** Inputs: chat ID and pending-item index. Deletes a pending item. Output: confirmation or validation response. */
   async handleDeletePending(chatId, args) {
     const index = Number(args[0]);
     if (args.length !== 1 || !Number.isInteger(index) || index < 1) return this.sendMessage(chatId, MESSAGES.PENDING_USAGE);
-    const pending = this.pendingStore.remove(chatId, index - 1);
-    if (pending === undefined) return this.sendMessage(chatId, MESSAGES.DELETE_PENDING_NOT_FOUND);
-    await this.sendMessage(
-      chatId,
-      MESSAGES.MUTATION_WITH_LIST(MESSAGES.PENDING_DELETED(index, getPendingContent(pending)), formatPendings(this.pendingStore.getAll(chatId))),
-    );
+    const result = pendingService.deletePending(chatId, index - 1, this.pendingStore);
+    await this.sendMessage(chatId, presentPendingResult(result, { index }).message);
   }
 
   /** Inputs: chat ID, arguments, optional quote, and sender. Adds, lists, or deletes reminders based on the !r syntax. Output: the sent-message promise. */
@@ -411,57 +395,51 @@ class CommandHandler {
 
   /** Inputs: chat ID, duration text, content arguments, optional quote and sender. Stores and schedules a one-time reminder. Output: confirmation or usage response. */
   async handleAddReminder(chatId, durationText, contentArgs, quotedMessage, sender, messageId) {
-    const duration = parseDuration(durationText);
     const content = contentArgs.join(" ").trim() || quotedMessage?.body?.trim();
-    if (!content || !duration) return this.sendMessage(chatId, MESSAGES.REMINDER_USAGE);
-    const reminder = this.reminderStore.add(chatId, content, Date.now() + duration, messageId);
-    this.userStatsStore?.recordAction(chatId, sender?.mentionId, "remindersCreated");
-    this.reminderScheduler?.schedule({ chatId, ...reminder });
-    await this.sendMessage(
-      chatId,
-      MESSAGES.MUTATION_WITH_LIST(
-        MESSAGES.REMINDER_ADDED(sender?.tag, formatDuration(durationText), content),
-        formatReminders(this.reminderStore.getAll(chatId)),
-      ),
-      sender?.mentionId ? { mentions: [sender.mentionId] } : undefined,
+    const result = reminderService.createReminder(
+      { chatId, text: content, duration: durationText, messageId, senderMentionId: sender?.mentionId },
+      this.reminderStore,
+      this.reminderScheduler,
+      this.userStatsStore,
     );
+    if (!result.ok) return this.sendMessage(chatId, MESSAGES.REMINDER_USAGE);
+    const presentation = presentReminderResult(result, { senderTag: sender?.tag, duration: durationText });
+    await this.sendMessage(chatId, presentation.message, sender?.mentionId ? { mentions: [sender.mentionId] } : undefined);
   }
   /** Inputs: chat ID, interval text, optional repetition count, content arguments, and optional quote. Creates a recurring reminder. Output: confirmation or usage response. */
   async handleAddRecurringReminder(chatId, intervalText, repetitionCount, contentArgs, quotedMessage, sender, messageId) {
-    const interval = parseDuration(intervalText);
     const content = contentArgs.join(" ").trim() || quotedMessage?.body?.trim();
     const remaining = repetitionCount ? Number(repetitionCount) : null;
-    if (!content || !interval || interval < 600000 || (remaining !== null && (!Number.isInteger(remaining) || remaining < 1)))
-      return this.sendMessage(chatId, MESSAGES.REMINDER_USAGE);
-    const reminder = this.reminderStore.addRecurring(chatId, content, Date.now() + interval, interval, remaining, messageId);
-    this.userStatsStore?.recordAction(chatId, sender?.mentionId, "remindersCreated");
-    this.reminderScheduler?.schedule({ chatId, ...reminder });
-    const repetitions = remaining === null ? "infinitas veces" : `${remaining} veces`;
-    await this.sendMessage(
-      chatId,
-      MESSAGES.MUTATION_WITH_LIST(
-        MESSAGES.RECURRING_REMINDER_ADDED(formatDuration(intervalText), repetitions, content),
-        formatReminders(this.reminderStore.getAll(chatId)),
-      ),
+    const result = reminderService.createReminder(
+      {
+        chatId,
+        text: content,
+        duration: intervalText,
+        repeatCount: remaining === null ? undefined : remaining,
+        repeatForever: remaining === null,
+        messageId,
+        senderMentionId: sender?.mentionId,
+      },
+      this.reminderStore,
+      this.reminderScheduler,
+      this.userStatsStore,
     );
+    if (!result.ok) return this.sendMessage(chatId, MESSAGES.REMINDER_USAGE);
+    const repetitions = remaining === null ? "infinitas veces" : `${remaining} veces`;
+    await this.sendMessage(chatId, presentReminderResult(result, { duration: intervalText, repetitions }).message);
   }
 
   /** Inputs: chat ID. Lists reminders for that chat. Output: the sent-message promise. */
   async handleListReminders(chatId) {
-    const reminders = this.reminderStore.getAll(chatId);
-    await this.sendMessage(chatId, formatReminders(reminders));
+    const result = reminderService.listReminders(chatId, this.reminderStore);
+    await this.sendMessage(chatId, presentReminderResult(result).message);
   }
   /** Inputs: chat ID and reminder index. Cancels and deletes a reminder. Output: confirmation or validation response. */
   async handleDeleteReminder(chatId, args) {
     const index = Number(args[0]);
     if (args.length !== 1 || !Number.isInteger(index) || index < 1) return this.sendMessage(chatId, MESSAGES.REMINDER_USAGE);
-    const reminder = this.reminderStore.remove(chatId, index - 1);
-    if (reminder) this.reminderScheduler?.cancel(reminder.id);
-    if (!reminder) return this.sendMessage(chatId, MESSAGES.DELETE_REMINDER_NOT_FOUND);
-    await this.sendMessage(
-      chatId,
-      MESSAGES.MUTATION_WITH_LIST(MESSAGES.REMINDER_DELETED(index, reminder.text), formatReminders(this.reminderStore.getAll(chatId))),
-    );
+    const result = reminderService.deleteReminder(chatId, index - 1, this.reminderStore, this.reminderScheduler);
+    await this.sendMessage(chatId, presentReminderResult(result, { index }).message);
   }
 
   /** Inputs: chat ID. Selects a random coin side. Output: the sent-message promise. */
@@ -584,26 +562,25 @@ class CommandHandler {
     const active = today.find((cls) => now.minutes >= timeToMinutes(cls.startTime) && now.minutes < timeToMinutes(cls.endTime));
     if (active) return this.sendMessage(chatId, MESSAGES.CURRENT_CLASS_ACTIVE(active));
     const nextToday = today.find((cls) => timeToMinutes(cls.startTime) > now.minutes);
-    if (nextToday) return this.sendMessage(chatId, MESSAGES.CURRENT_CLASS_NEXT(nextToday, capitalize(nextToday.day)));
+    if (nextToday) return this.sendMessage(chatId, MESSAGES.CURRENT_CLASS_NEXT(nextToday, getDays()[DAYS_ORDER.indexOf(nextToday.day)]));
     const classes = this.classStore.getAllSorted(chatId);
     if (!classes.length) return this.sendMessage(chatId, MESSAGES.NO_CLASSES);
     for (let offset = 1; offset <= 7; offset++) {
       const next = classes.find((cls) => cls.day === DAYS_ORDER[(DAYS_ORDER.indexOf(now.day) + offset) % 7]);
-      if (next) return this.sendMessage(chatId, MESSAGES.CURRENT_CLASS_NEXT(next, capitalize(next.day)));
+      if (next) return this.sendMessage(chatId, MESSAGES.CURRENT_CLASS_NEXT(next, getDays()[DAYS_ORDER.indexOf(next.day)]));
     }
   }
 
   /** Inputs: chat ID. Lists today's scheduled classes. Output: the sent-message promise. */
   async handleClassesToday(chatId) {
-    const day = getMexicoCityTime().day,
-      classes = this.classStore.getByDay(chatId, day);
-    await this.sendMessage(chatId, formatClassesToday(day, classes, undefined, this.classStore.getBell(chatId)));
+    const result = classService.listClassesToday(chatId, getMexicoCityTime().day, this.classStore);
+    await this.sendMessage(chatId, presentClassResult(result).message);
   }
 
   /** Inputs: chat ID. Lists all classes grouped by weekday. Output: the sent-message promise. */
   async handleAllClasses(chatId) {
-    const classes = this.classStore.getAllSorted(chatId);
-    await this.sendMessage(chatId, formatAllClasses(classes, undefined, this.classStore.getBell(chatId)));
+    const result = classService.listClasses(chatId, this.classStore);
+    await this.sendMessage(chatId, presentClassResult(result).message);
   }
 
   /** Inputs: chat ID and class fields. Validates and stores a class. Output: confirmation or validation response. */
@@ -613,19 +590,9 @@ class CommandHandler {
       .split(",")
       .map((item) => item.trim());
     if (parts.length !== 4 || parts.some((item) => !item)) return this.sendMessage(chatId, MESSAGES.ADD_CLASS_USAGE);
-    const [name, day, range, classroom] = parts,
-      time = parseTimeRange(range);
-    if (!DAYS_ORDER.includes(day.toLowerCase())) return this.sendMessage(chatId, MESSAGES.INVALID_DAY);
-    if (!time) return this.sendMessage(chatId, MESSAGES.INVALID_TIME);
-    const cls = this.classStore.add(chatId, { name, day, startTime: time.startTime, endTime: time.endTime, classroom });
-    this.classScheduler?.rescheduleForChat(chatId);
-    await this.sendMessage(
-      chatId,
-      MESSAGES.MUTATION_WITH_LIST(
-        MESSAGES.CLASS_ADDED(cls, capitalize(cls.day)),
-        formatAllClasses(this.classStore.getAllSorted(chatId), undefined, this.classStore.getBell(chatId)),
-      ),
-    );
+    const [name, day, range, classroom] = parts;
+    const result = classService.addClass({ chatId, name, day, timeRange: range, classroom }, this.classStore, this.classScheduler);
+    await this.sendMessage(chatId, presentClassResult(result).message);
   }
 
   /** Inputs: chat ID and class update fields. Validates and updates a class. Output: confirmation or validation response. */
@@ -633,43 +600,22 @@ class CommandHandler {
     const input = args.join(" "),
       comma = input.indexOf(",");
     if (comma === -1) return this.sendMessage(chatId, MESSAGES.EDIT_CLASS_USAGE);
-    const resolved = this.classStore.resolve(chatId, input.slice(0, comma).trim());
-    if (resolved.ambiguous) return this.sendMessage(chatId, MESSAGES.CLASS_AMBIGUOUS(formatClassMatches(resolved.matches)));
-    if (!resolved.class) return this.sendMessage(chatId, MESSAGES.CLASS_NOT_FOUND);
     const updates = this.parseClassUpdates(input.slice(comma + 1).trim(), chatId);
     if (!updates) return;
-    const cls = this.classStore.update(chatId, resolved.class.id, updates);
-    this.classScheduler?.rescheduleForChat(chatId);
-    await this.sendMessage(
-      chatId,
-      MESSAGES.MUTATION_WITH_LIST(
-        MESSAGES.CLASS_EDITED(cls, capitalize(cls.day)),
-        formatAllClasses(this.classStore.getAllSorted(chatId), undefined, this.classStore.getBell(chatId)),
-      ),
-    );
+    const result = classService.updateClass({ chatId, reference: input.slice(0, comma).trim(), updates }, this.classStore, this.classScheduler);
+    await this.sendMessage(chatId, presentClassResult(result).message);
   }
 
   /** Inputs: chat ID and class identifier. Removes a class. Output: confirmation or validation response. */
   async handleDeleteClass(chatId, args) {
-    const resolved = this.classStore.resolve(chatId, args.join(" ").trim());
-    if (resolved.ambiguous) return this.sendMessage(chatId, MESSAGES.CLASS_AMBIGUOUS(formatClassMatches(resolved.matches)));
-    if (!resolved.class) return this.sendMessage(chatId, MESSAGES.CLASS_NOT_FOUND);
-    const cls = this.classStore.remove(chatId, resolved.class.id);
-    this.classScheduler?.rescheduleForChat(chatId);
-    await this.sendMessage(
-      chatId,
-      MESSAGES.MUTATION_WITH_LIST(
-        MESSAGES.CLASS_DELETED(cls.name),
-        formatAllClasses(this.classStore.getAllSorted(chatId), undefined, this.classStore.getBell(chatId)),
-      ),
-    );
+    const result = classService.deleteClass({ chatId, reference: args.join(" ").trim() }, this.classStore, this.classScheduler);
+    await this.sendMessage(chatId, presentClassResult(result).message);
   }
 
   /** Inputs: chat ID. Toggles class reminders. Output: the sent-message promise. */
   async handleBell(chatId) {
-    const enabled = this.classStore.toggleBell(chatId);
-    this.classScheduler?.rescheduleForChat(chatId);
-    await this.sendMessage(chatId, enabled ? MESSAGES.BELL_ON : MESSAGES.BELL_OFF);
+    const result = classService.toggleBell({ chatId }, this.classStore, this.classScheduler);
+    await this.sendMessage(chatId, presentClassResult(result).message);
   }
 
   /** Inputs: comma-separated field assignments and chat ID. Validates update fields. Output: an update object or undefined after sending an error. */

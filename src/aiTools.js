@@ -190,17 +190,9 @@ const TOOLS = [
   {
     type: "function",
     function: {
-      name: "send_cat_image",
-      description: "Fetch and send one random cat image directly to the current group.",
-      parameters: { type: "object", properties: {} },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "send_dog_image",
-      description: "Fetch and send one random dog image directly to the current group.",
-      parameters: { type: "object", properties: {} },
+      name: "send_animal_image",
+      description: "Fetch and send one random cat or dog image directly to the current group.",
+      parameters: { type: "object", properties: { animal: { type: "string", enum: ["cat", "dog"] } }, required: ["animal"] },
     },
   },
   {
