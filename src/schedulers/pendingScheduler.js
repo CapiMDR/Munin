@@ -1,6 +1,6 @@
 const fs = require("fs");
 const path = require("path");
-const { MESSAGES } = require("../commandConstants");
+const { MESSAGES } = require("../presenters/messages");
 const { groupPendingsByDate } = require("../utils/pendingUtils");
 const { getMexicoCityDate, getMexicoCityDateKey, getMexicoCityTime, millisecondsUntilTime } = require("../utils/timeUtils");
 

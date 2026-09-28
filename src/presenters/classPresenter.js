@@ -1,6 +1,5 @@
-const { MESSAGES } = require("../commandConstants");
-const { formatAllClasses, formatClassesToday } = require("../listResponseFormatter");
-const { DAYS_ORDER, getDays } = require("../utils/timeUtils");
+const { MESSAGES } = require("./messages");
+const { DAYS_ORDER, getDays, getMexicoCityTime, timeToMinutes } = require("../utils/timeUtils");
 
 function presentClassResult(result) {
   if (!result.ok) return presentFailure(result);
@@ -50,4 +49,28 @@ function dayName(day) {
   return getDays()[DAYS_ORDER.indexOf(day)];
 }
 
-module.exports = { presentClassResult };
+function formatAllClasses(classes, currentTime = getMexicoCityTime(), bellEnabled = true) {
+  if (!classes.length) return MESSAGES.NO_CLASSES;
+
+  const groups = DAYS_ORDER.map((day) => [day, classes.filter((cls) => cls.day === day)])
+    .filter(([, items]) => items.length)
+    .map(([day, items]) => {
+      const lines = items.map((cls) => {
+        const isActive = day === currentTime.day && currentTime.minutes >= timeToMinutes(cls.startTime) && currentTime.minutes < timeToMinutes(cls.endTime);
+        return formatClassLine(cls, isActive);
+      });
+      return `${dayName(day)}:\n${lines.join("\n")}`;
+    });
+  return MESSAGES.ALL_CLASSES(groups, bellEnabled);
+}
+
+function formatClassesToday(day, classes, currentMinutes = getMexicoCityTime().minutes, bellEnabled = true) {
+  const lines = classes.map((cls) => formatClassLine(cls, currentMinutes >= timeToMinutes(cls.startTime) && currentMinutes < timeToMinutes(cls.endTime)));
+  return classes.length ? MESSAGES.CLASSES_TODAY(dayName(day), lines, bellEnabled) : MESSAGES.NO_CLASSES_TODAY;
+}
+
+function formatClassLine(cls, isActive = false) {
+  return `${!isActive ? "`" : "*"}${cls.globalIndex}. ${cls.name} — ${cls.startTime} - ${cls.endTime} — ${cls.classroom}${!isActive ? "`" : "*"}`;
+}
+
+module.exports = { formatAllClasses, formatClassesToday, presentClassResult };

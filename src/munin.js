@@ -1,4 +1,4 @@
-require("./envLoader");
+require("./config/envLoader");
 const { createMuninApp } = require("./app");
 
 process.on("unhandledRejection", (reason) => {

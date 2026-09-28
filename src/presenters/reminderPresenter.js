@@ -1,6 +1,5 @@
-const { MESSAGES } = require("../commandConstants");
-const { formatReminders } = require("../listResponseFormatter");
-const { formatDuration, formatMexicoCityDateTime } = require("../utils/timeUtils");
+const { MESSAGES } = require("./messages");
+const { formatDuration, formatMexicoCityDateTime, formatReminder } = require("../utils/timeUtils");
 
 function presentReminderResult(result, { index, senderTag, duration, repetitions } = {}) {
   if (!result.ok) {
@@ -22,4 +21,8 @@ function presentReminderResult(result, { index, senderTag, duration, repetitions
   return { ok: false, code: "REMINDER_RESULT_UNKNOWN", message: MESSAGES.REMINDER_USAGE };
 }
 
-module.exports = { presentReminderResult };
+function formatReminders(reminders) {
+  return reminders.length ? MESSAGES.REMINDERS_LIST(reminders.map(formatReminder)) : MESSAGES.NO_REMINDERS;
+}
+
+module.exports = { formatReminders, presentReminderResult };

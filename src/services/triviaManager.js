@@ -1,4 +1,4 @@
-const { MESSAGES } = require("./commandConstants");
+const { MESSAGES } = require("../presenters/messages");
 
 const QUESTION_DURATION_MS = 20_000;
 const NEXT_QUESTION_DELAY_MS = 5_000;

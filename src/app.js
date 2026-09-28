@@ -1,8 +1,8 @@
 const { Client, LocalAuth, MessageMedia, Poll } = require("whatsapp-web.js");
-const { generateResponse, generateSummary, shouldAwardFeather, translateTrivia, suggestSimilarCommand, completeToolCall } = require("./muninAI");
-const { createAiToolExecutor } = require("./aiToolExecutor");
-const { createMessageHandler } = require("./messageHandler");
-const CommandHandler = require("./commandHandler");
+const { generateResponse, generateSummary, shouldAwardFeather, translateTrivia, suggestSimilarCommand, completeToolCall } = require("./ai/muninAI");
+const { createAiToolExecutor } = require("./handlers/aiToolExecutor");
+const { createMessageHandler } = require("./handlers/messageHandler");
+const CommandHandler = require("./handlers/commandHandler");
 const PendingStore = require("./stores/pendingStore");
 const PendingScheduler = require("./schedulers/pendingScheduler");
 const CustomCommandStore = require("./stores/customCommandStore");
@@ -18,10 +18,10 @@ const WeeklyReportScheduler = require("./schedulers/weeklyReportScheduler");
 const AnimalImageApi = require("./apis/animalImageApi");
 const OpenMeteoApi = require("./apis/openMeteoApi");
 const OpenTriviaApi = require("./apis/openTriviaApi");
-const { TriviaManager } = require("./triviaManager");
-const { Summarizer } = require("./summarizer");
+const { TriviaManager } = require("./services/triviaManager");
+const { Summarizer } = require("./ai/summarizer");
 const { loadBotLid, saveBotLid } = require("./stores/botIdentityStore");
-const { MESSAGES } = require("./commandConstants");
+const { presentGroupReport } = require("./presenters/groupReportPresenter");
 
 function createMuninApp({
   client = new Client({ authStrategy: new LocalAuth(), puppeteer: { headless: false } }),
@@ -135,7 +135,7 @@ function createMuninApp({
   const buildGroupReport = (chatId) => {
     const report = userStatsStore.getGroupReport(chatId);
     report.currentPendings = pendingStore.getAll(chatId).length;
-    return MESSAGES.GROUP_REPORT(report);
+    return presentGroupReport(report);
   };
   const weeklyReportScheduler = new WeeklyReportScheduler(weeklyReportStore, userStatsStore, buildGroupReport, sendMessage);
   let pendingSchedulerStarted = false;

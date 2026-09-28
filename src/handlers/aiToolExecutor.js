@@ -1,38 +1,31 @@
-const { parsePendingDate, parsePendingTime } = require("./utils/pendingUtils");
-const {
-  DAYS_ORDER,
-  formatMexicoCityDateTime,
-  formatDuration,
-  formatTimerDuration,
-  getDays,
-  parseTimeRange,
-  parseTimerDuration,
-} = require("./utils/timeUtils");
-const { COMMANDS, MESSAGES } = require("./commandConstants");
-const { formatAllClasses, formatClassesToday } = require("./listResponseFormatter");
-const { getMexicoCityTime } = require("./utils/timeUtils");
-const pendingOperations = require("./services/pendingService");
-const reminderOperations = require("./services/reminderService");
-const savedMessageOperations = require("./services/savedMessageService");
-const { presentPendingResult } = require("./presenters/pendingPresenter");
-const { presentSavedMessageResult } = require("./presenters/savedMessagePresenter");
-const { presentReminderResult } = require("./presenters/reminderPresenter");
-const { presentClassResult } = require("./presenters/classPresenter");
-const customCommandService = require("./services/customCommandService");
-const { presentCustomCommandResult } = require("./presenters/customCommandPresenter");
-const { presentWeatherResult } = require("./presenters/weatherPresenter");
-const { presentTriviaResult } = require("./presenters/triviaPresenter");
-const statsService = require("./services/statsService");
-const { presentStatsResult } = require("./presenters/statsPresenter");
-const helpService = require("./services/helpService");
-const { presentHelpResult } = require("./presenters/helpPresenter");
-const animalImageService = require("./services/animalImageService");
-const { presentAnimalImageResult } = require("./presenters/animalImagePresenter");
-const summaryService = require("./services/summaryService");
-const { presentSummaryResult } = require("./presenters/summaryPresenter");
-const classService = require("./services/classService");
-const triviaService = require("./services/triviaService");
-const weatherService = require("./services/weatherService");
+const { parsePendingDate, parsePendingTime } = require("../utils/pendingUtils");
+const { formatTimerDuration, parseTimerDuration } = require("../utils/timeUtils");
+const { COMMANDS } = require("../config/commandConstants");
+const { MESSAGES } = require("../presenters/messages");
+const { formatAllClasses, formatClassesToday } = require("../presenters/classPresenter");
+const { getMexicoCityTime } = require("../utils/timeUtils");
+const pendingService = require("../services/pendingService");
+const reminderService = require("../services/reminderService");
+const savedMessageService = require("../services/savedMessageService");
+const { presentPendingResult } = require("../presenters/pendingPresenter");
+const { presentSavedMessageResult } = require("../presenters/savedMessagePresenter");
+const { presentReminderResult } = require("../presenters/reminderPresenter");
+const { presentClassResult } = require("../presenters/classPresenter");
+const customCommandService = require("../services/customCommandService");
+const { presentCustomCommandResult } = require("../presenters/customCommandPresenter");
+const { presentWeatherResult } = require("../presenters/weatherPresenter");
+const { presentTriviaResult } = require("../presenters/triviaPresenter");
+const statsService = require("../services/statsService");
+const { presentStatsResult } = require("../presenters/statsPresenter");
+const helpService = require("../services/helpService");
+const { presentHelpResult } = require("../presenters/helpPresenter");
+const animalImageService = require("../services/animalImageService");
+const { presentAnimalImageResult } = require("../presenters/animalImagePresenter");
+const summaryService = require("../services/summaryService");
+const { presentSummaryResult } = require("../presenters/summaryPresenter");
+const classService = require("../services/classService");
+const triviaService = require("../services/triviaService");
+const weatherService = require("../services/weatherService");
 
 // This factory receives the application dependencies once at startup. Each tool
 // execution then receives only request-specific context such as chatId/message.
@@ -112,7 +105,7 @@ function saveMessage(args, context, savedMessageStore, userStatsStore) {
   if (!context.message.hasQuotedMsg) {
     return failure("The user did not reply to a message. Tell them they must reply to the message they want to save.");
   }
-  const savedMessage = savedMessageOperations.saveMessage(
+  const savedMessage = savedMessageService.saveMessage(
     {
       chatId: context.chatId,
       title,
@@ -134,7 +127,7 @@ async function viewSavedMessage(args, context, savedMessageStore, sendMessage) {
   const title = args.title?.trim();
   if (!title) return failure("A title is required.");
 
-  const result = savedMessageOperations.getSavedMessage(context.chatId, title, savedMessageStore);
+  const result = savedMessageService.getSavedMessage(context.chatId, title, savedMessageStore);
   const presentation = presentSavedMessageResult(result, { title });
   if (!presentation.ok) return failure(presentation.code, presentation.message);
   await sendMessage(context.chatId, presentation.message, presentation.sendOptions);
@@ -142,7 +135,7 @@ async function viewSavedMessage(args, context, savedMessageStore, sendMessage) {
 }
 
 function listSavedMessages(context, savedMessageStore) {
-  const result = savedMessageOperations.listSavedMessages(context.chatId, savedMessageStore);
+  const result = savedMessageService.listSavedMessages(context.chatId, savedMessageStore);
   const presentation = presentSavedMessageResult(result);
   return { success: true, action: presentation.action, message: presentation.message };
 }
@@ -155,7 +148,7 @@ function createPending(args, context, pendingStore) {
   if (args.date !== undefined && !date) return failure("The pending date must use a real dd/mm date.");
   if (args.time !== undefined && !time) return failure("The pending time must use HH:mm.", MESSAGES.PENDING_USAGE);
 
-  const pendingResult = pendingOperations.createPending({ chatId: context.chatId, content, date, time }, pendingStore);
+  const pendingResult = pendingService.createPending({ chatId: context.chatId, content, date, time }, pendingStore);
   const presentation = presentPendingResult(pendingResult);
   return presentation.ok
     ? { success: true, action: presentation.action, content, date: date || null, time: time || null, message: presentation.message }
@@ -163,14 +156,14 @@ function createPending(args, context, pendingStore) {
 }
 
 function listPendings(context, pendingStore) {
-  const result = pendingOperations.listPendings(context.chatId, pendingStore);
+  const result = pendingService.listPendings(context.chatId, pendingStore);
   const presentation = presentPendingResult(result);
   return { success: true, action: presentation.action, message: presentation.message };
 }
 
 function deletePending(args, context, pendingStore) {
   if (!isOneBasedIndex(args.index)) return failure("A positive pending index is required.");
-  const pendingResult = pendingOperations.deletePending(context.chatId, args.index - 1, pendingStore);
+  const pendingResult = pendingService.deletePending(context.chatId, args.index - 1, pendingStore);
   const presentation = presentPendingResult(pendingResult, { index: args.index });
   return presentation.ok
     ? { success: true, action: presentation.action, index: args.index, message: presentation.message }
@@ -178,7 +171,7 @@ function deletePending(args, context, pendingStore) {
 }
 
 function createReminder(args, context, reminderStore, reminderScheduler, userStatsStore) {
-  const result = reminderOperations.createReminder(
+  const result = reminderService.createReminder(
     {
       chatId: context.chatId,
       text: args.content,
@@ -211,13 +204,13 @@ function createReminder(args, context, reminderStore, reminderScheduler, userSta
 }
 
 function listReminders(context, reminderStore) {
-  const presentation = presentReminderResult(reminderOperations.listReminders(context.chatId, reminderStore));
+  const presentation = presentReminderResult(reminderService.listReminders(context.chatId, reminderStore));
   return { success: true, action: presentation.action, message: presentation.message };
 }
 
 function deleteReminder(args, context, reminderStore, reminderScheduler) {
   if (!isOneBasedIndex(args.index)) return failure("A positive reminder index is required.");
-  const result = reminderOperations.deleteReminder(context.chatId, args.index - 1, reminderStore, reminderScheduler);
+  const result = reminderService.deleteReminder(context.chatId, args.index - 1, reminderStore, reminderScheduler);
   const presentation = presentReminderResult(result, { index: args.index });
   return presentation.ok
     ? { success: true, action: presentation.action, index: args.index, message: presentation.message }
@@ -242,25 +235,41 @@ function showHelp(args) {
 // Mirrors !comando: members may create or update their group's fixed-reply
 // commands, except for names reserved by Munin's built-in command handlers.
 function createCustomCommand(args, context, customCommandStore) {
-  const result = customCommandService.createCustomCommand({ chatId: context.chatId, command: args.command, reply: args.reply, builtInCommands: Object.values(COMMANDS) }, customCommandStore);
+  const result = customCommandService.createCustomCommand(
+    { chatId: context.chatId, command: args.command, reply: args.reply, builtInCommands: Object.values(COMMANDS) },
+    customCommandStore,
+  );
   const presentation = presentCustomCommandResult(result);
-  return presentation.ok ? { success: true, action: presentation.action, message: presentation.message } : failure(presentation.code, presentation.message);
+  return presentation.ok
+    ? { success: true, action: presentation.action, message: presentation.message }
+    : failure(presentation.code, presentation.message);
 }
 
 function showUserStats(context, userStatsStore) {
-  const presentation = presentStatsResult(statsService.getUserStats({ chatId: context.chatId, mentionId: context.sender?.mentionId }, userStatsStore));
-  return presentation.ok ? { success: true, action: presentation.action, message: presentation.message } : failure(presentation.code, presentation.message);
+  const presentation = presentStatsResult(
+    statsService.getUserStats({ chatId: context.chatId, mentionId: context.sender?.mentionId }, userStatsStore),
+  );
+  return presentation.ok
+    ? { success: true, action: presentation.action, message: presentation.message }
+    : failure(presentation.code, presentation.message);
 }
 
 async function sendRandomImageForGroup(context, sendAnimalImage, animal) {
-  const presentation = presentAnimalImageResult(await animalImageService.sendAnimalImage({ chatId: context.chatId, animal }, sendAnimalImage), animal);
-  return presentation.ok ? { success: true, action: presentation.action, imageId: presentation.imageId, imageWasSent: true } : failure(presentation.code, presentation.message);
+  const presentation = presentAnimalImageResult(
+    await animalImageService.sendAnimalImage({ chatId: context.chatId, animal }, sendAnimalImage),
+    animal,
+  );
+  return presentation.ok
+    ? { success: true, action: presentation.action, imageId: presentation.imageId, imageWasSent: true }
+    : failure(presentation.code, presentation.message);
 }
 
 async function getWeather(args, openMeteoApi) {
   const result = await weatherService.getWeather({ date: args.date, location: args.location }, openMeteoApi);
   const presentation = presentWeatherResult(result);
-  return presentation.ok ? { success: true, action: presentation.action, message: presentation.message } : failure(presentation.code, presentation.message);
+  return presentation.ok
+    ? { success: true, action: presentation.action, message: presentation.message }
+    : failure(presentation.code, presentation.message);
 }
 
 async function reactToInvokingMessageTool(args, context, reactToInvokingMessage) {
@@ -294,8 +303,12 @@ function listClasses(context, classStore) {
 }
 
 function summarizeMessages(args, context, summarizer) {
-  const presentation = presentSummaryResult(summaryService.prepareSummary({ chatId: context.chatId, amount: args.amount, excludedMessage: context.message }, summarizer));
-  return presentation.ok ? { success: true, action: presentation.action, amount: presentation.amount, conversation: presentation.conversation } : failure(presentation.code, presentation.message);
+  const presentation = presentSummaryResult(
+    summaryService.prepareSummary({ chatId: context.chatId, amount: args.amount, excludedMessage: context.message }, summarizer),
+  );
+  return presentation.ok
+    ? { success: true, action: presentation.action, amount: presentation.amount, conversation: presentation.conversation }
+    : failure(presentation.code, presentation.message);
 }
 
 function listClassesToday(context, classStore) {

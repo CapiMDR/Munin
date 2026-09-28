@@ -2,9 +2,9 @@ const Groq = require("groq-sdk");
 const fs = require("fs");
 const path = require("path");
 const { TOOLS } = require("./aiTools");
-const { createTriviaTranslator } = require("./ai/triviaTranslator");
-const { createConversationStore } = require("./ai/conversationStore");
-const { createAiUtilityService } = require("./ai/aiUtilityService");
+const { createTriviaTranslator } = require("./triviaTranslator");
+const { createConversationStore } = require("./conversationStore");
+const { createAiUtilityService } = require("./aiUtilityService");
 
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
@@ -17,7 +17,7 @@ const MODELS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "openai/gpt-oss-saf
 
 const conversationStore = createConversationStore(MAX_HISTORY);
 
-const SYSTEM_PROMPT = fs.readFileSync(path.join(__dirname, "prompts", "munin-system-prompt.md"), "utf8").trim();
+const SYSTEM_PROMPT = fs.readFileSync(path.join(__dirname, "..", "prompts", "munin-system-prompt.md"), "utf8").trim();
 
 function buildSystemPrompt() {
   const currentMexicoCityTime = new Intl.DateTimeFormat("es-MX", {

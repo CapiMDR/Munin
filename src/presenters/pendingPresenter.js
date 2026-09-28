@@ -1,6 +1,6 @@
-const { MESSAGES } = require("../commandConstants");
-const { formatPendings } = require("../listResponseFormatter");
-const { getPendingContent } = require("../utils/pendingUtils");
+const { MESSAGES } = require("./messages");
+const { getPendingContent, groupPendingsByDate } = require("../utils/pendingUtils");
+const { getMexicoCityDate } = require("../utils/timeUtils");
 
 function presentPendingResult(result, { index } = {}) {
   if (!result.ok) {
@@ -30,4 +30,8 @@ function presentPendingResult(result, { index } = {}) {
   return { ok: false, code: "PENDING_RESULT_UNKNOWN", message: MESSAGES.PENDING_USAGE };
 }
 
-module.exports = { presentPendingResult };
+function formatPendings(pendings) {
+  return pendings.length ? MESSAGES.DAILY_PENDINGS(groupPendingsByDate(pendings, getMexicoCityDate())) : MESSAGES.NO_PENDING;
+}
+
+module.exports = { formatPendings, presentPendingResult };

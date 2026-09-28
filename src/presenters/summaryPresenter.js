@@ -1,4 +1,4 @@
-const { MESSAGES } = require("../commandConstants");
+const { MESSAGES } = require("./messages");
 
 function presentSummaryResult(result) {
   if (result.ok) return { ok: true, action: "summarize_messages", ...result.data };

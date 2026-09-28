@@ -1,5 +1,4 @@
-const { MESSAGES } = require("../commandConstants");
-const { formatSavedMessages } = require("../listResponseFormatter");
+const { MESSAGES } = require("./messages");
 
 function presentSavedMessageResult(result, { title } = {}) {
   if (!result.ok) {
@@ -31,4 +30,8 @@ function presentSavedMessageResult(result, { title } = {}) {
   return { ok: false, code: "SAVED_MESSAGE_RESULT_UNKNOWN", message: MESSAGES.SAVE_MESSAGE_USAGE };
 }
 
-module.exports = { presentSavedMessageResult };
+function formatSavedMessages(savedMessages) {
+  return savedMessages.length ? MESSAGES.SAVED_MESSAGES_LIST(savedMessages) : MESSAGES.NO_SAVED_MESSAGES;
+}
+
+module.exports = { formatSavedMessages, presentSavedMessageResult };

@@ -1,6 +1,6 @@
 const fs = require("fs");
 const path = require("path");
-const { GLOBAL_ADMIN_ID } = require("../adminConfig");
+const { GLOBAL_ADMIN_ID } = require("../config/adminConfig");
 
 const INDEFINITE_DURATION = "indefinite";
 

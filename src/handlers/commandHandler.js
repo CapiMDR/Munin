@@ -1,35 +1,37 @@
-const PendingStore = require("./stores/pendingStore");
-const ReminderStore = require("./stores/reminderStore");
-const ClassStore = require("./stores/classStore");
-const AdminStore = require("./stores/adminStore");
-const CustomCommandStore = require("./stores/customCommandStore");
-const SavedMessageStore = require("./stores/savedMessageStore");
-const pendingService = require("./services/pendingService");
-const reminderService = require("./services/reminderService");
-const savedMessageOperations = require("./services/savedMessageService");
-const { presentPendingResult } = require("./presenters/pendingPresenter");
-const { presentSavedMessageResult } = require("./presenters/savedMessagePresenter");
-const { presentReminderResult } = require("./presenters/reminderPresenter");
-const { presentClassResult } = require("./presenters/classPresenter");
-const customCommandService = require("./services/customCommandService");
-const { presentCustomCommandResult } = require("./presenters/customCommandPresenter");
-const { presentWeatherResult } = require("./presenters/weatherPresenter");
-const { presentTriviaResult } = require("./presenters/triviaPresenter");
-const statsService = require("./services/statsService");
-const { presentStatsResult } = require("./presenters/statsPresenter");
-const helpService = require("./services/helpService");
-const { presentHelpResult } = require("./presenters/helpPresenter");
-const animalImageService = require("./services/animalImageService");
-const { presentAnimalImageResult } = require("./presenters/animalImagePresenter");
-const summaryService = require("./services/summaryService");
-const { presentSummaryResult } = require("./presenters/summaryPresenter");
-const classService = require("./services/classService");
-const triviaService = require("./services/triviaService");
-const weatherService = require("./services/weatherService");
-const { parsePendingDate, parsePendingTime } = require("./utils/pendingUtils");
-const { resolveMexicoCityDate } = require("./utils/dateUtils");
-const { DAYS_ORDER, getDays } = require("./utils/timeUtils");
-const { COIN_SIDES, COMMANDS, EIGHT_BALL_RESPONSES, INFINITE_TOKEN, MESSAGES } = require("./commandConstants");
+const PendingStore = require("../stores/pendingStore");
+const ReminderStore = require("../stores/reminderStore");
+const ClassStore = require("../stores/classStore");
+const AdminStore = require("../stores/adminStore");
+const CustomCommandStore = require("../stores/customCommandStore");
+const SavedMessageStore = require("../stores/savedMessageStore");
+const pendingService = require("../services/pendingService");
+const reminderService = require("../services/reminderService");
+const savedMessageService = require("../services/savedMessageService");
+const { presentPendingResult } = require("../presenters/pendingPresenter");
+const { presentSavedMessageResult } = require("../presenters/savedMessagePresenter");
+const { presentReminderResult } = require("../presenters/reminderPresenter");
+const { presentGroupReport } = require("../presenters/groupReportPresenter");
+const { presentClassResult } = require("../presenters/classPresenter");
+const customCommandService = require("../services/customCommandService");
+const { presentCustomCommandResult } = require("../presenters/customCommandPresenter");
+const { presentWeatherResult } = require("../presenters/weatherPresenter");
+const { presentTriviaResult } = require("../presenters/triviaPresenter");
+const statsService = require("../services/statsService");
+const { presentStatsResult } = require("../presenters/statsPresenter");
+const helpService = require("../services/helpService");
+const { presentHelpResult } = require("../presenters/helpPresenter");
+const animalImageService = require("../services/animalImageService");
+const { presentAnimalImageResult } = require("../presenters/animalImagePresenter");
+const summaryService = require("../services/summaryService");
+const { presentSummaryResult } = require("../presenters/summaryPresenter");
+const classService = require("../services/classService");
+const triviaService = require("../services/triviaService");
+const weatherService = require("../services/weatherService");
+const { parsePendingDate, parsePendingTime } = require("../utils/pendingUtils");
+const { resolveMexicoCityDate } = require("../utils/dateUtils");
+const { DAYS_ORDER, getDays } = require("../utils/timeUtils");
+const { COIN_SIDES, COMMANDS, EIGHT_BALL_RESPONSES, INFINITE_TOKEN } = require("../config/commandConstants");
+const { MESSAGES } = require("../presenters/messages");
 const {
   formatDuration,
   formatRemainingDuration,
@@ -39,7 +41,7 @@ const {
   parseTimeRange,
   parseTimerDuration,
   timeToMinutes,
-} = require("./utils/timeUtils");
+} = require("../utils/timeUtils");
 
 class CommandHandler {
   /** Inputs: injected messaging, storage, and scheduler dependencies. Initializes the handler. Output: a configured instance. */
@@ -215,7 +217,7 @@ class CommandHandler {
     const title = args.join(" ").trim();
 
     if (!message.hasQuotedMsg) return this.sendMessage(chatId, MESSAGES.SAVE_MESSAGE_USAGE);
-    const savedMessage = savedMessageOperations.saveMessage(
+    const savedMessage = savedMessageService.saveMessage(
       {
         chatId,
         title,
@@ -238,14 +240,14 @@ class CommandHandler {
       return this.sendMessage(chatId, MESSAGES.VIEW_SAVED_MESSAGE_USAGE);
     }
 
-    const result = savedMessageOperations.getSavedMessage(chatId, title, this.savedMessageStore);
+    const result = savedMessageService.getSavedMessage(chatId, title, this.savedMessageStore);
 
     const presentation = presentSavedMessageResult(result, { title });
     await this.sendMessage(chatId, presentation.message, presentation.sendOptions);
   }
   /** Inputs: chat ID. Lists saved message titles for the current group. Output: the sent-message promise. */
   async handleListSavedMessages(chatId) {
-    const result = savedMessageOperations.listSavedMessages(chatId, this.savedMessageStore);
+    const result = savedMessageService.listSavedMessages(chatId, this.savedMessageStore);
     const presentation = presentSavedMessageResult(result);
     await this.sendMessage(chatId, presentation.message);
   }
@@ -253,7 +255,7 @@ class CommandHandler {
   async handleDeleteSavedMessage(chatId, args) {
     const index = Number(args[0]);
     if (args.length !== 1 || !Number.isInteger(index) || index < 1) return this.sendMessage(chatId, MESSAGES.DELETE_SAVED_MESSAGE_USAGE);
-    const result = savedMessageOperations.deleteSavedMessage(chatId, index - 1, this.savedMessageStore);
+    const result = savedMessageService.deleteSavedMessage(chatId, index - 1, this.savedMessageStore);
     const presentation = presentSavedMessageResult(result);
     await this.sendMessage(chatId, result.ok ? presentation.message : MESSAGES.SAVED_MESSAGE_INDEX_NOT_FOUND);
   }
@@ -284,7 +286,7 @@ class CommandHandler {
   async handleReport(chatId) {
     const report = this.userStatsStore?.getGroupReport(chatId) || emptyGroupReport();
     report.currentPendings = this.pendingStore.getAll(chatId).length;
-    await this.sendMessage(chatId, MESSAGES.GROUP_REPORT(report));
+    await this.sendMessage(chatId, presentGroupReport(report));
   }
   /** Inputs: chat ID. Toggles the group's automatic Sunday weekly report. Output: the sent-message promise. */
   async handleToggleWeeklyReport(chatId) {
@@ -678,16 +680,6 @@ function parsePendingDateArguments(args) {
     if (date) return { date, argumentCount };
   }
   return { date: undefined, argumentCount: 0 };
-}
-
-/** Inputs: a class record. Formats one class list line. Output: formatted text. */
-function formatClassLine(cls) {
-  return `${cls.globalIndex}. ${cls.name} — ${cls.startTime} - ${cls.endTime} — ${cls.classroom}`;
-}
-
-/** Inputs: matching class records. Formats ambiguity choices. Output: an array of formatted lines. */
-function formatClassMatches(classes) {
-  return classes.map((cls) => `  ${formatClassLine(cls)}`);
 }
 
 function emptyGroupReport() {

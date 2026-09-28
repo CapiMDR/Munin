@@ -1,6 +1,6 @@
 const MAX_TIMEOUT = 2 ** 31 - 1;
 const RETRY_DELAY = 60_000;
-const { MESSAGES } = require("../commandConstants");
+const { MESSAGES } = require("../presenters/messages");
 const { getNextWeeklyTrigger, timestampOf, toIso } = require("./reminderSchedule");
 
 class ReminderScheduler {

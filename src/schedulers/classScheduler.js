@@ -1,4 +1,4 @@
-const { MESSAGES } = require("../commandConstants");
+const { MESSAGES } = require("../presenters/messages");
 
 const UTC_OFFSET_HOURS = -6;
 

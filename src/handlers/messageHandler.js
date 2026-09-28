@@ -1,4 +1,4 @@
-const { MESSAGES } = require("./commandConstants");
+const { MESSAGES } = require("../presenters/messages");
 const {
   countWords,
   getChatId,
@@ -14,7 +14,7 @@ const {
   isReplyToMessage,
   isSticker,
   isVoiceNote,
-} = require("./utils/messageUtil");
+} = require("../utils/messageUtil");
 
 function createMessageHandler({
   initialBotLid,

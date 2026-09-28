@@ -1,4 +1,4 @@
-const { MESSAGES } = require("../commandConstants");
+const { MESSAGES } = require("./messages");
 
 function presentWeatherResult(result) {
   if (result.ok) return { ok: true, action: "get_weather", message: MESSAGES.WEATHER_REPORT(result.data.weather) };

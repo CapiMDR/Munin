@@ -1,4 +1,4 @@
-const { MESSAGES } = require("../commandConstants");
+const { MESSAGES } = require("./messages");
 function presentCustomCommandResult(result) {
   if (!result.ok) {
     if (result.code === "CUSTOM_COMMAND_BUILTIN")
