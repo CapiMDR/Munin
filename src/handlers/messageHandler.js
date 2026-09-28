@@ -1,4 +1,5 @@
 const { MESSAGES } = require("../presenters/messages");
+const { FEATHER_COOLDOWN_MS, SEND_MAINTENANCE_MESSAGE, TEST_CHAT_ID, TEST_MODE } = require("../config/settings");
 const {
   countWords,
   getChatId,
@@ -11,10 +12,14 @@ const {
   isGroupChat,
   isImage,
   isNightMessage,
+  isOwnMessage,
   isReplyToMessage,
   isSticker,
   isVoiceNote,
-} = require("../utils/messageUtil");
+  getMentionedUsers,
+  getSender,
+  isBotMention,
+} = require("../utils/messageUtils");
 
 function createMessageHandler({
   initialBotLid,
@@ -28,20 +33,20 @@ function createMessageHandler({
   generateResponse,
   aiToolExecutor,
   completeToolCall,
-  sendMessage,
-  sendReaction,
-  testMode = false,
-  testChatId = "",
-  sendMaintenanceMessage = false,
-  featherCooldownMs,
+  output,
+  scheduleTimer,
 }) {
   let botLid = initialBotLid;
+  const deliverText = (chatId, text, options) => deliverOutputs([{ type: "text", chatId, text, options }]);
 
   if (botLid) console.log("Loaded Munin LID:", botLid);
 
   async function handleMessageCreate(message) {
     try {
-      if (isOwnMessage(message)) return;
+      if (isOwnMessage(message)) {
+        learnBotLid(message);
+        return;
+      }
 
       const chatId = getChatId(message);
       if (!isGroupChat(chatId)) return;
@@ -55,7 +60,7 @@ function createMessageHandler({
 
       const body = getMessageBody(message);
       const isCommand = body.startsWith("!");
-      const isMention = isBotMention(message);
+      const isMention = isBotMention(message, botLid);
 
       userStatsStore.recordMessage(chatId, {
         mentionId: senderMentionId,
@@ -82,8 +87,8 @@ function createMessageHandler({
 
       if (!isCommand && !isMention) return;
 
-      if (testMode && chatId !== testChatId) {
-        if (sendMaintenanceMessage) await sendMessage(chatId, MESSAGES.TEST_MODE_MAINTENANCE);
+      if (TEST_MODE && chatId !== TEST_CHAT_ID) {
+        if (SEND_MAINTENANCE_MESSAGE) await deliverText(chatId, MESSAGES.TEST_MODE_MAINTENANCE);
         return;
       }
 
@@ -96,12 +101,6 @@ function createMessageHandler({
 
   function getBotLid() {
     return botLid;
-  }
-
-  function isOwnMessage(message) {
-    if (!message.fromMe && !message.id?.fromMe) return false;
-    learnBotLid(message);
-    return true;
   }
 
   function learnBotLid(message) {
@@ -126,7 +125,7 @@ function createMessageHandler({
   }
 
   async function handleFormalCommand(message, chatId, sender) {
-    await getCommandHandler().handleCommand(
+    const outputs = await getCommandHandler().handleCommand(
       message,
       chatId,
       getQuotedMessage(message),
@@ -134,9 +133,27 @@ function createMessageHandler({
       getSerializedMessageId(message),
       getMessageBody(message).trim(),
     );
+    await deliverOutputs(outputs);
   }
 
-  async function handleMention(message, chatId, sender, isMention = isBotMention(message)) {
+  async function deliverOutputs(outputs) {
+    for (const outputDto of outputs || []) {
+      if (outputDto.type === "schedule") {
+        scheduleTimer?.(outputDto.duration, () => deliverOutputs([outputDto.output]));
+        continue;
+      }
+
+      try {
+        await output.deliver(outputDto);
+      } catch (error) {
+        if (!outputDto.fallbackText) throw error;
+        console.error("Could not deliver output:", error.message);
+        await output.deliver({ type: "text", chatId: outputDto.chatId, text: outputDto.fallbackText });
+      }
+    }
+  }
+
+  async function handleMention(message, chatId, sender, isMention = isBotMention(message, botLid)) {
     if (!isMention) return;
 
     const prompt = (await getLLMPrompt(message)) || "El usuario te mencionó sin escribir ningún mensaje.";
@@ -149,7 +166,7 @@ function createMessageHandler({
     if (await featherDecision) await awardFeather(message, chatId, sender);
 
     if (aiResult.type === "message") {
-      await sendMessage(chatId, aiResult.content);
+      await deliverText(chatId, aiResult.content);
       return;
     }
 
@@ -163,16 +180,16 @@ function createMessageHandler({
     });
 
     if (toolResult.success && toolResult.action === "show_help") {
-      await sendMessage(chatId, toolResult.help);
+      await deliverText(chatId, toolResult.help);
       return;
     }
     if (toolResult.success && ["send_animal_image", "generate_image", "start_trivia", "react_to_message"].includes(toolResult.action)) return;
     if (toolResult.success && toolResult.message) {
-      await sendMessage(chatId, toolResult.message);
+      await deliverText(chatId, toolResult.message);
       return;
     }
     if (!toolResult.success && toolResult.userMessage) {
-      await sendMessage(chatId, toolResult.userMessage);
+      await deliverText(chatId, toolResult.userMessage);
       return;
     }
 
@@ -184,7 +201,7 @@ function createMessageHandler({
       aiResult.assistantMessage,
       aiResult.userMessage,
     );
-    if (response) await sendMessage(chatId, response);
+    if (response) await deliverText(chatId, response);
   }
 
   async function awardFeather(message, chatId, sender) {
@@ -193,14 +210,10 @@ function createMessageHandler({
 
     try {
       await reactToMessage(message, "🪶");
-      userStatsStore.recordFeather(chatId, mentionId, featherCooldownMs);
+      userStatsStore.recordFeather(chatId, mentionId, FEATHER_COOLDOWN_MS);
     } catch (error) {
       console.warn("Could not award feather:", error.message);
     }
-  }
-
-  function isBotMention(message) {
-    return Boolean(botLid && message.mentionedIds?.includes(botLid));
   }
 
   async function getLLMPrompt(message) {
@@ -233,39 +246,10 @@ function createMessageHandler({
     return `${content.trim()}\n\n[Mensaje citado]\n${sanitizeQuotedContent(quotedContent)}\n[/Mensaje citado]`;
   }
 
-  async function getSender(message) {
-    try {
-      const contact = await message.getContact();
-      const userName = contact.pushname || contact.name || contact.shortName;
-      const mentionId = contact.id?._serialized || message.author || message.id.participant;
-      if (!mentionId) return userName ? { tag: userName } : undefined;
-      return { name: userName, tag: `@${mentionId.split("@")[0]}`, mentionId };
-    } catch (error) {
-      console.warn("Could not retrieve sender contact:", error.message);
-      return undefined;
-    }
-  }
-
-  async function getMentionedUsers(message) {
-    if (!message.mentionedIds?.length) return [];
-    try {
-      const contacts = await message.getMentions();
-      return contacts
-        .map((contact) => ({
-          mentionId: contact.id?._serialized,
-          name: contact.pushname || contact.name || contact.shortName,
-        }))
-        .filter((user) => user.mentionId && user.name);
-    } catch (error) {
-      console.warn("Could not retrieve mentioned contacts:", error.message);
-      return [];
-    }
-  }
-
   async function reactToMessage(message, reaction) {
     const messageId = getSerializedMessageId(message);
     if (!messageId) throw new Error("Could not determine serialized message ID.");
-    return sendReaction(messageId, reaction);
+    return output.deliver({ type: "reaction", messageId, emoji: reaction });
   }
 
   return { getBotLid, handleMessageCreate, reactToInvokingMessage: reactToMessage };

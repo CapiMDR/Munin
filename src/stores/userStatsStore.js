@@ -122,6 +122,31 @@ class UserStatsStore {
     return this.snapshot(profile);
   }
 
+  canGenerateImage(chatId, mentionId, now = Date.now()) {
+    const profile = this.data.groups[chatId]?.users?.[mentionId];
+    return !profile || (profile.imageGenerationCooldownUntil || 0) <= now;
+  }
+
+  getImageGenerationCooldownRemaining(chatId, mentionId, now = Date.now()) {
+    const until = this.data.groups[chatId]?.users?.[mentionId]?.imageGenerationCooldownUntil || 0;
+    return Math.max(0, until - now);
+  }
+
+  recordImageGeneration(chatId, mentionId, cooldownMs = 0) {
+    if (!chatId || !mentionId) return undefined;
+    const profile = this.getProfile(this.getGroup(chatId), mentionId);
+    profile.imageGenerationCooldownUntil = Date.now() + cooldownMs;
+    this.save();
+    return this.snapshot(profile);
+  }
+
+  clearImageGenerationCooldown(chatId, mentionId) {
+    const profile = this.data.groups[chatId]?.users?.[mentionId];
+    if (!profile) return;
+    profile.imageGenerationCooldownUntil = 0;
+    this.save();
+  }
+
   recordTriviaGamePlayed(chatId, mentionId) {
     return this.recordTrivia(chatId, mentionId, (profile) => this.incrementTrivia(profile, "gamesPlayed"));
   }
@@ -231,6 +256,7 @@ class UserStatsStore {
     else if (profile.weekly.week !== week) profile.weekly = { week, ...lifetimeCounters() };
     profile.records ||= { longestMessage: 0, longestStreak: 0 };
     profile.featherCooldownUntil ||= 0;
+    profile.imageGenerationCooldownUntil ||= 0;
     LIFETIME_FIELDS.forEach((field) => (profile.lifetime[field] ||= 0));
     DAILY_FIELDS.forEach((field) => (profile.daily[field] ||= 0));
     LIFETIME_FIELDS.forEach((field) => (profile.weekly[field] ||= 0));

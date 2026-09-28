@@ -1,6 +1,7 @@
 const { parsePendingDate, parsePendingTime } = require("../utils/pendingUtils");
 const { formatTimerDuration, parseTimerDuration } = require("../utils/timeUtils");
 const { COMMANDS } = require("../config/commandConstants");
+const { IMAGE_GENERATION_COOLDOWN_MS } = require("../config/settings");
 const { MESSAGES } = require("../presenters/messages");
 const { formatAllClasses, formatClassesToday } = require("../presenters/classPresenter");
 const { getMexicoCityTime } = require("../utils/timeUtils");
@@ -26,9 +27,14 @@ const { presentSummaryResult } = require("../presenters/summaryPresenter");
 const classService = require("../services/classService");
 const triviaService = require("../services/triviaService");
 const weatherService = require("../services/weatherService");
+const imageGenerationService = require("../services/imageGenerationService");
+const { presentImageGenerationResult } = require("../presenters/imageGenerationPresenter");
 
-// This factory receives the application dependencies once at startup. Each tool
-// execution then receives only request-specific context such as chatId/message.
+/**
+ * Creates an executor for LLM tool calls using application-wide dependencies.
+ * @param {object} dependencies Application dependencies.
+ * @returns {{execute: Function}} Tool-call executor.
+ */
 function createAiToolExecutor({
   pendingStore,
   reminderStore,
@@ -36,9 +42,8 @@ function createAiToolExecutor({
   savedMessageStore,
   customCommandStore,
   userStatsStore,
-  sendAnimalImage,
-  sendGeneratedImage,
-  reactToInvokingMessage,
+  adminStore,
+  output,
   openMeteoApi,
   openTriviaApi,
   translateTrivia,
@@ -46,9 +51,13 @@ function createAiToolExecutor({
   classStore,
   classScheduler,
   scheduleTimer,
-  sendMessage,
   summarizer,
 }) {
+  const sendMessage = (chatId, text, options) => output.deliver({ type: "text", chatId, text, options });
+  const sendAnimalImage = (chatId, animal) => output.deliver({ type: "animal_image", chatId, animal });
+  const sendGeneratedImage = (chatId, prompt) => output.deliver({ type: "generated_image", chatId, prompt });
+  const sendReaction = (messageId, emoji) => output.deliver({ type: "reaction", messageId, emoji });
+
   const handlers = {
     save_message: (args, context) => saveMessage(args, context, savedMessageStore, userStatsStore),
     view_saved_message: (args, context) => viewSavedMessage(args, context, savedMessageStore, sendMessage),
@@ -65,8 +74,9 @@ function createAiToolExecutor({
     create_custom_command: (args, context) => createCustomCommand(args, context, customCommandStore),
     show_user_stats: (args, context) => showUserStats(context, userStatsStore),
     send_animal_image: (args, context) => sendRandomImageForGroup(context, sendAnimalImage, args.animal),
-    generate_image: (args, context) => generateImageForGroup(args, context, sendGeneratedImage, reactToInvokingMessage),
-    react_to_message: (args, context) => reactToInvokingMessageTool(args, context, reactToInvokingMessage),
+    generate_image: (args, context) =>
+      generateImageForGroup(args, context, sendGeneratedImage, sendReaction, userStatsStore, adminStore, IMAGE_GENERATION_COOLDOWN_MS),
+    react_to_message: (args, context) => reactToInvokingMessageTool(args, context, sendReaction),
     get_weather: (args) => getWeather(args, openMeteoApi),
     start_trivia: (args, context) => startTrivia(args, context, openTriviaApi, translateTrivia, triviaManager),
     list_classes: (args, context) => listClasses(context, classStore),
@@ -77,8 +87,12 @@ function createAiToolExecutor({
     set_class_bell: (args, context) => setClassBell(args, context, classStore, classScheduler),
   };
 
-  // Flow: Groq tool call -> JSON validation -> named handler -> structured result
-  // -> muninAI sends the result back to Groq for a user-facing final response.
+  /**
+   * Parses and dispatches an LLM tool call.
+   * @param {object} toolCall Provider tool-call payload.
+   * @param {object} context Invocation-specific WhatsApp context.
+   * @returns {Promise<object>} Structured tool result.
+   */
   async function execute(toolCall, context) {
     const args = parseToolArguments(toolCall);
     if (args.error) return args;
@@ -93,6 +107,11 @@ function createAiToolExecutor({
   return { execute };
 }
 
+/**
+ * Parses JSON arguments supplied by the LLM provider.
+ * @param {object} toolCall Provider tool-call payload.
+ * @returns {object} Parsed arguments or a failure result.
+ */
 function parseToolArguments(toolCall) {
   try {
     return JSON.parse(toolCall.function.arguments || "{}");
@@ -224,7 +243,7 @@ function startTimer(args, context, scheduleTimer, sendMessage) {
   if (!duration) return failure("A valid timer duration using s, m, or h is required.");
   if (!scheduleTimer) return failure("The timer scheduler is unavailable.");
 
-  // Timers are intentionally not persisted, matching the existing !tiempo behavior.
+  /** Timers intentionally remain in-memory, matching the !tiempo command. */
   scheduleTimer(duration, () => sendMessage(context.chatId, MESSAGES.TIMER_FINISHED));
   return { success: true, action: "start_timer", duration: formatTimerDuration(args.duration) };
 }
@@ -234,8 +253,10 @@ function showHelp(args) {
   return presentation.ok ? { success: true, action: presentation.action, help: presentation.help } : failure(presentation.code, presentation.message);
 }
 
-// Mirrors !comando: members may create or update their group's fixed-reply
-// commands, except for names reserved by Munin's built-in command handlers.
+/**
+ * Creates or updates a group-specific fixed-reply command, excluding built-ins.
+ * @returns {object} Structured tool result.
+ */
 function createCustomCommand(args, context, customCommandStore) {
   const result = customCommandService.createCustomCommand(
     { chatId: context.chatId, command: args.command, reply: args.reply, builtInCommands: Object.values(COMMANDS) },
@@ -266,25 +287,25 @@ async function sendRandomImageForGroup(context, sendAnimalImage, animal) {
     : failure(presentation.code, presentation.message);
 }
 
-async function generateImageForGroup(args, context, sendGeneratedImage, reactToInvokingMessage) {
-  const prompt = typeof args.prompt === "string" ? args.prompt.trim() : "";
-  if (!prompt || prompt.length > 2_048) return failure("A valid image prompt is required.", MESSAGES.IMAGE_GENERATION_UNAVAILABLE);
-  if (typeof sendGeneratedImage !== "function") return failure("Image generation is unavailable.", MESSAGES.IMAGE_GENERATION_UNAVAILABLE);
-
-  try {
-    if (typeof reactToInvokingMessage === "function") {
-      try {
-        await reactToInvokingMessage(context.message, "🐦‍⬛");
-      } catch (error) {
-        console.warn("Could not react before generating image:", error.message);
-      }
-    }
-    await sendGeneratedImage(context.chatId, prompt);
-    return { success: true, action: "generate_image", imageWasSent: true };
-  } catch (error) {
-    console.error("Could not generate image:", error.message);
-    return failure("Could not generate image.", MESSAGES.IMAGE_GENERATION_UNAVAILABLE);
-  }
+async function generateImageForGroup(args, context, sendGeneratedImage, sendReaction, userStatsStore, adminStore, cooldownMs) {
+  const result = await imageGenerationService.generateImage(
+    { chatId: context.chatId, mentionId: context.sender?.mentionId, prompt: args.prompt },
+    {
+      adminStore,
+      userStatsStore,
+      cooldownMs,
+      onGenerationStart: async () => {
+        try {
+          await sendReaction(context.messageId, "🐦‍⬛");
+        } catch (error) {
+          console.warn("Could not react before generating image:", error.message);
+        }
+      },
+      sendGeneratedImage,
+    },
+  );
+  const presentation = presentImageGenerationResult(result);
+  return presentation.ok ? { success: true, action: presentation.action, imageWasSent: true } : failure(presentation.code, presentation.message);
 }
 
 async function getWeather(args, openMeteoApi) {
@@ -295,13 +316,13 @@ async function getWeather(args, openMeteoApi) {
     : failure(presentation.code, presentation.message);
 }
 
-async function reactToInvokingMessageTool(args, context, reactToInvokingMessage) {
+async function reactToInvokingMessageTool(args, context, sendReaction) {
   const emoji = typeof args.emoji === "string" ? args.emoji.trim() : "";
   if (!emoji || emoji.includes("🪶") || !/\p{Extended_Pictographic}/u.test(emoji)) return failure("A non-feather emoji reaction is required.");
-  if (typeof reactToInvokingMessage !== "function") return failure("Message reactions are unavailable.");
+  if (!context.messageId) return failure("Message reactions are unavailable.");
 
   try {
-    await reactToInvokingMessage(context.message, emoji);
+    await sendReaction(context.messageId, emoji);
     return { success: true, action: "react_to_message" };
   } catch (error) {
     console.error("Could not react to invoking message:", error.message);
@@ -391,17 +412,6 @@ function setClassBell(args, context, classStore, classScheduler) {
   return presentation.ok
     ? { success: true, action: presentation.action, message: presentation.message }
     : failure(presentation.code, presentation.message);
-}
-
-function formatClass(classData) {
-  return {
-    index: classData.globalIndex,
-    name: classData.name,
-    day: classData.day,
-    startTime: classData.startTime,
-    endTime: classData.endTime,
-    classroom: classData.classroom,
-  };
 }
 
 function formatAllClassesForChat(classStore, chatId) {

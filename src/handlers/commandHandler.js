@@ -20,8 +20,6 @@ const statsService = require("../services/statsService");
 const { presentStatsResult } = require("../presenters/statsPresenter");
 const helpService = require("../services/helpService");
 const { presentHelpResult } = require("../presenters/helpPresenter");
-const animalImageService = require("../services/animalImageService");
-const { presentAnimalImageResult } = require("../presenters/animalImagePresenter");
 const summaryService = require("../services/summaryService");
 const { presentSummaryResult } = require("../presenters/summaryPresenter");
 const classService = require("../services/classService");
@@ -43,17 +41,21 @@ const {
   timeToMinutes,
 } = require("../utils/timeUtils");
 
+/**
+ * Parses formal commands, invokes the appropriate application services, and
+ * returns output DTOs for the message handler to deliver.
+ */
 class CommandHandler {
-  /** Inputs: injected messaging, storage, and scheduler dependencies. Initializes the handler. Output: a configured instance. */
+  /**
+   * Creates a command handler with its storage, scheduling, and service dependencies.
+   * @param {object} dependencies Application dependencies.
+   */
   constructor({
-    sendMessage,
     pendingStore = new PendingStore(),
     reminderStore = new ReminderStore(),
     reminderScheduler,
-    sendPoll,
     classStore = new ClassStore(),
     classScheduler,
-    scheduleTimer,
     adminStore = new AdminStore(),
     customCommandStore = new CustomCommandStore(),
     savedMessageStore = new SavedMessageStore(),
@@ -63,21 +65,17 @@ class CommandHandler {
     suggestSimilarCommand,
     userStatsStore,
     weeklyReportStore,
-    sendAnimalImage,
     openMeteoApi,
     openTriviaApi,
     translateTrivia,
     triviaManager,
   } = {}) {
     Object.assign(this, {
-      sendMessage,
       pendingStore,
       reminderStore,
       reminderScheduler,
-      sendPoll,
       classStore,
       classScheduler,
-      scheduleTimer,
       adminStore,
       customCommandStore,
       savedMessageStore,
@@ -87,15 +85,55 @@ class CommandHandler {
       suggestSimilarCommand,
       userStatsStore,
       weeklyReportStore,
-      sendAnimalImage,
       openMeteoApi,
       openTriviaApi,
       translateTrivia,
       triviaManager,
     });
+    this.outputContext = new AsyncLocalStorage();
   }
 
-  /** Inputs: WhatsApp message, chat ID, optional quote, sender, serialized message ID, and normalized command text. Dispatches a command. Output: a resolved command response. */
+  /**
+   * Adds a text output DTO to the active command response.
+   * @param {string} chatId WhatsApp group chat ID.
+   * @param {string} text Text to deliver.
+   * @param {object} [options] WhatsApp message options.
+   * @returns {object} Text output DTO.
+   */
+  sendMessage(chatId, text, options) {
+    return this.createOutput({ type: "text", chatId, text, options });
+  }
+
+  /**
+   * Adds a poll output DTO to the active command response.
+   * @returns {object} Poll output DTO.
+   */
+  sendPoll(chatId, title, options, allowMultipleAnswers) {
+    return this.createOutput({ type: "poll", chatId, title, options, allowMultipleAnswers });
+  }
+
+  /**
+   * Adds an animal-image output DTO to the active command response.
+   * @returns {object} Animal-image output DTO.
+   */
+  sendAnimalImage(chatId, animal, fallbackText) {
+    return this.createOutput({ type: "animal_image", chatId, animal, fallbackText });
+  }
+
+  /**
+   * Records an output in the asynchronous context for the current command.
+   * @param {object} output Output DTO.
+   * @returns {object} The recorded DTO.
+   */
+  createOutput(output) {
+    this.outputContext.getStore()?.push(output);
+    return output;
+  }
+
+  /**
+   * Handles one formal command and returns its output DTOs.
+   * @returns {Promise<object[]|undefined>} Outputs, or undefined when the sender cannot invoke commands.
+   */
   async handleCommand(message, chatId, quotedMessage, sender, messageId, commandText = message.body) {
     const [command, ...args] = commandText.trim().split(/\s+/);
     if (this.adminStore.isBanned(chatId, sender?.mentionId)) return;
@@ -103,10 +141,17 @@ class CommandHandler {
     const commandKey = command.toLowerCase();
     const handlers = this.getHandlers();
     const handler = handlers[commandKey] || (this.customCommandStore.has(chatId, commandKey) ? this.handleCustomCommand : this.handleUnknown);
-    await handler.call(this, chatId, args, quotedMessage, sender, command, message, messageId, this.getBotLid());
+    const outputs = [];
+    return this.outputContext.run(outputs, async () => {
+      await handler.call(this, chatId, args, quotedMessage, sender, command, message, messageId, this.getBotLid());
+      return outputs;
+    });
   }
 
-  /** Inputs: none. Builds command-to-method routing. Output: an object of command handlers. */
+  /**
+   * Builds the built-in command routing table.
+   * @returns {Record<string, Function>} Command handlers indexed by command name.
+   */
   getHandlers() {
     return {
       [COMMANDS.MUNIN]: this.handleMunin,
@@ -295,15 +340,14 @@ class CommandHandler {
   }
   /** Inputs: chat ID. Fetches and sends a random cat image. Output: the sent-message promise. */
   async handleCat(chatId) {
-    await this.handleAnimalImage(chatId, "cat", MESSAGES.CAT_UNAVAILABLE);
+    return this.handleAnimalImage(chatId, "cat", MESSAGES.CAT_UNAVAILABLE);
   }
   /** Inputs: chat ID. Fetches and sends a random dog image. Output: the sent-message promise. */
   async handleDog(chatId) {
-    await this.handleAnimalImage(chatId, "dog", MESSAGES.DOG_UNAVAILABLE);
+    return this.handleAnimalImage(chatId, "dog", MESSAGES.DOG_UNAVAILABLE);
   }
   async handleAnimalImage(chatId, animal, unavailableMessage) {
-    const presentation = presentAnimalImageResult(await animalImageService.sendAnimalImage({ chatId, animal }, this.sendAnimalImage), animal);
-    if (!presentation.ok) await this.sendMessage(chatId, presentation.message || unavailableMessage);
+    return this.sendAnimalImage(chatId, animal, unavailableMessage);
   }
   /** Inputs: chat ID and optional dd/mm date. Sends the daily forecast for Munin's configured location. Output: the sent-message promise. */
   async handleWeather(chatId, args) {
@@ -485,7 +529,7 @@ class CommandHandler {
     const durationText = args[0];
     const duration = parseTimerDuration(durationText);
     if (args.length !== 1 || !duration) return this.sendMessage(chatId, MESSAGES.TIMER_USAGE);
-    this.scheduleTimer?.(duration, () => this.sendMessage(chatId, MESSAGES.TIMER_FINISHED));
+    this.createOutput({ type: "schedule", duration, output: { type: "text", chatId, text: MESSAGES.TIMER_FINISHED } });
     await this.sendMessage(chatId, MESSAGES.TIMER_STARTED(formatTimerDuration(durationText)));
   }
 
@@ -703,3 +747,4 @@ function emptyGroupReport() {
   return { memberCount: 0, members: [], daily: counters, weekly: counters, currentPendings: 0 };
 }
 module.exports = CommandHandler;
+const { AsyncLocalStorage } = require("node:async_hooks");

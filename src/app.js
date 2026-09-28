@@ -1,4 +1,4 @@
-const { Client, LocalAuth, MessageMedia, Poll } = require("whatsapp-web.js");
+const { Client, LocalAuth } = require("whatsapp-web.js");
 const { generateResponse, generateSummary, shouldAwardFeather, translateTrivia, suggestSimilarCommand, completeToolCall } = require("./ai/muninAI");
 const { createAiToolExecutor } = require("./handlers/aiToolExecutor");
 const { createMessageHandler } = require("./handlers/messageHandler");
@@ -20,20 +20,24 @@ const OpenMeteoApi = require("./apis/openMeteoApi");
 const OpenTriviaApi = require("./apis/openTriviaApi");
 const { TriviaManager } = require("./services/triviaManager");
 const { Summarizer } = require("./ai/summarizer");
-const { IMAGE_MIME_TYPE, generateImage } = require("./ai/imageGenerator");
+const { IMAGE_MIME_TYPE, generateImage } = require("./apis/cloudflareImageApi");
+const { createWhatsAppOutput } = require("./handlers/whatsappOutput");
+const { scheduleTimer } = require("./schedulers/timerScheduler");
 const { loadBotLid, saveBotLid } = require("./stores/botIdentityStore");
 const { presentGroupReport } = require("./presenters/groupReportPresenter");
 
 function createMuninApp({
   client = new Client({ authStrategy: new LocalAuth(), puppeteer: { headless: false } }),
   renderQr = console.log,
-  testMode = false,
-  testChatId = process.env.TEST_CHAT_ID?.trim() || "",
-  sendMaintenanceMessage = false,
-  featherCooldownMs = 30 * 60 * 1_000,
 } = {}) {
-  const sendMessage = (chatId, message, options) => client.sendMessage(chatId, message, options);
-  const sendPoll = (chatId, title, options, allowMultipleAnswers) => sendMessage(chatId, new Poll(title, options, { allowMultipleAnswers }));
+  const animalImageApis = { cat: new AnimalImageApi("cat"), dog: new AnimalImageApi("dog") };
+  const whatsappOutput = createWhatsAppOutput({
+    animalImageApis,
+    client,
+    generateImage,
+    imageMimeType: IMAGE_MIME_TYPE,
+  });
+  const sendMessage = (chatId, text, options) => whatsappOutput.deliver({ type: "text", chatId, text, options });
   const pendingStore = new PendingStore();
   const customCommandStore = new CustomCommandStore();
   const savedMessageStore = new SavedMessageStore();
@@ -45,7 +49,6 @@ function createMuninApp({
   const adminStore = new AdminStore();
   const userStatsStore = new UserStatsStore();
   const weeklyReportStore = new WeeklyReportStore();
-  const animalImageApis = { cat: new AnimalImageApi("cat"), dog: new AnimalImageApi("dog") };
   const openMeteoApi = new OpenMeteoApi();
   const openTriviaApi = new OpenTriviaApi();
   const summarizer = new Summarizer();
@@ -71,28 +74,9 @@ function createMuninApp({
     generateResponse,
     aiToolExecutor: { execute: (...args) => aiToolExecutor.execute(...args) },
     completeToolCall,
-    sendMessage,
-    sendReaction: (messageId, reaction) => client.sendReaction(messageId, reaction),
-    testMode,
-    testChatId,
-    sendMaintenanceMessage,
-    featherCooldownMs,
+    output: whatsappOutput,
+    scheduleTimer,
   });
-
-  const sendAnimalImage = async (chatId, animal) => {
-    const animalApi = animalImageApis[animal];
-    if (!animalApi) throw new Error(`Unsupported animal: ${animal}`);
-    const image = await animalApi.getRandomImage();
-    await sendMessage(chatId, await MessageMedia.fromUrl(image.url, { unsafeMime: true }));
-    return image;
-  };
-  const sendGeneratedImage = async (chatId, prompt) => {
-    const image = await generateImage(prompt);
-    const media = new MessageMedia(IMAGE_MIME_TYPE, image.toString("base64"), "munin.jpg");
-    await sendMessage(chatId, media);
-  };
-  const scheduleTimer = (duration, callback) =>
-    setTimeout(() => callback().catch((error) => console.error("Could not deliver timer:", error)), duration);
 
   aiToolExecutor = createAiToolExecutor({
     pendingStore,
@@ -101,28 +85,23 @@ function createMuninApp({
     savedMessageStore,
     customCommandStore,
     userStatsStore,
-    sendAnimalImage,
-    sendGeneratedImage,
-    reactToInvokingMessage: messageHandler.reactToInvokingMessage,
+    adminStore,
+    output: whatsappOutput,
     openMeteoApi,
     openTriviaApi,
     translateTrivia,
     triviaManager,
     classStore,
     classScheduler,
-    scheduleTimer,
     sendMessage,
     summarizer,
   });
   commandHandler = new CommandHandler({
-    sendMessage,
     pendingStore,
     reminderStore,
     reminderScheduler,
-    sendPoll,
     classStore,
     classScheduler,
-    scheduleTimer,
     adminStore,
     customCommandStore,
     savedMessageStore,
@@ -132,7 +111,6 @@ function createMuninApp({
     suggestSimilarCommand,
     userStatsStore,
     weeklyReportStore,
-    sendAnimalImage,
     openMeteoApi,
     openTriviaApi,
     translateTrivia,
