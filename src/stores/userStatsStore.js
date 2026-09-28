@@ -60,6 +60,7 @@ class UserStatsStore {
       replyToMentionId,
       isReply = false,
       mentionedIds = [],
+      mentionedUsers = [],
       botMentionId,
       isSticker = false,
       isImage = false,
@@ -85,7 +86,10 @@ class UserStatsStore {
     const humanMentions = mentionedIds.filter((id) => id && id !== botMentionId);
     if (humanMentions.length) {
       this.increment(sender, "mentionsSent", humanMentions.length);
-      humanMentions.forEach((id) => this.increment(this.getProfile(group, id), "mentionsReceived"));
+      humanMentions.forEach((id) => {
+        const mentionedUser = mentionedUsers.find((user) => user.mentionId === id);
+        this.increment(this.getProfile(group, id, mentionedUser?.name), "mentionsReceived");
+      });
     }
     const muninMentions = mentionedIds.filter((id) => id === botMentionId).length;
     if (muninMentions) this.increment(sender, "muninMentions", muninMentions);

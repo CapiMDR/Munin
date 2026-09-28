@@ -89,16 +89,16 @@ const TOOLS = [
     type: "function",
     function: {
       name: "create_reminder",
-      description: "Create a reminder for the current group. Use either a relative duration such as 30m, 2h, or 1d, or an absolute date and time. Dates accept dd/mm or Spanish relative words such as hoy, mañana, pasado mañana, or a weekday. Optional repetition is only for relative reminders.",
+      description: "Create a reminder for the current group. Use either a relative duration such as 30m, 2h, or 1d, or an absolute date and time. Dates accept dd/mm or Spanish relative words such as hoy, mañana, pasado mañana, or a weekday. A request like 'cada 10 minutos' is an indefinite relative recurrence: use duration '10m' and repeat_forever true. Optional repetition is only for relative reminders.",
       parameters: {
         type: "object",
         properties: {
           content: { type: "string", description: "The reminder text." },
-          duration: { type: "string", description: "A positive duration using m, h, or d; for example 30m." },
+          duration: { type: "string", description: "A positive duration using m, h, or d; for example 30m. For 'cada 10 minutos', use 10m." },
           due_date: { type: "string", description: "Use for an absolute reminder date instead of duration. Accepts dd/mm or Spanish relative dates such as hoy, mañana, pasado mañana, or lunes." },
           due_time: { type: "string", description: "24-hour HH:mm time for an absolute reminder; for example 10:00." },
           repeat_count: { type: "integer", description: "Optional total number of deliveries for a recurring reminder. Must be at least 1." },
-          repeat_forever: { type: "boolean", description: "Set true to repeat indefinitely. Do not combine with repeat_count." },
+          repeat_forever: { type: "boolean", description: "Set true for an indefinite relative recurrence such as 'cada 10 minutos'. Do not combine with repeat_count." },
           weekly_recurrence: {
             type: "object",
             description: "Use only for calendar-based weekly repetition. Do not combine with duration, repeat_count, or repeat_forever.",

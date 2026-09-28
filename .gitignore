@@ -60,8 +60,7 @@ temp/
 *.tmp
 .wwebjs_auth/
 .wwebjs_cache/
-_TUTO.txt
-TODO.txt
+dev/
 # XAMPP
 xampp-control.ini
 # Node.js

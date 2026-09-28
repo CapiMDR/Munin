@@ -70,7 +70,7 @@ function createReminder(dto, reminderStore, reminderScheduler, userStatsStore) {
   }
 
   const count = dto.repeatForever ? null : dto.repeatCount === undefined ? undefined : Number(dto.repeatCount);
-  if (count !== undefined && (!Number.isInteger(count) || count < 1)) return failure("REMINDER_COUNT_INVALID");
+  if (count !== undefined && count !== null && (!Number.isInteger(count) || count < 1)) return failure("REMINDER_COUNT_INVALID");
   if (recurring && duration < MINIMUM_RECURRING_REMINDER_MS) return failure("REMINDER_INTERVAL_TOO_SHORT");
 
   const result = createRelativeReminder({ ...dto, text, duration, startAt, count }, reminderStore, reminderScheduler, userStatsStore);

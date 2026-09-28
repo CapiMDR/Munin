@@ -364,7 +364,7 @@ const MESSAGES = Object.freeze({
   SAVED_MESSAGE_DELETED: (title) => `Mensaje guardado eliminado: ${title}`,
   NO_SAVED_MESSAGES: "No hay mensajes guardados en este grupo.",
   SAVED_MESSAGES_LIST: (messages) =>
-    `🐦‍⬛ Cosas que me pediste recordar:\n${messages.map((message, index) => `${index + 1}. ${message.title}`).join("\n")}`,
+    `🐦‍⬛ Cosas que me pediste recordar.\nUsa !ver <nombre> para verlas:\n${messages.map((message, index) => `${index + 1}. ${message.title}`).join("\n")}`,
 
   CUSTOM_COMMAND_USAGE: `Uso: ${COMMANDS.CREATE_CUSTOM_COMMAND} !<nombre> <respuesta>`,
   CUSTOM_COMMAND_CREATED: (command, reply) => `Cuando digas ${command} diré ${reply}`,

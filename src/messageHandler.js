@@ -47,6 +47,7 @@ function createMessageHandler({
       if (!isGroupChat(chatId)) return;
 
       const sender = await getSender(message);
+      const mentionedUsers = await getMentionedUsers(message);
       const senderMentionId = getSenderMentionId(message, sender);
       if (isSenderBanned(chatId, message, sender)) return;
 
@@ -62,6 +63,7 @@ function createMessageHandler({
         replyToMentionId: getQuotedParticipantId(message),
         isReply: isReplyToMessage(message),
         mentionedIds: getMentionIds(message),
+        mentionedUsers,
         botMentionId: botLid,
         isSticker: isSticker(message),
         isImage: isImage(message),
@@ -105,7 +107,10 @@ function createMessageHandler({
   function learnBotLid(message) {
     if (botLid) return;
     botLid =
-      message.id?.participant?._serialized ?? message.id?.participant ?? message._data?.id?.participant?._serialized ?? message._data?.id?.participant;
+      message.id?.participant?._serialized ??
+      message.id?.participant ??
+      message._data?.id?.participant?._serialized ??
+      message._data?.id?.participant;
 
     if (botLid) {
       saveBotLid(botLid);
@@ -238,6 +243,22 @@ function createMessageHandler({
     } catch (error) {
       console.warn("Could not retrieve sender contact:", error.message);
       return undefined;
+    }
+  }
+
+  async function getMentionedUsers(message) {
+    if (!message.mentionedIds?.length) return [];
+    try {
+      const contacts = await message.getMentions();
+      return contacts
+        .map((contact) => ({
+          mentionId: contact.id?._serialized,
+          name: contact.pushname || contact.name || contact.shortName,
+        }))
+        .filter((user) => user.mentionId && user.name);
+    } catch (error) {
+      console.warn("Could not retrieve mentioned contacts:", error.message);
+      return [];
     }
   }
 
