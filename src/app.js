@@ -20,6 +20,7 @@ const OpenMeteoApi = require("./apis/openMeteoApi");
 const OpenTriviaApi = require("./apis/openTriviaApi");
 const { TriviaManager } = require("./services/triviaManager");
 const { Summarizer } = require("./ai/summarizer");
+const { IMAGE_MIME_TYPE, generateImage } = require("./ai/imageGenerator");
 const { loadBotLid, saveBotLid } = require("./stores/botIdentityStore");
 const { presentGroupReport } = require("./presenters/groupReportPresenter");
 
@@ -85,6 +86,11 @@ function createMuninApp({
     await sendMessage(chatId, await MessageMedia.fromUrl(image.url, { unsafeMime: true }));
     return image;
   };
+  const sendGeneratedImage = async (chatId, prompt) => {
+    const image = await generateImage(prompt);
+    const media = new MessageMedia(IMAGE_MIME_TYPE, image.toString("base64"), "munin.jpg");
+    await sendMessage(chatId, media);
+  };
   const scheduleTimer = (duration, callback) =>
     setTimeout(() => callback().catch((error) => console.error("Could not deliver timer:", error)), duration);
 
@@ -96,6 +102,7 @@ function createMuninApp({
     customCommandStore,
     userStatsStore,
     sendAnimalImage,
+    sendGeneratedImage,
     reactToInvokingMessage: messageHandler.reactToInvokingMessage,
     openMeteoApi,
     openTriviaApi,

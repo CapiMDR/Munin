@@ -37,6 +37,7 @@ function createAiToolExecutor({
   customCommandStore,
   userStatsStore,
   sendAnimalImage,
+  sendGeneratedImage,
   reactToInvokingMessage,
   openMeteoApi,
   openTriviaApi,
@@ -64,6 +65,7 @@ function createAiToolExecutor({
     create_custom_command: (args, context) => createCustomCommand(args, context, customCommandStore),
     show_user_stats: (args, context) => showUserStats(context, userStatsStore),
     send_animal_image: (args, context) => sendRandomImageForGroup(context, sendAnimalImage, args.animal),
+    generate_image: (args, context) => generateImageForGroup(args, context, sendGeneratedImage, reactToInvokingMessage),
     react_to_message: (args, context) => reactToInvokingMessageTool(args, context, reactToInvokingMessage),
     get_weather: (args) => getWeather(args, openMeteoApi),
     start_trivia: (args, context) => startTrivia(args, context, openTriviaApi, translateTrivia, triviaManager),
@@ -262,6 +264,27 @@ async function sendRandomImageForGroup(context, sendAnimalImage, animal) {
   return presentation.ok
     ? { success: true, action: presentation.action, imageId: presentation.imageId, imageWasSent: true }
     : failure(presentation.code, presentation.message);
+}
+
+async function generateImageForGroup(args, context, sendGeneratedImage, reactToInvokingMessage) {
+  const prompt = typeof args.prompt === "string" ? args.prompt.trim() : "";
+  if (!prompt || prompt.length > 2_048) return failure("A valid image prompt is required.", MESSAGES.IMAGE_GENERATION_UNAVAILABLE);
+  if (typeof sendGeneratedImage !== "function") return failure("Image generation is unavailable.", MESSAGES.IMAGE_GENERATION_UNAVAILABLE);
+
+  try {
+    if (typeof reactToInvokingMessage === "function") {
+      try {
+        await reactToInvokingMessage(context.message, "🐦‍⬛");
+      } catch (error) {
+        console.warn("Could not react before generating image:", error.message);
+      }
+    }
+    await sendGeneratedImage(context.chatId, prompt);
+    return { success: true, action: "generate_image", imageWasSent: true };
+  } catch (error) {
+    console.error("Could not generate image:", error.message);
+    return failure("Could not generate image.", MESSAGES.IMAGE_GENERATION_UNAVAILABLE);
+  }
 }
 
 async function getWeather(args, openMeteoApi) {
