@@ -166,7 +166,7 @@ function createMessageHandler({
       await sendMessage(chatId, toolResult.help);
       return;
     }
-    if (toolResult.success && ["send_animal_image", "start_trivia", "react_to_message"].includes(toolResult.action)) return;
+    if (toolResult.success && ["send_animal_image", "generate_image", "start_trivia", "react_to_message"].includes(toolResult.action)) return;
     if (toolResult.success && toolResult.message) {
       await sendMessage(chatId, toolResult.message);
       return;

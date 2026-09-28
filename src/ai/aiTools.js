@@ -7,7 +7,8 @@ const TOOLS = [
     type: "function",
     function: {
       name: "summarize_messages",
-      description: "Summarize the requested number of most recent prior messages in the current group. Use when the user asks Munin to summarize, recap, or explain the latest group conversation.",
+      description:
+        "Summarize the requested number of most recent prior messages in the current group. Use when the user asks Munin to summarize, recap, or explain the latest group conversation.",
       parameters: {
         type: "object",
         properties: {
@@ -53,12 +54,16 @@ const TOOLS = [
     type: "function",
     function: {
       name: "create_pending",
-      description: "Create a pending item for the current group. Optionally assign it a calendar date using dd/mm or Spanish relative dates such as hoy, mañana, ayer, pasado mañana, or a weekday; optionally add a time in HH:mm.",
+      description:
+        "Create a pending item for the current group. Optionally assign it a calendar date using dd/mm or Spanish relative dates such as hoy, mañana, ayer, pasado mañana, or a weekday; optionally add a time in HH:mm.",
       parameters: {
         type: "object",
         properties: {
           content: { type: "string", description: "The pending item's text." },
-          date: { type: "string", description: "Optional due date in dd/mm or Spanish relative form, for example mañana, pasado mañana, lunes, or 25/12." },
+          date: {
+            type: "string",
+            description: "Optional due date in dd/mm or Spanish relative form, for example mañana, pasado mañana, lunes, or 25/12.",
+          },
           time: { type: "string", description: "Optional time in HH:mm format, for example 10:00." },
         },
         required: ["content"],
@@ -89,22 +94,35 @@ const TOOLS = [
     type: "function",
     function: {
       name: "create_reminder",
-      description: "Create a reminder for the current group. Use either a relative duration such as 30m, 2h, or 1d, or an absolute date and time. Dates accept dd/mm or Spanish relative words such as hoy, mañana, pasado mañana, or a weekday. A request like 'cada 10 minutos' is an indefinite relative recurrence: use duration '10m' and repeat_forever true. Optional repetition is only for relative reminders.",
+      description:
+        "Create a reminder for the current group. Use either a relative duration such as 30m, 2h, or 1d, or an absolute date and time. Dates accept dd/mm or Spanish relative words such as hoy, mañana, pasado mañana, or a weekday. A request like 'cada 10 minutos' is an indefinite relative recurrence: use duration '10m' and repeat_forever true. Optional repetition is only for relative reminders.",
       parameters: {
         type: "object",
         properties: {
           content: { type: "string", description: "The reminder text." },
           duration: { type: "string", description: "A positive duration using m, h, or d; for example 30m. For 'cada 10 minutos', use 10m." },
-          due_date: { type: "string", description: "Use for an absolute reminder date instead of duration. Accepts dd/mm or Spanish relative dates such as hoy, mañana, pasado mañana, or lunes." },
+          due_date: {
+            type: "string",
+            description:
+              "Use for an absolute reminder date instead of duration. Accepts dd/mm or Spanish relative dates such as hoy, mañana, pasado mañana, or lunes.",
+          },
           due_time: { type: "string", description: "24-hour HH:mm time for an absolute reminder; for example 10:00." },
           repeat_count: { type: "integer", description: "Optional total number of deliveries for a recurring reminder. Must be at least 1." },
-          repeat_forever: { type: "boolean", description: "Set true for an indefinite relative recurrence such as 'cada 10 minutos'. Do not combine with repeat_count." },
+          repeat_forever: {
+            type: "boolean",
+            description: "Set true for an indefinite relative recurrence such as 'cada 10 minutos'. Do not combine with repeat_count.",
+          },
           weekly_recurrence: {
             type: "object",
             description: "Use only for calendar-based weekly repetition. Do not combine with duration, repeat_count, or repeat_forever.",
             properties: {
               interval: { type: "integer", minimum: 1, description: "Repeat every N weeks; defaults to 1." },
-              days_of_week: { type: "array", items: { type: "string", enum: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] }, minItems: 1, description: "One or more selected weekdays in English lowercase." },
+              days_of_week: {
+                type: "array",
+                items: { type: "string", enum: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] },
+                minItems: 1,
+                description: "One or more selected weekdays in English lowercase.",
+              },
               time: { type: "string", description: "Required Mexico City delivery time in HH:mm format." },
               start_date: { type: "string", description: "Optional first eligible date in dd/mm or Spanish relative form; defaults to today." },
               until_date: { type: "string", description: "Optional inclusive final date in dd/mm or Spanish relative form." },
@@ -155,7 +173,8 @@ const TOOLS = [
     type: "function",
     function: {
       name: "show_help",
-      description: "Show the same paginated command help as !ayuda. Use this when users ask for help, available commands, or what Munin/the bot does. Use page 1 when no page is requested; valid pages are 1 through 5.",
+      description:
+        "Show the same paginated command help as !ayuda. Use this when users ask for help, available commands, or what Munin/the bot does. Use page 1 when no page is requested; valid pages are 1 through 5.",
       parameters: {
         type: "object",
         properties: {
@@ -168,7 +187,8 @@ const TOOLS = [
     type: "function",
     function: {
       name: "create_custom_command",
-      description: "Create or update a group-specific custom command that sends a fixed reply. The command name must begin with ! and contain only letters, numbers, underscores, or hyphens.",
+      description:
+        "Create or update a group-specific custom command that sends a fixed reply. The command name must begin with ! and contain only letters, numbers, underscores, or hyphens.",
       parameters: {
         type: "object",
         properties: {
@@ -183,7 +203,8 @@ const TOOLS = [
     type: "function",
     function: {
       name: "show_user_stats",
-      description: "Show the requesting user's persisted activity statistics: messages sent, stickers sent, replies to any message, Munin uses, and total messages sent in the current group today.",
+      description:
+        "Show the requesting user's persisted activity statistics: messages sent, stickers sent, replies to any message, Munin uses, and total messages sent in the current group today.",
       parameters: { type: "object", properties: {} },
     },
   },
@@ -199,7 +220,8 @@ const TOOLS = [
     type: "function",
     function: {
       name: "react_to_message",
-      description: "Silently react to the invoking message when a reaction is more appropriate than a verbal response. Never use the feather emoji (🪶).",
+      description:
+        "Silently react to the invoking message when a reaction is more appropriate than a verbal response. Never use the feather emoji (🪶).",
       parameters: {
         type: "object",
         properties: { emoji: { type: "string", description: "The reaction emoji to use. Never use 🪶." } },
@@ -211,12 +233,16 @@ const TOOLS = [
     type: "function",
     function: {
       name: "get_weather",
-      description: "Get the daily weather forecast at Munin's configured or requested location. Accepts dd/mm or Spanish relative dates such as hoy, mañana, ayer, pasado mañana, or a weekday.",
+      description:
+        "Get the daily weather forecast at Munin's configured or requested location. Accepts dd/mm or Spanish relative dates such as hoy, mañana, ayer, pasado mañana, or a weekday.",
       parameters: {
         type: "object",
         properties: {
           date: { type: "string", description: "Optional requested date in dd/mm or Spanish relative form, such as mañana or lunes." },
-          location: { type: "string", description: "Optional city or place name, such as San Francisco or París, Francia. Use Munin's configured location when omitted." },
+          location: {
+            type: "string",
+            description: "Optional city or place name, such as San Francisco or París, Francia. Use Munin's configured location when omitted.",
+          },
         },
       },
     },
@@ -305,6 +331,24 @@ const TOOLS = [
         type: "object",
         properties: { enabled: { type: "boolean", description: "True to enable class bells; false to disable them." } },
         required: ["enabled"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "generate_image",
+      description:
+        "Generate an image and send it to the current WhatsApp group when a user explicitly asks Munin to create, draw, generate, or make an image.",
+      parameters: {
+        type: "object",
+        properties: {
+          prompt: {
+            type: "string",
+            description: "A detailed visual description of the image to generate.",
+          },
+        },
+        required: ["prompt"],
       },
     },
   },

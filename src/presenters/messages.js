@@ -5,6 +5,7 @@ const MESSAGES = Object.freeze({
   PONG: "pong",
   CAT_UNAVAILABLE: "No pude encontrar un gato ahora. Inténtalo de nuevo más tarde.",
   DOG_UNAVAILABLE: "No pude encontrar un perro ahora. Inténtalo de nuevo más tarde.",
+  IMAGE_GENERATION_UNAVAILABLE: "No pude generar esa imagen ahora. Inténtalo de nuevo más tarde.",
   WEATHER_USAGE: `Uso: ${COMMANDS.WEATHER} [fecha] [ubicación]`,
   WEATHER_UNAVAILABLE: "No pude consultar el clima para esa fecha. Inténtalo con una fecha próxima.",
   WEATHER_REPORT: (weather) => `🌦️ ${weather.forecastLabel} en ${weather.location}\n${weather.condition}\nMin: ${weather.minTemperature}°C – Max: ${weather.maxTemperature}°C\nLluvia: ${weather.precipitationChance}% (${weather.precipitation} mm) · Viento: ${weather.maxWindSpeed} km/h`,
