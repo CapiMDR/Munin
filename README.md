@@ -1,18 +1,28 @@
 <p align="center">
-  <img src="docs/Munin.png" height="400" alt="Munin, the WhatsApp raven assistant">
+  <img src="docs/Munin.png" height="300" alt="Munin, the WhatsApp raven assistant">
 </p>
 
 # Munin 🐦‍⬛
 
-<a href="docs/landed.PNG"><img src="docs/landed.PNG" alt="Munin help menu" width="300"></a>
+<p align="center">
+  <a href="docs/landed.PNG">
+    <img src="docs/landed.PNG" alt="Munin help menu" width="300">
+  </a>
+</p>
 
-Munin is an AI-powered WhatsApp group assistant built with Node.js. Inspired by **Muninn**, the raven of memory and messanger of Odin from Norse mythology, Munin can join group conversations, remember and retrieve important messages, understand natural language requests, and handle useful commands all while maintaining its own witty, raven-inspired personality. Munin can also liven up a group chat with fun features like trivia, image generation, per-group custom commands, user stats tracking, and a quest to collect its ultra rare feathers.
+**Munin** is an AI-powered WhatsApp group assistant built with Node.js.
 
-Unlike general-purpose assistants like Meta AI, Munin lives within the group: remembering context, managing reminders and alerts, saving important messages, bringing chaos to the chat with games and other interactive features, and performing actions through fully customizable tools.
+Inspired by **Muninn**, the raven of memory and messenger of Odin from Norse mythology, Munin can join group conversations, remember and retrieve important messages, understand natural language requests, and handle useful commands, all while maintaining its own witty, raven-like personality.
 
-Not just a companion you can talk to, but one that can be tailored specifically for your group.
+Interact with Munin however you prefer: talk to it naturally or use direct commands. Ask "Remind me to submit the assignment tomorrow at 8" or type !r 1d submit the assignment. Munin understands both and gets the job done.
 
-_This project uses whatsapp-web.js, an unofficial WhatsApp Web automation approach rather than an official WhatsApp bot API and is not affiliated with WhatsApp/Meta in any way._
+Munin can also liven up a group chat with features like **trivia, image generation, custom per-group commands, user stats, polls, reminders, and a quest to collect its ultra-rare feathers**.
+
+Unlike general-purpose assistants like Meta AI, **Munin lives within the group**: remembering context, managing reminders and alerts, saving important messages, bringing a little chaos to the chat with games and interactive features, and performing actions through fully customizable tools.
+
+**Not just a companion you can talk to, but one you can tailor specifically to your group.**
+
+> _This project uses whatsapp-web.js, an unofficial WhatsApp Web automation approach rather than the official WhatsApp Business API, and is not affiliated with WhatsApp or Meta._
 
 ---
 
@@ -20,6 +30,7 @@ _This project uses whatsapp-web.js, an unofficial WhatsApp Web automation approa
 
 ### Everyday group assistance
 
+<div align="center">
 <table>
   <tr>
     <td align="center" width="33%"><a href="docs/help.PNG"><img src="docs/help.PNG" alt="Munin help menu" width="220"></a><br><sub>Help menu</sub></td>
@@ -27,9 +38,11 @@ _This project uses whatsapp-web.js, an unofficial WhatsApp Web automation approa
     <td align="center" width="33%"><a href="docs/reminders.PNG"><img src="docs/reminders.PNG" alt="Reminder examples" width="220"></a><br><sub>Recurring reminders</sub></td>
   </tr>
 </table>
+</div>
 
 ### Group activity
 
+<div align="center">
 <table>
   <tr>
     <td align="center" width="33%"><a href="docs/report.PNG"><img src="docs/report.PNG" alt="Weekly group report" width="220"></a><br><sub>Weekly group report</sub></td>
@@ -37,9 +50,11 @@ _This project uses whatsapp-web.js, an unofficial WhatsApp Web automation approa
     <td align="center" width="33%"><a href="docs/trivia.PNG"><img src="docs/trivia.PNG" alt="Trivia game" width="220"></a><br><sub>Live trivia</sub></td>
   </tr>
 </table>
+</div>
 
 ### More examples
 
+<div align="center">
 <table>
   <tr>
     <td align="center" width="33%"><a href="docs/weather.PNG"><img src="docs/weather.PNG" alt="Weather forecast" width="220"></a><br><sub>Weather forecasts</sub></td>
@@ -47,6 +62,7 @@ _This project uses whatsapp-web.js, an unofficial WhatsApp Web automation approa
     <td align="center" width="33%"><a href="docs/image-generation.PNG"><img src="docs/image-generation.PNG" alt="AI image generation" width="220"></a><br><sub>Image generation</sub></td>
   </tr>
 </table>
+</div>
 
 ---
 
@@ -63,7 +79,7 @@ _This project uses whatsapp-web.js, an unofficial WhatsApp Web automation approa
 - Save and retrieve quoted messages without limits (better than WhatsApp pins)
 - Create one-time, absolute, relative, and recurring reminders
 - Maintain dated pending items and receive a daily pending summary
-- Manage a weekly class schedule and optional class-bell reminders
+- Manage a weekly class schedule and optional class-bell alerts
 
 ### Group activity
 
@@ -190,7 +206,7 @@ Use the WhatsApp identifier format shown above—digits plus `@c.us`. The global
 | `!pausa inf`                      | Pause Munin until an administrator resumes it                                 |
 | `!despausa`                       | Resume Munin in the current group                                             |
 
-When a group is paused, Munin ignores normal interaction in that group. Bans and pauses are stored locally in `data/admins.json`.
+When a group is paused, Munin ignores normal interaction in that group from non-admin users. Bans and pauses are stored locally in `data/admins.json`.
 
 ### Automatic weekly reports
 
@@ -228,6 +244,8 @@ Use `!ayuda` in a group for the complete, current paginated command list. Common
 | `!guardar`, `!ver`, `!guardados` | Save and retrieve quoted messages     |
 | `!r`                             | Create or manage reminders            |
 | `!p`                             | Create, list, or remove pending items |
+| `!resumen`                       | Summarize recent group messages       |
+| `!clases`                        | View today's class schedule           |
 | `!clima`                         | Get a weather forecast                |
 | `!trivia`                        | Start group trivia                    |
 | `!stats`, `!reporte`             | View personal and group activity      |
