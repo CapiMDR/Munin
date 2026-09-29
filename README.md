@@ -14,6 +14,8 @@ Not just a companion you can talk to, but one that can be tailored specifically 
 
 _This project uses whatsapp-web.js, an unofficial WhatsApp Web automation approach rather than an official WhatsApp bot API, and is not affiliated with WhatsApp/Meta in any way._
 
+_This project uses whatsapp-web.js, an unofficial WhatsApp Web automation approach rather than an official WhatsApp bot API, and is not affiliated with WhatsApp/Meta in any way._
+
 ---
 
 ## Screenshots
@@ -147,6 +149,7 @@ node src/munin.js
 ```
 
 Scan the QR code shown in the terminal with WhatsApp. Authentication data is retained locally by `whatsapp-web.js`, so later starts normally do not require linking again.
+Persistence directory `/data` is created at runtime.
 
 ### Optional settings
 
