@@ -1,4 +1,5 @@
 const { failure, success } = require("./result");
+const { parsePendingDate, parsePendingTime } = require("../utils/pendingUtils");
 
 function createPending({ chatId, content, date, time }, pendingStore) {
   if (!content) return failure("PENDING_CONTENT_REQUIRED");
@@ -12,10 +13,36 @@ function listPendings(chatId, pendingStore) {
   return success("PENDINGS_LISTED", { pendings: pendingStore.getAll(chatId) });
 }
 
+function createPendingFromCommand({ chatId, args, quotedContent }, pendingStore) {
+  const { date, argumentCount: dateArgumentCount } = parsePendingDateArguments(args);
+  if (args[0]?.startsWith("@") && !date) return failure("PENDING_DATE_INVALID");
+
+  const timeIndex = date ? dateArgumentCount : 0;
+  const time = parsePendingTime(args[timeIndex]);
+  if (/^\d{1,2}:\d{2}$/.test(args[timeIndex] || "") && !time) return failure("PENDING_TIME_INVALID");
+
+  const content =
+    args
+      .slice((date ? dateArgumentCount : 0) + (time ? 1 : 0))
+      .join(" ")
+      .trim() || quotedContent?.trim();
+  return createPending({ chatId, content, date, time }, pendingStore);
+}
+
 function deletePending(chatId, index, pendingStore) {
   if (!Number.isInteger(index) || index < 0) return failure("PENDING_INDEX_INVALID");
   const pending = pendingStore.remove(chatId, index);
-  return pending ? success("PENDING_DELETED", { pending, pendings: pendingStore.getAll(chatId) }) : failure("PENDING_NOT_FOUND");
+  return pending ? success("PENDING_DELETED", { index: index + 1, pending, pendings: pendingStore.getAll(chatId) }) : failure("PENDING_NOT_FOUND");
 }
 
-module.exports = { createPending, deletePending, listPendings };
+function parsePendingDateArguments(args) {
+  if (!args[0]?.startsWith("@")) return { date: undefined, argumentCount: 0 };
+  for (const argumentCount of [2, 1]) {
+    if (args.length < argumentCount) continue;
+    const date = parsePendingDate(args.slice(0, argumentCount).join(" "));
+    if (date) return { date, argumentCount };
+  }
+  return { date: undefined, argumentCount: 0 };
+}
+
+module.exports = { createPending, createPendingFromCommand, deletePending, listPendings };

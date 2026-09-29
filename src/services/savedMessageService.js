@@ -1,3 +1,4 @@
+const { failure, success } = require("./result");
 function saveMessage({ chatId, title, quotedStanzaId, quotedParticipant, botLid, senderMentionId }, savedMessageStore, userStatsStore) {
   if (!title || !quotedStanzaId || !quotedParticipant) return failure("SAVED_MESSAGE_INPUT_INVALID");
 
@@ -11,6 +12,7 @@ function saveMessage({ chatId, title, quotedStanzaId, quotedParticipant, botLid,
 }
 
 function getSavedMessage(chatId, title, savedMessageStore) {
+  if (!title) return failure("SAVED_MESSAGE_TITLE_INVALID");
   const savedMessage = savedMessageStore.get(chatId, title);
   return savedMessage ? success("SAVED_MESSAGE_FOUND", { savedMessage }) : failure("SAVED_MESSAGE_NOT_FOUND");
 }
@@ -22,8 +24,7 @@ function listSavedMessages(chatId, savedMessageStore) {
 function deleteSavedMessage(chatId, index, savedMessageStore) {
   if (!Number.isInteger(index) || index < 0) return failure("SAVED_MESSAGE_INDEX_INVALID");
   const savedMessage = savedMessageStore.removeAt(chatId, index);
-  return savedMessage ? success("SAVED_MESSAGE_DELETED", { savedMessage }) : failure("SAVED_MESSAGE_NOT_FOUND");
+  return savedMessage ? success("SAVED_MESSAGE_DELETED", { savedMessage }) : failure("SAVED_MESSAGE_INDEX_NOT_FOUND");
 }
 
 module.exports = { deleteSavedMessage, getSavedMessage, listSavedMessages, saveMessage };
-const { failure, success } = require("./result");

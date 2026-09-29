@@ -1,11 +1,30 @@
-const { DAYS_ORDER, parseTimeRange } = require("../utils/timeUtils");
+const { DAYS_ORDER, getMexicoCityTime, parseTimeRange, timeToMinutes } = require("../utils/timeUtils");
 const { failure, success } = require("./result");
 
 function listClasses(chatId, store) {
   return success("CLASSES_LISTED", listData(chatId, store));
 }
-function listClassesToday(chatId, day, store) {
+function listClassesToday(chatId, day = getMexicoCityTime().day, store) {
   return success("CLASSES_TODAY_LISTED", { day, classes: store.getByDay(chatId, day), bellEnabled: store.getBell(chatId) });
+}
+
+function getCurrentClass(chatId, store, now = getMexicoCityTime()) {
+  const today = store.getByDay(chatId, now.day);
+  const active = today.find((classData) => now.minutes >= timeToMinutes(classData.startTime) && now.minutes < timeToMinutes(classData.endTime));
+  if (active) return success("CLASS_CURRENT_ACTIVE", { classData: active });
+
+  const nextToday = today.find((classData) => timeToMinutes(classData.startTime) > now.minutes);
+  if (nextToday) return success("CLASS_CURRENT_NEXT", { classData: nextToday, day: nextToday.day });
+
+  const classes = store.getAllSorted(chatId);
+  if (!classes.length) return success("CLASSES_EMPTY");
+  for (let offset = 1; offset <= DAYS_ORDER.length; offset += 1) {
+    const nextDay = DAYS_ORDER[(DAYS_ORDER.indexOf(now.day) + offset) % DAYS_ORDER.length];
+    const next = classes.find((classData) => classData.day === nextDay);
+    if (next) return success("CLASS_CURRENT_NEXT", { classData: next, day: next.day });
+  }
+
+  return success("CLASSES_EMPTY");
 }
 function addClass(input, store, scheduler) {
   const valid = validateUpdates(input, true);
@@ -13,6 +32,17 @@ function addClass(input, store, scheduler) {
   const classData = store.add(input.chatId, valid.data);
   reschedule(scheduler, input.chatId);
   return success("CLASS_CREATED", { classData, ...listData(input.chatId, store) });
+}
+
+function addClassFromCommand({ chatId, args }, store, scheduler) {
+  const parts = args
+    .join(" ")
+    .split(",")
+    .map((item) => item.trim());
+  if (parts.length !== 4 || parts.some((item) => !item)) return failure("CLASS_ADD_INPUT_INVALID");
+
+  const [name, day, timeRange, classroom] = parts;
+  return addClass({ chatId, name, day, timeRange, classroom }, store, scheduler);
 }
 function updateClass({ chatId, reference, updates }, store, scheduler) {
   const resolved = resolveClass(chatId, reference, store);
@@ -23,6 +53,36 @@ function updateClass({ chatId, reference, updates }, store, scheduler) {
   reschedule(scheduler, chatId);
   return success("CLASS_UPDATED", { classData, ...listData(chatId, store) });
 }
+
+function parseClassUpdates(input) {
+  if (typeof input !== "string" || !input.trim()) return failure("CLASS_EDIT_INPUT_INVALID");
+
+  const updates = {};
+  const items = input
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  if (!items.length) return failure("CLASS_EDIT_INPUT_INVALID");
+
+  for (const item of items) {
+    const separatorIndex = item.indexOf("=");
+    if (separatorIndex === -1) return failure("CLASS_EDIT_INPUT_INVALID");
+
+    const field = item.slice(0, separatorIndex).trim().toLowerCase();
+    const value = item.slice(separatorIndex + 1).trim();
+    if (!value) return failure("CLASS_EDIT_INPUT_INVALID");
+
+    if (field === "nombre") updates.name = value;
+    else if (field === "día" || field === "dia") updates.day = value;
+    else if (field === "horario") updates.timeRange = value;
+    else if (field === "salón" || field === "salon") updates.classroom = value;
+    else return failure("CLASS_EDIT_FIELD_UNKNOWN", { field });
+  }
+
+  const valid = validateUpdates(updates);
+  return valid.ok ? success("CLASS_UPDATES_PARSED", { updates: valid.data }) : valid;
+}
+
 function deleteClass({ chatId, index, reference = index }, store, scheduler) {
   const resolved = resolveClass(chatId, reference, store);
   if (!resolved.ok) return resolved;
@@ -85,4 +145,17 @@ function listData(chatId, store) {
 function reschedule(scheduler, chatId) {
   scheduler?.rescheduleForChat(chatId);
 }
-module.exports = { addClass, deleteClass, listClasses, listClassesToday, resolveClass, setBell, toggleBell, updateClass, validateUpdates };
+module.exports = {
+  addClass,
+  addClassFromCommand,
+  deleteClass,
+  getCurrentClass,
+  listClasses,
+  listClassesToday,
+  parseClassUpdates,
+  resolveClass,
+  setBell,
+  toggleBell,
+  updateClass,
+  validateUpdates,
+};

@@ -1,8 +1,6 @@
 const { parsePendingDate, parsePendingTime } = require("../utils/pendingUtils");
-const { formatTimerDuration, parseTimerDuration } = require("../utils/timeUtils");
 const { COMMANDS } = require("../config/commandConstants");
 const { IMAGE_GENERATION_COOLDOWN_MS } = require("../config/settings");
-const { MESSAGES } = require("../presenters/messages");
 const { formatAllClasses, formatClassesToday } = require("../presenters/classPresenter");
 const { getMexicoCityTime } = require("../utils/timeUtils");
 const pendingService = require("../services/pendingService");
@@ -29,6 +27,8 @@ const triviaService = require("../services/triviaService");
 const weatherService = require("../services/weatherService");
 const imageGenerationService = require("../services/imageGenerationService");
 const { presentImageGenerationResult } = require("../presenters/imageGenerationPresenter");
+const basicCommandService = require("../services/basicCommandService");
+const { getTimerFinishedOutput } = require("../presenters/basicCommandPresenter");
 
 /**
  * Creates an executor for LLM tool calls using application-wide dependencies.
@@ -68,7 +68,7 @@ function createAiToolExecutor({
     create_reminder: (args, context) => createReminder(args, context, reminderStore, reminderScheduler, userStatsStore),
     list_reminders: (args, context) => listReminders(context, reminderStore),
     delete_reminder: (args, context) => deleteReminder(args, context, reminderStore, reminderScheduler),
-    start_timer: (args, context) => startTimer(args, context, scheduleTimer, sendMessage),
+    start_timer: (args, context) => startTimer(args, context, scheduleTimer, output),
     summarize_messages: (args, context) => summarizeMessages(args, context, summarizer),
     show_help: (args) => showHelp(args),
     create_custom_command: (args, context) => createCustomCommand(args, context, customCommandStore),
@@ -163,11 +163,8 @@ function listSavedMessages(context, savedMessageStore) {
 
 function createPending(args, context, pendingStore) {
   const content = args.content?.trim();
-  const date = args.date === undefined ? undefined : parsePendingDate(`@${args.date}`);
-  const time = args.time === undefined ? undefined : parsePendingTime(args.time);
-  if (!content) return failure("Pending content is required.");
-  if (args.date !== undefined && !date) return failure("The pending date must use a real dd/mm date.");
-  if (args.time !== undefined && !time) return failure("The pending time must use HH:mm.", MESSAGES.PENDING_USAGE);
+  const date = args.date === undefined ? undefined : (parsePendingDate(`@${args.date}`) || null);
+  const time = args.time === undefined ? undefined : (parsePendingTime(args.time) || null);
 
   const pendingResult = pendingService.createPending({ chatId: context.chatId, content, date, time }, pendingStore);
   const presentation = presentPendingResult(pendingResult);
@@ -238,14 +235,14 @@ function deleteReminder(args, context, reminderStore, reminderScheduler) {
     : failure(presentation.code, presentation.message);
 }
 
-function startTimer(args, context, scheduleTimer, sendMessage) {
-  const duration = parseTimerDuration(args.duration);
-  if (!duration) return failure("A valid timer duration using s, m, or h is required.");
+function startTimer(args, context, scheduleTimer, output) {
+  const result = basicCommandService.createTimer({ durationText: args.duration });
+  if (!result.ok) return failure("A valid timer duration using s, m, or h is required.");
   if (!scheduleTimer) return failure("The timer scheduler is unavailable.");
 
   /** Timers intentionally remain in-memory, matching the !tiempo command. */
-  scheduleTimer(duration, () => sendMessage(context.chatId, MESSAGES.TIMER_FINISHED));
-  return { success: true, action: "start_timer", duration: formatTimerDuration(args.duration) };
+  scheduleTimer(result.data.duration, () => output.deliver(getTimerFinishedOutput(context.chatId)));
+  return { success: true, action: "start_timer", duration: result.data.durationText };
 }
 
 function showHelp(args) {

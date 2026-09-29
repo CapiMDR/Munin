@@ -37,9 +37,13 @@ function listReminders(chatId, reminderStore) {
 }
 
 function deleteReminder(chatId, index, reminderStore, reminderScheduler) {
+  if (!Number.isInteger(index) || index < 0) return failure("REMINDER_INDEX_INVALID");
+
   const reminder = reminderStore.remove(chatId, index);
   if (reminder) reminderScheduler?.cancel(reminder.id);
-  return reminder ? success("REMINDER_DELETED", { reminder, reminders: reminderStore.getAll(chatId) }) : failure("REMINDER_NOT_FOUND");
+  return reminder
+    ? success("REMINDER_DELETED", { index: index + 1, reminder, reminders: reminderStore.getAll(chatId) })
+    : failure("REMINDER_NOT_FOUND");
 }
 
 const MINIMUM_RECURRING_REMINDER_MS = 10 * 60_000;
@@ -119,4 +123,4 @@ function createWeeklyReminderFromDto(dto, reminderStore, reminderScheduler, user
   return success("REMINDER_CREATED", { ...result, kind: "weekly", startAt, count });
 }
 
-module.exports = { createReminder, createRelativeReminder, createWeeklyReminder, deleteReminder, listReminders, scheduleReminder };
+module.exports = { createReminder, deleteReminder, listReminders, scheduleReminder };

@@ -2,7 +2,7 @@ const { MESSAGES } = require("./messages");
 
 function presentSavedMessageResult(result, { title } = {}) {
   if (!result.ok) {
-    const message = result.code === "SAVED_MESSAGE_NOT_FOUND" ? MESSAGES.SAVED_MESSAGE_NOT_FOUND(title) : MESSAGES.SAVE_MESSAGE_USAGE;
+    const message = getSavedMessageErrorMessage(result.code, title);
     return { ok: false, code: result.code, message };
   }
 
@@ -28,6 +28,14 @@ function presentSavedMessageResult(result, { title } = {}) {
     };
   }
   return { ok: false, code: "SAVED_MESSAGE_RESULT_UNKNOWN", message: MESSAGES.SAVE_MESSAGE_USAGE };
+}
+
+function getSavedMessageErrorMessage(code, title) {
+  if (code === "SAVED_MESSAGE_NOT_FOUND") return MESSAGES.SAVED_MESSAGE_NOT_FOUND(title);
+  if (code === "SAVED_MESSAGE_TITLE_INVALID") return MESSAGES.VIEW_SAVED_MESSAGE_USAGE;
+  if (code === "SAVED_MESSAGE_INDEX_NOT_FOUND") return MESSAGES.SAVED_MESSAGE_INDEX_NOT_FOUND;
+  if (code === "SAVED_MESSAGE_INDEX_INVALID") return MESSAGES.DELETE_SAVED_MESSAGE_USAGE;
+  return MESSAGES.SAVE_MESSAGE_USAGE;
 }
 
 function formatSavedMessages(savedMessages) {

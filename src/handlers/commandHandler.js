@@ -25,20 +25,13 @@ const { presentSummaryResult } = require("../presenters/summaryPresenter");
 const classService = require("../services/classService");
 const triviaService = require("../services/triviaService");
 const weatherService = require("../services/weatherService");
-const { parsePendingDate, parsePendingTime } = require("../utils/pendingUtils");
 const { resolveMexicoCityDate } = require("../utils/dateUtils");
-const { DAYS_ORDER, getDays } = require("../utils/timeUtils");
-const { COIN_SIDES, COMMANDS, EIGHT_BALL_RESPONSES, INFINITE_TOKEN } = require("../config/commandConstants");
-const { MESSAGES } = require("../presenters/messages");
+const { COMMANDS, INFINITE_TOKEN } = require("../config/commandConstants");
+const adminService = require("../services/adminService");
+const { presentAdminResult } = require("../presenters/adminPresenter");
+const basicCommandService = require("../services/basicCommandService");
+const { presentBasicCommandResult } = require("../presenters/basicCommandPresenter");
 const {
-  formatDuration,
-  formatRemainingDuration,
-  formatTimerDuration,
-  getMexicoCityTime,
-  parseDuration,
-  parseTimeRange,
-  parseTimerDuration,
-  timeToMinutes,
 } = require("../utils/timeUtils");
 
 /**
@@ -105,14 +98,6 @@ class CommandHandler {
   }
 
   /**
-   * Adds a poll output DTO to the active command response.
-   * @returns {object} Poll output DTO.
-   */
-  sendPoll(chatId, title, options, allowMultipleAnswers) {
-    return this.createOutput({ type: "poll", chatId, title, options, allowMultipleAnswers });
-  }
-
-  /**
    * Adds an animal-image output DTO to the active command response.
    * @returns {object} Animal-image output DTO.
    */
@@ -128,6 +113,19 @@ class CommandHandler {
   createOutput(output) {
     this.outputContext.getStore()?.push(output);
     return output;
+  }
+
+  /**
+   * Adds the output DTOs produced by the basic-command presenter to this command response.
+   * @param {string} chatId WhatsApp group chat ID.
+   * @param {object} result Basic-command service result.
+   * @returns {Promise<object|undefined>} Created output DTO, when applicable.
+   */
+  async sendBasicResult(chatId, result) {
+    const presentation = presentBasicCommandResult(result, { chatId });
+    if (presentation.outputs) return presentation.outputs.map((output) => this.createOutput(output));
+    if (presentation.output) return this.createOutput(presentation.output);
+    return this.sendMessage(chatId, presentation.message);
   }
 
   /**
@@ -200,21 +198,18 @@ class CommandHandler {
 
   /** Inputs: chat ID. Sends the greeting. Output: the sent-message promise. */
   async handleMunin(chatId) {
-    await this.sendMessage(chatId, MESSAGES.WELCOME);
+    await this.sendBasicResult(chatId, basicCommandService.getWelcome());
   }
   /** Inputs: chat ID. Sends the ping response. Output: the sent-message promise. */
   async handlePing(chatId) {
-    await this.sendMessage(chatId, MESSAGES.PONG);
+    await this.sendBasicResult(chatId, basicCommandService.getPing());
   }
   /** Inputs: chat ID and text arguments. Echoes text. Output: the sent-message promise. */
   async handleEcho(chatId, args) {
-    await this.sendMessage(chatId, args.join(" "));
+    await this.sendBasicResult(chatId, basicCommandService.echo({ args }));
   }
   /** Inputs: chat ID, requested message count, and the command message. Summarizes recent prior group messages with the LLM. Output: the sent-message promise. */
   async handleSummary(chatId, args, quotedMessage, sender, command, message) {
-    if (typeof this.generateSummary !== "function") {
-      return this.sendMessage(chatId, MESSAGES.SUMMARY_UNAVAILABLE);
-    }
     const amount = Number(args[0]);
     const result = summaryService.prepareSummary(
       { chatId, amount: args.length === 1 ? amount : undefined, excludedMessage: message },
@@ -222,8 +217,8 @@ class CommandHandler {
     );
     const presentation = presentSummaryResult(result);
     if (!presentation.ok) return this.sendMessage(chatId, presentation.message);
-    const summary = await this.generateSummary(presentation.conversation);
-    await this.sendMessage(chatId, summary || MESSAGES.SUMMARY_UNAVAILABLE);
+    const summaryResult = await summaryService.generateSummary(presentation.conversation, this.generateSummary);
+    await this.sendMessage(chatId, presentSummaryResult(summaryResult).message);
   }
   /** Inputs: chat ID, command name, and reply arguments. Creates or updates a group-specific custom command. Output: confirmation or usage response. */
   async handleCreateCustomCommand(chatId, args) {
@@ -252,8 +247,8 @@ class CommandHandler {
   async handleCustomCommand(chatId, args, quotedMessage, sender, command) {
     const commandKey = command.toLowerCase();
     if (args.length === 1 && args[0] === "-") {
-      this.customCommandStore.remove(chatId, commandKey);
-      return this.sendMessage(chatId, MESSAGES.CUSTOM_COMMAND_DELETED(commandKey));
+      const result = customCommandService.deleteCustomCommandByName({ chatId, command: commandKey }, this.customCommandStore);
+      return this.sendMessage(chatId, presentCustomCommandResult(result).message);
     }
     await this.sendMessage(chatId, this.customCommandStore.get(chatId, commandKey));
   }
@@ -261,7 +256,6 @@ class CommandHandler {
   async handleSaveMessage(chatId, args, quotedMessage, sender, command, message, messageId, botLid) {
     const title = args.join(" ").trim();
 
-    if (!message.hasQuotedMsg) return this.sendMessage(chatId, MESSAGES.SAVE_MESSAGE_USAGE);
     const savedMessage = savedMessageService.saveMessage(
       {
         chatId,
@@ -280,11 +274,6 @@ class CommandHandler {
   /** Inputs: chat ID and title arguments. Sends a bot message quoting the saved command message. Output: confirmation or not-found response. */
   async handleViewSavedMessage(chatId, args) {
     const title = args.join(" ").trim();
-
-    if (!title) {
-      return this.sendMessage(chatId, MESSAGES.VIEW_SAVED_MESSAGE_USAGE);
-    }
-
     const result = savedMessageService.getSavedMessage(chatId, title, this.savedMessageStore);
 
     const presentation = presentSavedMessageResult(result, { title });
@@ -298,11 +287,10 @@ class CommandHandler {
   }
   /** Inputs: chat ID and saved-message index. Deletes a saved message from the current group. Output: confirmation, usage, or not-found response. */
   async handleDeleteSavedMessage(chatId, args) {
-    const index = Number(args[0]);
-    if (args.length !== 1 || !Number.isInteger(index) || index < 1) return this.sendMessage(chatId, MESSAGES.DELETE_SAVED_MESSAGE_USAGE);
-    const result = savedMessageService.deleteSavedMessage(chatId, index - 1, this.savedMessageStore);
+    const index = args.length === 1 ? Number(args[0]) - 1 : undefined;
+    const result = savedMessageService.deleteSavedMessage(chatId, index, this.savedMessageStore);
     const presentation = presentSavedMessageResult(result);
-    await this.sendMessage(chatId, result.ok ? presentation.message : MESSAGES.SAVED_MESSAGE_INDEX_NOT_FOUND);
+    await this.sendMessage(chatId, presentation.message);
   }
   /** Inputs: chat ID and an optional help-page number. Sends the requested help page. Output: the sent-message promise. */
   async handleHelp(chatId, args) {
@@ -312,11 +300,6 @@ class CommandHandler {
   /** Inputs: chat ID, sender, and command message. Shows mentioned-user activity or the sender's when no one is mentioned. Output: the sent-message promise. */
   async handleStats(chatId, args, quotedMessage, sender, command, message) {
     const mentionedContacts = await message.getMentions();
-
-    if (mentionedContacts.length > 1) {
-      return this.sendMessage(chatId, MESSAGES.STATS_USAGE);
-    }
-
     let targetMentionId = sender?.mentionId;
 
     if (mentionedContacts.length === 1) {
@@ -324,7 +307,9 @@ class CommandHandler {
       targetMentionId = contact?.id?._serialized ?? contact?.id?.$1;
     }
 
-    const presentation = presentStatsResult(statsService.getUserStats({ chatId, mentionId: targetMentionId }, this.userStatsStore));
+    const presentation = presentStatsResult(
+      statsService.getUserStats({ chatId, mentionId: targetMentionId, mentionedCount: mentionedContacts.length }, this.userStatsStore),
+    );
     await this.sendMessage(chatId, presentation.message);
   }
   /** Inputs: chat ID. Shows the current week's stored group activity and current open-item totals. Output: the sent-message promise. */
@@ -335,19 +320,15 @@ class CommandHandler {
   }
   /** Inputs: chat ID. Toggles the group's automatic Sunday weekly report. Output: the sent-message promise. */
   async handleToggleWeeklyReport(chatId) {
-    const enabled = this.weeklyReportStore?.toggle(chatId);
-    await this.sendMessage(chatId, enabled ? MESSAGES.WEEKLY_REPORT_ENABLED : MESSAGES.WEEKLY_REPORT_DISABLED);
+    await this.sendBasicResult(chatId, basicCommandService.toggleWeeklyReport({ chatId }, this.weeklyReportStore));
   }
   /** Inputs: chat ID. Fetches and sends a random cat image. Output: the sent-message promise. */
   async handleCat(chatId) {
-    return this.handleAnimalImage(chatId, "cat", MESSAGES.CAT_UNAVAILABLE);
+    await this.sendBasicResult(chatId, basicCommandService.requestAnimalImage({ animal: "cat" }));
   }
   /** Inputs: chat ID. Fetches and sends a random dog image. Output: the sent-message promise. */
   async handleDog(chatId) {
-    return this.handleAnimalImage(chatId, "dog", MESSAGES.DOG_UNAVAILABLE);
-  }
-  async handleAnimalImage(chatId, animal, unavailableMessage) {
-    return this.sendAnimalImage(chatId, animal, unavailableMessage);
+    await this.sendBasicResult(chatId, basicCommandService.requestAnimalImage({ animal: "dog" }));
   }
   /** Inputs: chat ID and optional dd/mm date. Sends the daily forecast for Munin's configured location. Output: the sent-message promise. */
   async handleWeather(chatId, args) {
@@ -357,10 +338,7 @@ class CommandHandler {
   }
   /** Inputs: chat ID and a requested trivia-question count. Fetches a batch and sends its first question with shuffled answers. Output: the sent-message promise. */
   async handleTrivia(chatId, args) {
-    const amount = Number(args[0]);
-    if (args.length !== 1) {
-      return this.sendMessage(chatId, MESSAGES.TRIVIA_USAGE);
-    }
+    const amount = args.length === 1 ? Number(args[0]) : undefined;
     const result = await triviaService.startTrivia({ chatId, amount }, this);
     const presentation = presentTriviaResult(result);
     if (!presentation.ok) await this.sendMessage(chatId, presentation.message);
@@ -368,15 +346,8 @@ class CommandHandler {
   /** Inputs: chat ID and unknown command name. Asks the LLM for a close, existing command name. Output: the sent-message promise. */
   async handleUnknown(chatId, args, quotedMessage, sender, command) {
     const availableCommands = [...Object.keys(this.getHandlers()), ...this.customCommandStore.getAll(chatId).map(({ command: name }) => name)];
-
-    try {
-      const suggestion = await this.suggestSimilarCommand?.(command.toLowerCase(), availableCommands);
-      if (suggestion) return this.sendMessage(chatId, MESSAGES.SUGGEST_SIMILAR_COMMAND(suggestion));
-    } catch (error) {
-      console.warn("Could not suggest a similar command:", error.message);
-    }
-
-    await this.sendMessage(chatId, MESSAGES.UNKNOWN_COMMAND(command));
+    const result = await basicCommandService.resolveUnknownCommand({ command, availableCommands }, this.suggestSimilarCommand);
+    await this.sendBasicResult(chatId, result);
   }
 
   /** Inputs: chat ID, arguments, optional quote. Adds, lists, or deletes pending items based on the !p syntax. Output: the sent-message promise. */
@@ -394,20 +365,7 @@ class CommandHandler {
 
   /** Inputs: chat ID, content/date arguments, optional quote. Stores a pending item. Output: a confirmation or usage response. */
   async handleAddPending(chatId, args, quotedMessage) {
-    const { date, argumentCount: dateArgumentCount } = parsePendingDateArguments(args);
-    if (args[0]?.startsWith("@") && !date) return this.sendMessage(chatId, MESSAGES.PENDING_USAGE);
-
-    const timeIndex = date ? dateArgumentCount : 0;
-    const time = parsePendingTime(args[timeIndex]);
-    if (/^\d{1,2}:\d{2}$/.test(args[timeIndex] || "") && !time) return this.sendMessage(chatId, MESSAGES.PENDING_USAGE);
-
-    const pending =
-      args
-        .slice((date ? dateArgumentCount : 0) + (time ? 1 : 0))
-        .join(" ")
-        .trim() || quotedMessage?.body?.trim();
-    if (!pending) return this.sendMessage(chatId, MESSAGES.PENDING_USAGE);
-    const result = pendingService.createPending({ chatId, content: pending, date, time }, this.pendingStore);
+    const result = pendingService.createPendingFromCommand({ chatId, args, quotedContent: quotedMessage?.body }, this.pendingStore);
     const presentation = presentPendingResult(result);
     await this.sendMessage(chatId, presentation.message);
   }
@@ -420,10 +378,9 @@ class CommandHandler {
 
   /** Inputs: chat ID and pending-item index. Deletes a pending item. Output: confirmation or validation response. */
   async handleDeletePending(chatId, args) {
-    const index = Number(args[0]);
-    if (args.length !== 1 || !Number.isInteger(index) || index < 1) return this.sendMessage(chatId, MESSAGES.PENDING_USAGE);
-    const result = pendingService.deletePending(chatId, index - 1, this.pendingStore);
-    await this.sendMessage(chatId, presentPendingResult(result, { index }).message);
+    const index = args.length === 1 ? Number(args[0]) - 1 : undefined;
+    const result = pendingService.deletePending(chatId, index, this.pendingStore);
+    await this.sendMessage(chatId, presentPendingResult(result).message);
   }
 
   /** Inputs: chat ID, arguments, optional quote, and sender. Adds, lists, or deletes reminders based on the !r syntax. Output: the sent-message promise. */
@@ -448,7 +405,6 @@ class CommandHandler {
       this.reminderScheduler,
       this.userStatsStore,
     );
-    if (!result.ok) return this.sendMessage(chatId, MESSAGES.REMINDER_USAGE);
     const presentation = presentReminderResult(result, { senderTag: sender?.tag, duration: durationText });
     await this.sendMessage(chatId, presentation.message, sender?.mentionId ? { mentions: [sender.mentionId] } : undefined);
   }
@@ -470,9 +426,7 @@ class CommandHandler {
       this.reminderScheduler,
       this.userStatsStore,
     );
-    if (!result.ok) return this.sendMessage(chatId, MESSAGES.REMINDER_USAGE);
-    const repetitions = remaining === null ? "infinitas veces" : `${remaining} veces`;
-    await this.sendMessage(chatId, presentReminderResult(result, { duration: intervalText, repetitions }).message);
+    await this.sendMessage(chatId, presentReminderResult(result, { duration: intervalText }).message);
   }
 
   /** Inputs: chat ID. Lists reminders for that chat. Output: the sent-message promise. */
@@ -482,144 +436,103 @@ class CommandHandler {
   }
   /** Inputs: chat ID and reminder index. Cancels and deletes a reminder. Output: confirmation or validation response. */
   async handleDeleteReminder(chatId, args) {
-    const index = Number(args[0]);
-    if (args.length !== 1 || !Number.isInteger(index) || index < 1) return this.sendMessage(chatId, MESSAGES.REMINDER_USAGE);
-    const result = reminderService.deleteReminder(chatId, index - 1, this.reminderStore, this.reminderScheduler);
-    await this.sendMessage(chatId, presentReminderResult(result, { index }).message);
+    const index = args.length === 1 ? Number(args[0]) - 1 : undefined;
+    const result = reminderService.deleteReminder(chatId, index, this.reminderStore, this.reminderScheduler);
+    await this.sendMessage(chatId, presentReminderResult(result).message);
   }
 
   /** Inputs: chat ID. Selects a random coin side. Output: the sent-message promise. */
   async handleCoin(chatId) {
-    await this.sendMessage(chatId, MESSAGES.COIN_RESULT(COIN_SIDES[Math.floor(Math.random() * COIN_SIDES.length)]));
+    await this.sendBasicResult(chatId, basicCommandService.flipCoin());
   }
   /** Inputs: chat ID. Rolls a random die result. Output: the sent-message promise. */
   async handleDice(chatId) {
-    await this.sendMessage(chatId, MESSAGES.DICE_RESULT(Math.floor(Math.random() * 6) + 1));
+    await this.sendBasicResult(chatId, basicCommandService.rollDice());
   }
   /** Inputs: chat ID. Selects a random eight-ball response. Output: the sent-message promise. */
   async handleEightBall(chatId) {
-    await this.sendMessage(chatId, MESSAGES.EIGHT_BALL_RESULT(EIGHT_BALL_RESPONSES[Math.floor(Math.random() * EIGHT_BALL_RESPONSES.length)]));
+    await this.sendBasicResult(chatId, basicCommandService.askEightBall());
   }
 
   /** Inputs: chat ID and comma-separated options. Selects one option. Output: result or usage response. */
   async handleRandom(chatId, args) {
-    const options = args
-      .join(" ")
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
-    if (options.length < 2) return this.sendMessage(chatId, MESSAGES.RANDOM_USAGE);
-    await this.sendMessage(chatId, MESSAGES.RANDOM_RESULT(options[Math.floor(Math.random() * options.length)]));
+    await this.sendBasicResult(chatId, basicCommandService.chooseRandom({ args }));
   }
 
   /** Inputs: chat ID, comma-separated title/options, and poll command. Creates a single or multiple-choice poll. Output: sent-poll or usage promise. */
   async handlePoll(chatId, args, quotedMessage, sender, command) {
-    const [title, ...options] = args
-      .join(" ")
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
-    if (options.length < 2) return this.sendMessage(chatId, MESSAGES.POLL_USAGE);
-    await this.sendPoll(chatId, title, options, command.toLowerCase() === COMMANDS.MULTIPLE_POLL);
-    this.userStatsStore?.recordAction(chatId, sender?.mentionId, "pollsCreated");
+    await this.sendBasicResult(
+      chatId,
+      basicCommandService.createPoll(
+        { chatId, args, allowMultipleAnswers: command.toLowerCase() === COMMANDS.MULTIPLE_POLL, senderMentionId: sender?.mentionId },
+        this.userStatsStore,
+      ),
+    );
   }
 
   /** Inputs: chat ID and a s/m/h duration. Schedules a one-shot timer. Output: confirmation or usage response. */
   async handleTimer(chatId, args) {
-    const durationText = args[0];
-    const duration = parseTimerDuration(durationText);
-    if (args.length !== 1 || !duration) return this.sendMessage(chatId, MESSAGES.TIMER_USAGE);
-    this.createOutput({ type: "schedule", duration, output: { type: "text", chatId, text: MESSAGES.TIMER_FINISHED } });
-    await this.sendMessage(chatId, MESSAGES.TIMER_STARTED(formatTimerDuration(durationText)));
+    const durationText = args.length === 1 ? args[0] : undefined;
+    await this.sendBasicResult(chatId, basicCommandService.createTimer({ durationText }));
   }
 
   /** Inputs: chat ID, mentioned user, and duration. Bans a user from commands. Output: confirmation or validation response. */
   async handleBan(chatId, args, quotedMessage, sender, command, message) {
-    if (!this.adminStore.isAdmin(chatId, sender?.mentionId)) return this.sendMessage(chatId, MESSAGES.ADMIN_ONLY);
-    const userId = message.mentionedIds?.[0];
-    const durationText = args.at(-1);
-    const isIndefinite = durationText?.toLowerCase() === INFINITE_TOKEN;
-    const duration = parseDuration(durationText);
-    if (!userId || args.length !== 2 || (!isIndefinite && !duration)) return this.sendMessage(chatId, MESSAGES.BAN_USAGE);
-    if (isIndefinite) {
-      this.adminStore.banIndefinitely(chatId, userId);
-      return this.sendMessage(chatId, MESSAGES.USER_BANNED_INDEFINITELY);
-    }
-    this.adminStore.ban(chatId, userId, Date.now() + duration);
-    await this.sendMessage(chatId, MESSAGES.USER_BANNED(formatDuration(durationText)));
+    const result = adminService.banUser(
+      { chatId, senderId: sender?.mentionId, userId: message.mentionedIds?.[0], argumentCount: args.length, durationText: args.at(-1) },
+      this.adminStore,
+    );
+    const presentation = presentAdminResult(result);
+    await this.sendMessage(chatId, presentation.message, presentation.sendOptions);
   }
   /** Inputs: chat ID. Lists active group bans and administrators. Output: the sent-message promise. */
   async handleConfig(chatId) {
-    const bans = this.adminStore.getBans(chatId).map((ban) => ({
-      ...ban,
-      remaining: ban.isIndefinite ? "indefinidamente" : formatRemainingDuration(ban.until - Date.now()),
-    }));
-    const admins = this.adminStore.getAdmins(chatId);
-    const mentions = [...new Set([...bans.map(({ userId }) => userId), ...admins])];
-    await this.sendMessage(chatId, MESSAGES.CONFIG_LIST(bans, admins), mentions.length ? { mentions } : undefined);
+    const presentation = presentAdminResult(adminService.getConfiguration(chatId, this.adminStore));
+    await this.sendMessage(chatId, presentation.message, presentation.sendOptions);
   }
   /** Inputs: chat ID and mentioned user. Clears an active ban. Output: confirmation or validation response. */
   async handleUnban(chatId, args, quotedMessage, sender, command, message) {
-    if (!this.adminStore.isAdmin(chatId, sender?.mentionId)) return this.sendMessage(chatId, MESSAGES.ADMIN_ONLY);
-    const userId = message.mentionedIds?.[0];
-    if (!userId) return this.sendMessage(chatId, MESSAGES.UNBAN_USAGE);
-    await this.sendMessage(chatId, this.adminStore.unban(chatId, userId) ? MESSAGES.USER_UNBANNED : MESSAGES.USER_NOT_BANNED);
+    const presentation = presentAdminResult(
+      adminService.unbanUser({ chatId, senderId: sender?.mentionId, userId: message.mentionedIds?.[0] }, this.adminStore),
+    );
+    await this.sendMessage(chatId, presentation.message, presentation.sendOptions);
   }
   /** Inputs: chat ID and mentioned user. Grants group-admin access. Output: confirmation or validation response. */
   async handleAdmin(chatId, args, quotedMessage, sender, command, message) {
-    if (!this.adminStore.isAdmin(chatId, sender?.mentionId)) return this.sendMessage(chatId, MESSAGES.ADMIN_ONLY);
-    const userId = message.mentionedIds?.[0];
-    if (!userId) return this.sendMessage(chatId, MESSAGES.ADMIN_USAGE);
-    this.adminStore.addAdmin(chatId, userId);
-    await this.sendMessage(chatId, MESSAGES.ADMIN_ADDED);
+    const presentation = presentAdminResult(
+      adminService.addAdmin({ chatId, senderId: sender?.mentionId, userId: message.mentionedIds?.[0] }, this.adminStore),
+    );
+    await this.sendMessage(chatId, presentation.message, presentation.sendOptions);
   }
   /** Inputs: chat ID and mentioned user. Revokes group-admin access. Output: confirmation or validation response. */
   async handleNoAdmin(chatId, args, quotedMessage, sender, command, message) {
-    if (!this.adminStore.isAdmin(chatId, sender?.mentionId)) return this.sendMessage(chatId, MESSAGES.ADMIN_ONLY);
-    const userId = message.mentionedIds?.[0];
-    if (!userId) return this.sendMessage(chatId, MESSAGES.NO_ADMIN_USAGE);
-    const wasRemoved = this.adminStore.removeAdmin(chatId, userId);
-    await this.sendMessage(chatId, wasRemoved ? MESSAGES.ADMIN_REMOVED : MESSAGES.GLOBAL_ADMIN_PROTECTED);
+    const presentation = presentAdminResult(
+      adminService.removeAdmin({ chatId, senderId: sender?.mentionId, userId: message.mentionedIds?.[0] }, this.adminStore),
+    );
+    await this.sendMessage(chatId, presentation.message, presentation.sendOptions);
   }
   /** Inputs: chat ID and duration. Pauses non-admin bot responses in the group. Output: confirmation or validation response. */
   async handlePause(chatId, args, quotedMessage, sender) {
-    if (!this.adminStore.isAdmin(chatId, sender?.mentionId)) return this.sendMessage(chatId, MESSAGES.ADMIN_ONLY);
-    const durationText = args[0];
-    const isIndefinite = durationText?.toLowerCase() === INFINITE_TOKEN;
-    const duration = parseDuration(durationText);
-    if (args.length !== 1 || (!isIndefinite && !duration)) return this.sendMessage(chatId, MESSAGES.PAUSE_USAGE);
-    if (isIndefinite) {
-      this.adminStore.pauseIndefinitely(chatId);
-      return this.sendMessage(chatId, MESSAGES.BOT_PAUSED_INDEFINITELY);
-    }
-    this.adminStore.pause(chatId, Date.now() + duration);
-    await this.sendMessage(chatId, MESSAGES.BOT_PAUSED(formatDuration(args[0])));
+    const presentation = presentAdminResult(
+      adminService.pauseBot({ chatId, senderId: sender?.mentionId, argumentCount: args.length, durationText: args[0] }, this.adminStore),
+    );
+    await this.sendMessage(chatId, presentation.message, presentation.sendOptions);
   }
   /** Inputs: chat ID and sender. Clears the group pause. Output: confirmation or permission response. */
   async handleUnpause(chatId, args, quotedMessage, sender) {
-    if (!this.adminStore.isAdmin(chatId, sender?.mentionId)) return this.sendMessage(chatId, MESSAGES.ADMIN_ONLY);
-    await this.sendMessage(chatId, this.adminStore.unpause(chatId) ? MESSAGES.BOT_UNPAUSED : MESSAGES.BOT_NOT_PAUSED);
+    const presentation = presentAdminResult(adminService.unpauseBot({ chatId, senderId: sender?.mentionId }, this.adminStore));
+    await this.sendMessage(chatId, presentation.message, presentation.sendOptions);
   }
 
   /** Inputs: chat ID. Finds the active or next recurring class. Output: the sent-message promise. */
   async handleCurrentClass(chatId) {
-    const now = getMexicoCityTime(),
-      today = this.classStore.getByDay(chatId, now.day);
-    const active = today.find((cls) => now.minutes >= timeToMinutes(cls.startTime) && now.minutes < timeToMinutes(cls.endTime));
-    if (active) return this.sendMessage(chatId, MESSAGES.CURRENT_CLASS_ACTIVE(active));
-    const nextToday = today.find((cls) => timeToMinutes(cls.startTime) > now.minutes);
-    if (nextToday) return this.sendMessage(chatId, MESSAGES.CURRENT_CLASS_NEXT(nextToday, getDays()[DAYS_ORDER.indexOf(nextToday.day)]));
-    const classes = this.classStore.getAllSorted(chatId);
-    if (!classes.length) return this.sendMessage(chatId, MESSAGES.NO_CLASSES);
-    for (let offset = 1; offset <= 7; offset++) {
-      const next = classes.find((cls) => cls.day === DAYS_ORDER[(DAYS_ORDER.indexOf(now.day) + offset) % 7]);
-      if (next) return this.sendMessage(chatId, MESSAGES.CURRENT_CLASS_NEXT(next, getDays()[DAYS_ORDER.indexOf(next.day)]));
-    }
+    const result = classService.getCurrentClass(chatId, this.classStore);
+    await this.sendMessage(chatId, presentClassResult(result).message);
   }
 
   /** Inputs: chat ID. Lists today's scheduled classes. Output: the sent-message promise. */
   async handleClassesToday(chatId) {
-    const result = classService.listClassesToday(chatId, getMexicoCityTime().day, this.classStore);
+    const result = classService.listClassesToday(chatId, undefined, this.classStore);
     await this.sendMessage(chatId, presentClassResult(result).message);
   }
 
@@ -631,13 +544,7 @@ class CommandHandler {
 
   /** Inputs: chat ID and class fields. Validates and stores a class. Output: confirmation or validation response. */
   async handleAddClass(chatId, args) {
-    const parts = args
-      .join(" ")
-      .split(",")
-      .map((item) => item.trim());
-    if (parts.length !== 4 || parts.some((item) => !item)) return this.sendMessage(chatId, MESSAGES.ADD_CLASS_USAGE);
-    const [name, day, range, classroom] = parts;
-    const result = classService.addClass({ chatId, name, day, timeRange: range, classroom }, this.classStore, this.classScheduler);
+    const result = classService.addClassFromCommand({ chatId, args }, this.classStore, this.classScheduler);
     await this.sendMessage(chatId, presentClassResult(result).message);
   }
 
@@ -645,10 +552,14 @@ class CommandHandler {
   async handleEditClass(chatId, args) {
     const input = args.join(" "),
       comma = input.indexOf(",");
-    if (comma === -1) return this.sendMessage(chatId, MESSAGES.EDIT_CLASS_USAGE);
-    const updates = this.parseClassUpdates(input.slice(comma + 1).trim(), chatId);
-    if (!updates) return;
-    const result = classService.updateClass({ chatId, reference: input.slice(0, comma).trim(), updates }, this.classStore, this.classScheduler);
+    const parsedUpdates = classService.parseClassUpdates(comma === -1 ? undefined : input.slice(comma + 1));
+    if (!parsedUpdates.ok) return this.sendMessage(chatId, presentClassResult(parsedUpdates).message);
+
+    const result = classService.updateClass(
+      { chatId, reference: input.slice(0, comma).trim(), updates: parsedUpdates.data.updates },
+      this.classStore,
+      this.classScheduler,
+    );
     await this.sendMessage(chatId, presentClassResult(result).message);
   }
 
@@ -664,47 +575,6 @@ class CommandHandler {
     await this.sendMessage(chatId, presentClassResult(result).message);
   }
 
-  /** Inputs: comma-separated field assignments and chat ID. Validates update fields. Output: an update object or undefined after sending an error. */
-  async parseClassUpdates(text, chatId) {
-    const items = text
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
-    const updates = {};
-    if (!items.length) {
-      await this.sendMessage(chatId, MESSAGES.EDIT_CLASS_USAGE);
-      return undefined;
-    }
-    for (const item of items) {
-      const index = item.indexOf("="),
-        field = item.slice(0, index).trim().toLowerCase(),
-        value = item.slice(index + 1).trim();
-      if (index === -1 || !value) {
-        await this.sendMessage(chatId, MESSAGES.EDIT_CLASS_USAGE);
-        return undefined;
-      }
-      if (field === "nombre") updates.name = value;
-      else if (field === "día" || field === "dia") {
-        if (!DAYS_ORDER.includes(value.toLowerCase())) {
-          await this.sendMessage(chatId, MESSAGES.INVALID_DAY);
-          return undefined;
-        }
-        updates.day = value;
-      } else if (field === "horario") {
-        const time = parseTimeRange(value);
-        if (!time) {
-          await this.sendMessage(chatId, MESSAGES.INVALID_TIME);
-          return undefined;
-        }
-        Object.assign(updates, time);
-      } else if (field === "salón" || field === "salon") updates.classroom = value;
-      else {
-        await this.sendMessage(chatId, MESSAGES.EDIT_UNKNOWN_FIELD(field));
-        return undefined;
-      }
-    }
-    return updates;
-  }
 }
 
 function splitWeatherArguments(args) {
@@ -714,16 +584,6 @@ function splitWeatherArguments(args) {
     if (resolveMexicoCityDate(date)) return { date, location: args.slice(dateArgumentCount).join(" ") || undefined };
   }
   return { date: undefined, location: args.join(" ") || undefined };
-}
-
-function parsePendingDateArguments(args) {
-  if (!args[0]?.startsWith("@")) return { date: undefined, argumentCount: 0 };
-  for (const argumentCount of [2, 1]) {
-    if (args.length < argumentCount) continue;
-    const date = parsePendingDate(args.slice(0, argumentCount).join(" "));
-    if (date) return { date, argumentCount };
-  }
-  return { date: undefined, argumentCount: 0 };
 }
 
 function emptyGroupReport() {

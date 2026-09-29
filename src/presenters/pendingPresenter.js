@@ -2,7 +2,7 @@ const { MESSAGES } = require("./messages");
 const { getPendingContent, groupPendingsByDate } = require("../utils/pendingUtils");
 const { getMexicoCityDate } = require("../utils/timeUtils");
 
-function presentPendingResult(result, { index } = {}) {
+function presentPendingResult(result) {
   if (!result.ok) {
     return {
       ok: false,
@@ -24,7 +24,7 @@ function presentPendingResult(result, { index } = {}) {
     return {
       ok: true,
       action: "delete_pending",
-      message: MESSAGES.MUTATION_WITH_LIST(MESSAGES.PENDING_DELETED(index, getPendingContent(pending)), formatPendings(pendings)),
+      message: MESSAGES.MUTATION_WITH_LIST(MESSAGES.PENDING_DELETED(result.data.index, getPendingContent(pending)), formatPendings(pendings)),
     };
   }
   return { ok: false, code: "PENDING_RESULT_UNKNOWN", message: MESSAGES.PENDING_USAGE };

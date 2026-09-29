@@ -16,4 +16,13 @@ function deleteCustomCommand({ chatId, index }, store) {
   const deletedCommand = store.removeAt(chatId, index - 1);
   return deletedCommand ? success("CUSTOM_COMMAND_DELETED", { deletedCommand }) : failure("CUSTOM_COMMAND_NOT_FOUND");
 }
-module.exports = { createCustomCommand, deleteCustomCommand, listCustomCommands };
+
+function deleteCustomCommandByName({ chatId, command }, store) {
+  const name = typeof command === "string" ? command.trim().toLowerCase() : "";
+  if (!name) return failure("CUSTOM_COMMAND_NOT_FOUND");
+
+  const reply = store.remove(chatId, name);
+  return reply === undefined ? failure("CUSTOM_COMMAND_NOT_FOUND") : success("CUSTOM_COMMAND_DELETED", { deletedCommand: { command: name, reply } });
+}
+
+module.exports = { createCustomCommand, deleteCustomCommand, deleteCustomCommandByName, listCustomCommands };
