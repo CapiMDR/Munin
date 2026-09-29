@@ -143,6 +143,7 @@ node src/munin.js
 ```
 
 Scan the QR code shown in the terminal with WhatsApp. Authentication data is retained locally by `whatsapp-web.js`, so later starts normally do not require linking again.
+Persistence directory `/data` is created at runtime.
 
 ### Optional settings
 
