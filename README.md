@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/Munin.png" height="300" alt="Munin, the WhatsApp raven assistant">
+  <img src="docs/Munin.png" height="400" alt="Munin, the WhatsApp raven assistant">
 </p>
 
 # Munin 🐦‍⬛
