@@ -8,6 +8,8 @@
 
 Munin is an AI-powered WhatsApp group assistant built with Node.js. Inspired by **Muninn**, the raven of memory and messanger of Odin from Norse mythology, Munin can join group conversations, remember and retrieve important messages, understand natural language requests, and handle useful commands such as reminders all while maintaining its own witty, raven-inspired personality. Munin can also liven up a group chat with fun features like trivia, image generation, per-group custom commands and a quest to collect its ultra rare feathers.
 
+_This project uses whatsapp-web.js, an unofficial WhatsApp Web automation approach rather than an official WhatsApp bot API, and is not affiliated with WhatsApp/Meta in any way._
+
 ---
 
 ## Screenshots
