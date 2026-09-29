@@ -42,29 +42,6 @@ const COMMANDS = Object.freeze({
   TRIVIA: "!trivia",
 });
 
-const COIN_SIDES = Object.freeze(["cara", "cruz"]);
 const INFINITE_TOKEN = "inf";
-const EIGHT_BALL_RESPONSES = Object.freeze([
-  "Sí",
-  "No",
-  "Tal vez",
-  "Definitivamente",
-  "Pregunta de nuevo más tarde",
-  "No cuentes con ello",
-  "Es cierto",
-  "No es cierto",
-  "No puedo predecirlo ahora",
-  "Las perspectivas son buenas",
-  "Las perspectivas no son buenas",
-  "Sin duda",
-  "No lo creo",
-  "Sí, definitivamente",
-  "Mis fuentes dicen que no",
-  "No puedo decirlo ahora",
-  "Concéntrate y pregunta de nuevo",
-  "Mi respuesta es no",
-  "Mi respuesta es sí",
-  "Puedes confiar en ello",
-]);
 
-module.exports = { COIN_SIDES, COMMANDS, EIGHT_BALL_RESPONSES, INFINITE_TOKEN };
+module.exports = { COMMANDS, INFINITE_TOKEN };

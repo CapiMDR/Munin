@@ -4,6 +4,7 @@ const { IMAGE_MIME_TYPE, generateImage } = require("./apis/cloudflareImageApi");
 const { createInfrastructure } = require("./bootstrap/createInfrastructure");
 const { createServices } = require("./bootstrap/createServices");
 const { createHandlers } = require("./bootstrap/createHandlers");
+const { MESSAGES } = require("./presenters/messages");
 
 function createMuninApp({ client = new Client({ authStrategy: new LocalAuth(), puppeteer: { headless: false } }), renderQr = console.log } = {}) {
   const infrastructure = createInfrastructure({ client, generateImage, imageMimeType: IMAGE_MIME_TYPE });
@@ -35,7 +36,7 @@ function createMuninApp({ client = new Client({ authStrategy: new LocalAuth(), p
     client.on("disconnected", (reason) => console.log("DISCONNECTED:", reason));
     client.on("group_join", async ({ chatId }) => {
       try {
-        await infrastructure.sendMessage(chatId, "🐦‍⬛ Munin ha aterrizado.\nUsa !ayuda para ver lo que puede hacer.");
+        await infrastructure.sendMessage(chatId, MESSAGES.GROUP_JOIN_LANDING);
       } catch (error) {
         console.error("Group join error:", error);
       }

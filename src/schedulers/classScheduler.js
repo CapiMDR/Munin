@@ -1,4 +1,4 @@
-const { MESSAGES } = require("../presenters/messages");
+const { presentClassReminder } = require("../presenters/classPresenter");
 
 const UTC_OFFSET_HOURS = -6;
 
@@ -110,7 +110,7 @@ class ClassScheduler {
     this.timers.delete(key);
 
     try {
-      await this.sendMessage(chatId, MESSAGES.CLASS_REMINDER(cls));
+      await this.sendMessage(chatId, presentClassReminder(cls));
     } catch (error) {
       console.error("Could not deliver class reminder:", error);
     }

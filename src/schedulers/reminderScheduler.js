@@ -1,6 +1,6 @@
 const MAX_TIMEOUT = 2 ** 31 - 1;
 const RETRY_DELAY = 60_000;
-const { MESSAGES } = require("../presenters/messages");
+const { presentReminderDue } = require("../presenters/reminderPresenter");
 const { getNextWeeklyTrigger, timestampOf, toIso } = require("./reminderSchedule");
 
 class ReminderScheduler {
@@ -44,7 +44,7 @@ class ReminderScheduler {
     try {
       await this.sendMessage(
         reminder.chatId,
-        MESSAGES.REMINDER_DUE(reminder.text),
+        presentReminderDue(reminder.text),
         reminder.messageId ? { quotedMessageId: reminder.messageId } : undefined,
       );
       const triggeredAt = Date.now();

@@ -1,4 +1,7 @@
-const { MESSAGES } = require("./messages");
+const { COMMANDS } = require("../config/commandConstants");
+
+const SUMMARY_EMPTY = "No hay mensajes anteriores para resumir en este chat.";
+const SUMMARY_UNAVAILABLE = "No pude generar el resumen. Inténtalo de nuevo.";
 
 function presentSummaryResult(result) {
   if (result.ok && result.code === "SUMMARY_PREPARED") return { ok: true, action: "summarize_messages", ...result.data };
@@ -9,9 +12,9 @@ function presentSummaryResult(result) {
 }
 
 function getSummaryErrorMessage(result) {
-  if (result.code === "SUMMARY_EMPTY") return MESSAGES.SUMMARY_NO_MESSAGES;
-  if (result.code === "SUMMARY_GENERATION_UNAVAILABLE") return MESSAGES.SUMMARY_UNAVAILABLE;
-  return MESSAGES.SUMMARY_USAGE(result.data?.maxAmount);
+  if (result.code === "SUMMARY_EMPTY") return SUMMARY_EMPTY;
+  if (result.code === "SUMMARY_GENERATION_UNAVAILABLE") return SUMMARY_UNAVAILABLE;
+  return `Uso: ${COMMANDS.SUMMARY} <cantidad entre 1 y ${result.data?.maxAmount}>`;
 }
 
 module.exports = { presentSummaryResult };

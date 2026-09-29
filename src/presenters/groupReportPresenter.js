@@ -17,9 +17,8 @@ function presentGroupReport(stats) {
     "*Trabajo para el cuervo*",
     `${stats.weekly.commandsUsed} comandos · ${stats.weekly.remindersCreated} recordatorios`,
     `${stats.weekly.messagesSaved} mensajes guardados · ${stats.weekly.pollsCreated} encuestas`,
-    "Ahora sí, lo verdaderamente importante.",
+    "\nAhora sí, lo verdaderamente importante.",
     "*Los títulos de esta semana son:*",
-    "",
     formatGroupLeader(
       leaders.messages,
       "El más ruidoso",

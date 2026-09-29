@@ -1,6 +1,6 @@
 const fs = require("fs");
 const path = require("path");
-const { MESSAGES } = require("../presenters/messages");
+const { formatDailyPendings } = require("../presenters/pendingPresenter");
 const { groupPendingsByDate } = require("../utils/pendingUtils");
 const { getMexicoCityDate, getMexicoCityDateKey, getMexicoCityTime, millisecondsUntilTime } = require("../utils/timeUtils");
 
@@ -42,7 +42,7 @@ class PendingScheduler {
       if (this.lastSentByChat[chatId] === dateKey) continue;
 
       try {
-        await this.sendMessage(chatId, MESSAGES.DAILY_PENDINGS(groupPendingsByDate(pendings, today)));
+        await this.sendMessage(chatId, formatDailyPendings(groupPendingsByDate(pendings, today)));
         this.lastSentByChat[chatId] = dateKey;
         this.saveState();
       } catch (error) {

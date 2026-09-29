@@ -1,4 +1,4 @@
-const { COIN_SIDES, EIGHT_BALL_RESPONSES } = require("../config/commandConstants");
+const { COIN_SIDES, EIGHT_BALL_RESPONSES } = require("../presenters/basicCommandPresenter");
 const { parseTimerDuration } = require("../utils/timeUtils");
 const { failure, success } = require("./result");
 

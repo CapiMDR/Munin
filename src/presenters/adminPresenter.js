@@ -1,5 +1,37 @@
-const { MESSAGES } = require("./messages");
+const { COMMANDS, INFINITE_TOKEN } = require("../config/commandConstants");
 const { formatDuration, formatRemainingDuration } = require("../utils/timeUtils");
+
+const MESSAGES = {
+  USER_BANNED: (duration) => `Usuario bloqueado por ${duration}.`,
+  USER_BANNED_INDEFINITELY: "Usuario bloqueado indefinidamente.",
+  CONFIG_LIST: (bans, admins) =>
+    [
+      "*Configuración del grupo*",
+      "",
+      "*Usuarios bloqueados:*",
+      bans.length
+        ? bans.map(({ userId, remaining }) => `@${userId.split("@")[0]} — ${remaining}`).join("\n")
+        : "No hay usuarios bloqueados en este grupo.",
+      "",
+      "*Administradores:*",
+      admins.length ? admins.map((userId) => `@${userId.split("@")[0]}`).join("\n") : "No hay administradores en este grupo.",
+    ].join("\n"),
+  USER_UNBANNED: "Usuario desbloqueado.",
+  USER_NOT_BANNED: "El usuario no está bloqueado.",
+  ADMIN_ADDED: "Administrador agregado para este grupo.",
+  ADMIN_REMOVED: "Administrador eliminado de este grupo.",
+  GLOBAL_ADMIN_PROTECTED: "El administrador global no puede ser removido.",
+  BOT_PAUSED: (duration) => `Bot pausado por ${duration}.`,
+  BOT_PAUSED_INDEFINITELY: "Bot pausado indefinidamente.",
+  BOT_UNPAUSED: "Bot reanudado en este grupo.",
+  BOT_NOT_PAUSED: "El bot no está pausado en este grupo.",
+  ADMIN_ONLY: "Este comando es solo para administradores.",
+  BAN_USAGE: `Uso: ${COMMANDS.BAN} @usuario <cantidad><m/h/d> o ${INFINITE_TOKEN}`,
+  UNBAN_USAGE: `Uso: ${COMMANDS.UNBAN} @usuario`,
+  ADMIN_USAGE: `Uso: ${COMMANDS.ADMIN} @usuario`,
+  NO_ADMIN_USAGE: `Uso: ${COMMANDS.NO_ADMIN} @usuario`,
+  PAUSE_USAGE: `Uso: ${COMMANDS.PAUSE} <cantidad><m/h/d> o ${INFINITE_TOKEN}`,
+};
 
 function presentAdminResult(result) {
   if (!result.ok) return { ok: false, code: result.code, message: getAdminErrorMessage(result.code) };

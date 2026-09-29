@@ -1,4 +1,11 @@
-const { MESSAGES } = require("../presenters/messages");
+const {
+  presentTriviaAlreadyActive,
+  presentTriviaAnswerReveal,
+  presentTriviaLeaderboard,
+  presentTriviaScoreboard,
+  presentTriviaSessionQuestion,
+  presentTriviaStarting,
+} = require("../presenters/triviaPresenter");
 
 const QUESTION_DURATION_MS = 20_000;
 const NEXT_QUESTION_DELAY_MS = 5_000;
@@ -47,7 +54,7 @@ class TriviaManager {
       state: "starting",
       questionStartedAt: Date.now(),
     });
-    await this.sendMessage(chatId, MESSAGES.TRIVIA_STARTING(this.startDelayMs / 1_000));
+    await this.sendMessage(chatId, presentTriviaStarting(this.startDelayMs / 1_000));
     const session = this.triviaSessions.get(chatId);
     session.startTimer = this.setTimeout(
       () => this.beginSession(chatId).catch((error) => console.error("Could not start trivia session:", error)),
@@ -72,7 +79,7 @@ class TriviaManager {
   }
 
   async rejectNewSession(chatId) {
-    await this.sendMessage(chatId, MESSAGES.TRIVIA_ALREADY_ACTIVE);
+    await this.sendMessage(chatId, presentTriviaAlreadyActive());
     return false;
   }
 
@@ -96,7 +103,7 @@ class TriviaManager {
     session.questionStartedAt = Date.now();
     await this.sendMessage(
       chatId,
-      MESSAGES.TRIVIA_SESSION_QUESTION(question, session.questionIndex + 1, session.questions.length, this.questionDurationMs / 1_000),
+      presentTriviaSessionQuestion(question, session.questionIndex + 1, session.questions.length, this.questionDurationMs / 1_000),
     );
     session.questionTimer = this.setTimeout(
       () => this.expireQuestion(chatId).catch((error) => console.error("Could not expire trivia question:", error)),
@@ -120,11 +127,11 @@ class TriviaManager {
       correctPlayers.push(this.getPlayerName(chatId, mentionId));
     }
 
-    await this.sendMessage(chatId, MESSAGES.TRIVIA_ANSWER_REVEAL(question, correctPlayers));
+    await this.sendMessage(chatId, presentTriviaAnswerReveal(question, correctPlayers));
     const answeredQuestions = session.questionIndex + 1;
     const isFinalQuestion = answeredQuestions === session.questions.length;
     if (!isFinalQuestion && answeredQuestions % this.leaderboardEveryQuestions === 0) {
-      await this.sendMessage(chatId, MESSAGES.TRIVIA_SCOREBOARD(this.ranking(chatId, session)));
+      await this.sendMessage(chatId, presentTriviaScoreboard(this.ranking(chatId, session)));
     }
 
     if (isFinalQuestion) {
@@ -133,7 +140,7 @@ class TriviaManager {
       const winningScore = ranking[0]?.score || 0;
       if (winningScore > 0)
         ranking.filter((player) => player.score === winningScore).forEach((player) => this.recordTriviaGameWon(chatId, player.mentionId));
-      await this.sendMessage(chatId, MESSAGES.TRIVIA_LEADERBOARD(ranking));
+      await this.sendMessage(chatId, presentTriviaLeaderboard(ranking));
       this.triviaSessions.delete(chatId);
       return;
     }

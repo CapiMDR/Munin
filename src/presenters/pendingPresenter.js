@@ -1,4 +1,4 @@
-const { MESSAGES } = require("./messages");
+const { COMMANDS } = require("../config/commandConstants");
 const { getPendingContent, groupPendingsByDate } = require("../utils/pendingUtils");
 const { getMexicoCityDate } = require("../utils/timeUtils");
 
@@ -7,7 +7,7 @@ function presentPendingResult(result) {
     return {
       ok: false,
       code: result.code,
-      message: result.code === "PENDING_NOT_FOUND" ? MESSAGES.DELETE_PENDING_NOT_FOUND : MESSAGES.PENDING_USAGE,
+      message: result.code === "PENDING_NOT_FOUND" ? "No existe un pendiente con ese índice en este chat." : pendingUsage(),
     };
   }
 
@@ -17,21 +17,42 @@ function presentPendingResult(result) {
     return {
       ok: true,
       action: "create_pending",
-      message: MESSAGES.MUTATION_WITH_LIST(MESSAGES.PENDING_ADDED(pending.content, pending.date, pending.time), formatPendings(pendings)),
+      message: mutationWithList(
+        `Pendiente agregado${pending.date ? ` para ${pending.date}` : ""}${pending.time ? ` a las ${pending.time}` : ""}: ${pending.content}`,
+        formatPendings(pendings),
+      ),
     };
   }
   if (result.code === "PENDING_DELETED") {
     return {
       ok: true,
       action: "delete_pending",
-      message: MESSAGES.MUTATION_WITH_LIST(MESSAGES.PENDING_DELETED(result.data.index, getPendingContent(pending)), formatPendings(pendings)),
+      message: mutationWithList(`Pendiente ${result.data.index} eliminado: ${getPendingContent(pending)}`, formatPendings(pendings)),
     };
   }
-  return { ok: false, code: "PENDING_RESULT_UNKNOWN", message: MESSAGES.PENDING_USAGE };
+  return { ok: false, code: "PENDING_RESULT_UNKNOWN", message: pendingUsage() };
 }
 
 function formatPendings(pendings) {
-  return pendings.length ? MESSAGES.DAILY_PENDINGS(groupPendingsByDate(pendings, getMexicoCityDate())) : MESSAGES.NO_PENDING;
+  return pendings.length ? formatDailyPendings(groupPendingsByDate(pendings, getMexicoCityDate())) : "No hay pendientes guardados para este chat.";
 }
 
-module.exports = { formatPendings, presentPendingResult };
+function pendingUsage() {
+  return `Uso: ${COMMANDS.PENDING} [@<dd/mm>] [HH:mm] <pendiente>, responde a un mensaje con ${COMMANDS.PENDING}, o usa ${COMMANDS.PENDING} - <índice> para eliminarlo`;
+}
+function mutationWithList(confirmation, list) {
+  return `${confirmation}\n\n${list}`;
+}
+function formatDailyPendings(groups) {
+  return [
+    "🐦‍⬛ Esto es lo que se tiene pendiente:",
+    groups.expired.length && `Ya se te pasaron:\n${groups.expired.join("\n")}`,
+    groups.today.length && `Para hoy, no se te olviden:\n${groups.today.join("\n")}`,
+    groups.active.length && `Todavía hay tiempo:\n${groups.active.join("\n")}`,
+    groups.noDate.length && `Estos andan sin rumbo ni fecha:\n${groups.noDate.join("\n")}`,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+module.exports = { formatDailyPendings, formatPendings, presentPendingResult };
