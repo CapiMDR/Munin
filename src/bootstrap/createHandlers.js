@@ -44,6 +44,8 @@ function createHandlers({ ai, infrastructure, services }) {
     triviaManager,
     classStore: stores.classes,
     classScheduler: schedulers.classes,
+    eventStore: stores.events,
+    eventScheduler: schedulers.events,
     sendMessage,
     summarizer,
   });

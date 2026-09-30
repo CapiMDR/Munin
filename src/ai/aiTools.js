@@ -354,6 +354,51 @@ const TOOLS = [
   {
     type: "function",
     function: {
+      name: "manage_event",
+      description:
+        "Create, update, delete, get, list, or RSVP to a group event. Events include automatic group reminders based on their type; reminder rules cannot be customized yet. Use the simple numeric event ID returned by list or create for update, delete, get, and RSVP.",
+      parameters: {
+        type: "object",
+        properties: {
+          action: { type: "string", enum: ["create", "update", "delete", "get", "list", "rsvp"] },
+          id: { type: ["string", "integer"], description: "Simple numeric event ID, for example 1. Required for update, delete, get, and rsvp." },
+          title: { type: "string", description: "Event title. Required to create an event." },
+          description: { type: ["string", "null"], description: "Optional event description. Use null to clear it while updating." },
+          type: { type: "string", description: "Optional event type, such as social, birthday, holiday, or meeting. birthday receives birthday reminder defaults; every other type inherits social defaults." },
+          start_at: {
+            type: "string",
+            description: "Required event start. For an event with a time, use a complete Mexico City ISO 8601 timestamp with offset, for example 2026-10-02T20:00:00-06:00. For an all-day event with no supplied time, use date-only YYYY-MM-DD, for example 2026-10-02.",
+          },
+          location: {
+            type: ["object", "null"],
+            description: "Optional location. Use null to clear it while updating.",
+            properties: {
+              name: { type: ["string", "null"], description: "Human-readable venue name." },
+              place: { type: ["string", "null"], description: "Optional map/place reference." },
+              url: { type: ["string", "null"], description: "Optional http(s) location link." },
+            },
+          },
+          recurrence: {
+            type: ["object", "null"],
+            description: "Optional recurrence. Use null for a one-shot event or to remove recurrence during an update. until is inclusive and count includes the first occurrence; whichever limit is reached first applies.",
+            properties: {
+              frequency: { type: "string", enum: ["day", "week", "month", "year"] },
+              interval: { type: "integer", minimum: 1, description: "Repeat every N frequency units; defaults to 1." },
+              days_of_week: { type: ["array", "null"], items: { type: "string", enum: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] }, description: "Optional stable weekday values, valid only for weekly recurrence." },
+              until: { type: ["string", "null"], description: "Optional inclusive final occurrence. Use YYYY-MM-DD for all-day events, otherwise a Mexico City ISO 8601 timestamp." },
+              count: { type: ["integer", "null"], minimum: 1, description: "Optional maximum occurrence count, including the first occurrence." },
+            },
+            required: ["frequency"],
+          },
+          status: { type: "string", enum: ["going", "maybe", "declined"], description: "RSVP status for the invoking user." },
+        },
+        required: ["action"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "generate_image",
       description:
         "Generate an image and send it to the current WhatsApp group when a user explicitly asks Munin to create, draw, generate, or make an image.",

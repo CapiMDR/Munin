@@ -269,6 +269,7 @@ module.exports = {
   getMexicoCityDate,
   getMexicoCityDateKey,
   getMexicoCityDateParts,
+  getMexicoCityDateTimeParts,
   getMexicoCityTime,
   getMexicoCityWeekKey,
   getDays,

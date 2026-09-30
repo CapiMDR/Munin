@@ -1,0 +1,197 @@
+const { failure, success } = require("./result");
+const { createDefaultEventReminders } = require("../config/eventDefaults");
+
+const RECURRENCE_FREQUENCIES = new Set(["day", "week", "month", "year"]);
+const WEEKDAYS = new Set(["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]);
+const RSVP_STATUSES = new Set(["going", "maybe", "declined"]);
+const EVENT_UPDATE_FIELDS = new Set(["title", "description", "type", "startAt", "location", "recurrence"]);
+
+function createEvent(dto, eventStore, eventScheduler) {
+  const title = normalizeRequiredText(dto.title);
+  const createdBy = normalizeRequiredText(dto.createdBy);
+  const startAt = normalizeEventStartAt(dto.startAt);
+  if (!title || !createdBy || !startAt) return failure("EVENT_CREATE_INVALID");
+
+  const recurrence = normalizeRecurrence(dto.recurrence, startAt);
+  if (!recurrence.ok) return recurrence;
+  const location = normalizeLocation(dto.location);
+  if (!location.ok) return location;
+
+  const id = eventStore.getNextId(dto.chatId);
+  const type = normalizeEventType(dto.type);
+  const event = eventStore.add(dto.chatId, {
+    id,
+    title,
+    description: normalizeOptionalText(dto.description),
+    type,
+    startAt,
+    location: location.data.location,
+    recurrence: recurrence.data.recurrence,
+    reminders: createDefaultEventReminders(type, id),
+    participants: { going: [], maybe: [], declined: [] },
+    createdBy,
+    createdAt: toMexicoCityIso(Date.now()),
+  });
+  return success("EVENT_CREATED", { event: eventScheduler?.scheduleEvent(dto.chatId, event) || event });
+}
+
+function listEvents({ chatId }, eventStore) {
+  return success("EVENTS_LISTED", { events: eventStore.getAll(chatId) });
+}
+
+function getEvent({ chatId, id }, eventStore) {
+  const event = eventStore.getById(chatId, id);
+  return event ? success("EVENT_FOUND", { event }) : failure("EVENT_NOT_FOUND");
+}
+
+function updateEvent(dto, eventStore, eventScheduler) {
+  const event = eventStore.getById(dto.chatId, dto.id);
+  if (!event) return failure("EVENT_NOT_FOUND");
+  const suppliedFields = Object.keys(dto.updates || {}).filter((field) => EVENT_UPDATE_FIELDS.has(field));
+  if (!suppliedFields.length) return failure("EVENT_UPDATE_REQUIRED");
+
+  const updates = {};
+  if (suppliedFields.includes("title")) {
+    updates.title = normalizeRequiredText(dto.updates.title);
+    if (!updates.title) return failure("EVENT_UPDATE_INVALID");
+  }
+  if (suppliedFields.includes("description")) updates.description = normalizeOptionalText(dto.updates.description);
+  if (suppliedFields.includes("type")) {
+    updates.type = normalizeRequiredText(dto.updates.type)?.toLowerCase();
+    if (!updates.type) return failure("EVENT_UPDATE_INVALID");
+  }
+  if (suppliedFields.includes("location")) {
+    const location = normalizeLocation(dto.updates.location);
+    if (!location.ok) return location;
+    updates.location = location.data.location;
+  }
+
+  const startAt = suppliedFields.includes("startAt") ? normalizeEventStartAt(dto.updates.startAt) : event.startAt;
+  if (!startAt) return failure("EVENT_UPDATE_INVALID");
+  if (suppliedFields.includes("startAt")) updates.startAt = startAt;
+
+  if (suppliedFields.includes("recurrence")) {
+    const recurrence = normalizeRecurrence(dto.updates.recurrence, startAt);
+    if (!recurrence.ok) return recurrence;
+    updates.recurrence = recurrence.data.recurrence;
+  } else if (event.recurrence?.until && toEventTimestamp(event.recurrence.until) < toEventTimestamp(startAt)) {
+    return failure("EVENT_RECURRENCE_UNTIL_INVALID");
+  }
+
+  const resetReminders = ["type", "startAt", "recurrence"].some((field) => suppliedFields.includes(field));
+  if (resetReminders) updates.reminders = createDefaultEventReminders(updates.type || event.type, event.id);
+  const updatedEvent = eventStore.updateById(dto.chatId, dto.id, updates);
+  return success("EVENT_UPDATED", { event: eventScheduler?.scheduleEvent(dto.chatId, updatedEvent, { reset: resetReminders }) || updatedEvent });
+}
+
+function deleteEvent({ chatId, id }, eventStore, eventScheduler) {
+  const event = eventStore.removeById(chatId, id);
+  if (event) eventScheduler?.cancelEvent(chatId, event.id);
+  return event ? success("EVENT_DELETED", { event }) : failure("EVENT_NOT_FOUND");
+}
+
+function rsvpToEvent({ chatId, id, participantId, status }, eventStore) {
+  const event = eventStore.getById(chatId, id);
+  if (!event) return failure("EVENT_NOT_FOUND");
+  if (!participantId || !RSVP_STATUSES.has(status)) return failure("EVENT_RSVP_INVALID");
+
+  const participants = Object.fromEntries(
+    [...RSVP_STATUSES].map((rsvpStatus) => [rsvpStatus, (event.participants?.[rsvpStatus] || []).filter((id) => id !== participantId)]),
+  );
+  participants[status].push(participantId);
+  return success("EVENT_RSVP_UPDATED", { event: eventStore.updateById(chatId, id, { participants }), status });
+}
+
+function normalizeRecurrence(value, startAt) {
+  if (value === null || value === undefined) return success("EVENT_RECURRENCE_NORMALIZED", { recurrence: null });
+  if (typeof value !== "object" || Array.isArray(value)) return failure("EVENT_RECURRENCE_INVALID");
+  const frequency = String(value.frequency || "").toLowerCase();
+  const interval = value.interval === undefined ? 1 : Number(value.interval);
+  const daysOfWeek = value.daysOfWeek ?? value.days_of_week ?? null;
+  const until = value.until === null || value.until === undefined ? null : normalizeEventStartAt(value.until);
+  const count = value.count === null || value.count === undefined ? null : Number(value.count);
+  if (!RECURRENCE_FREQUENCIES.has(frequency) || !Number.isInteger(interval) || interval < 1) return failure("EVENT_RECURRENCE_INVALID");
+  if (until === null && value.until !== null && value.until !== undefined) return failure("EVENT_RECURRENCE_INVALID");
+  if (until && toEventTimestamp(until) < toEventTimestamp(startAt)) return failure("EVENT_RECURRENCE_UNTIL_INVALID");
+  if (count !== null && (!Number.isInteger(count) || count < 1)) return failure("EVENT_RECURRENCE_COUNT_INVALID");
+  if (daysOfWeek !== null && (!Array.isArray(daysOfWeek) || !daysOfWeek.length || frequency !== "week")) return failure("EVENT_RECURRENCE_INVALID");
+  const normalizedDays = daysOfWeek === null ? null : [...new Set(daysOfWeek.map((day) => String(day).toLowerCase()))];
+  if (normalizedDays && !normalizedDays.every((day) => WEEKDAYS.has(day))) return failure("EVENT_RECURRENCE_INVALID");
+  return success("EVENT_RECURRENCE_NORMALIZED", {
+    recurrence: { frequency, interval, daysOfWeek: normalizedDays, until, count },
+  });
+}
+
+function normalizeLocation(value) {
+  if (value === null || value === undefined) return success("EVENT_LOCATION_NORMALIZED", { location: { name: null, place: null, url: null } });
+  if (typeof value !== "object" || Array.isArray(value)) return failure("EVENT_LOCATION_INVALID");
+  const url = normalizeOptionalText(value.url);
+  if (url) {
+    try {
+      const parsed = new URL(url);
+      if (!["http:", "https:"].includes(parsed.protocol)) return failure("EVENT_LOCATION_INVALID");
+    } catch {
+      return failure("EVENT_LOCATION_INVALID");
+    }
+  }
+  return success("EVENT_LOCATION_NORMALIZED", {
+    location: { name: normalizeOptionalText(value.name), place: normalizeOptionalText(value.place), url },
+  });
+}
+
+function normalizeRequiredText(value) {
+  const text = normalizeOptionalText(value);
+  return text || null;
+}
+
+function normalizeOptionalText(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function normalizeEventType(value) {
+  return normalizeOptionalText(value)?.toLowerCase() || "social";
+}
+
+function normalizeEventStartAt(value) {
+  if (typeof value !== "string") return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return isValidCalendarDate(value) ? value : null;
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:Z|[+-]\d{2}:\d{2})$/.test(value)) return null;
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? toMexicoCityIso(timestamp) : null;
+}
+
+function toEventTimestamp(value) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? Date.parse(`${value}T00:00:00-06:00`) : Date.parse(value);
+}
+
+function isValidCalendarDate(value) {
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+}
+
+function toMexicoCityIso(timestamp) {
+  const values = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Mexico_City",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hourCycle: "h23",
+    })
+      .formatToParts(new Date(timestamp))
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  );
+  const localTimestamp = Date.UTC(values.year, Number(values.month) - 1, values.day, values.hour, values.minute, values.second);
+  const offsetMinutes = Math.round((localTimestamp - timestamp) / 60_000);
+  const sign = offsetMinutes >= 0 ? "+" : "-";
+  const absoluteOffset = Math.abs(offsetMinutes);
+  const offset = `${sign}${String(Math.floor(absoluteOffset / 60)).padStart(2, "0")}:${String(absoluteOffset % 60).padStart(2, "0")}`;
+  return `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}:${values.second}${offset}`;
+}
+
+module.exports = { createEvent, deleteEvent, getEvent, listEvents, rsvpToEvent, updateEvent };

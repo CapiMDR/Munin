@@ -144,6 +144,7 @@ function createMuninApp({
         infrastructure.schedulers.classes.start();
         infrastructure.schedulers.pending.start();
         infrastructure.schedulers.weeklyReports.start();
+        infrastructure.schedulers.events.start();
       }
     });
 

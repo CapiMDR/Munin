@@ -6,10 +6,12 @@ const ClassStore = require("../stores/classStore");
 const AdminStore = require("../stores/adminStore");
 const UserStatsStore = require("../stores/userStatsStore");
 const WeeklyReportStore = require("../stores/weeklyReportStore");
+const EventStore = require("../stores/eventStore");
 const PendingScheduler = require("../schedulers/pendingScheduler");
 const ReminderScheduler = require("../schedulers/reminderScheduler");
 const ClassScheduler = require("../schedulers/classScheduler");
 const WeeklyReportScheduler = require("../schedulers/weeklyReportScheduler");
+const EventScheduler = require("../schedulers/eventScheduler");
 const { scheduleTimer } = require("../schedulers/timerScheduler");
 const AnimalImageApi = require("../apis/animalImageApi");
 const OpenMeteoApi = require("../apis/openMeteoApi");
@@ -36,6 +38,7 @@ function createInfrastructure({ client, generateImage, imageMimeType }) {
     admins: new AdminStore(),
     userStats: new UserStatsStore(),
     weeklyReports: new WeeklyReportStore(),
+    events: new EventStore(),
   };
   const apis = {
     animals: animalImageApis,
@@ -52,6 +55,7 @@ function createInfrastructure({ client, generateImage, imageMimeType }) {
     reminders: new ReminderScheduler(stores.reminders, sendMessage),
     classes: new ClassScheduler(stores.classes, sendMessage),
     weeklyReports: new WeeklyReportScheduler(stores.weeklyReports, stores.userStats, buildGroupReport, sendMessage),
+    events: new EventScheduler(stores.events, sendMessage),
     scheduleTimer,
   };
 

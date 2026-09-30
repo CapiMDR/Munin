@@ -29,6 +29,8 @@ const imageGenerationService = require("../services/imageGenerationService");
 const { presentImageGenerationResult } = require("../presenters/imageGenerationPresenter");
 const basicCommandService = require("../services/basicCommandService");
 const { getTimerFinishedOutput, presentBasicCommandResult } = require("../presenters/basicCommandPresenter");
+const eventService = require("../services/eventService");
+const { presentEventResult } = require("../presenters/eventPresenter");
 
 /**
  * Creates an executor for LLM tool calls using application-wide dependencies.
@@ -50,6 +52,8 @@ function createAiToolExecutor({
   triviaManager,
   classStore,
   classScheduler,
+  eventStore,
+  eventScheduler,
   scheduleTimer,
   summarizer,
 }) {
@@ -86,6 +90,7 @@ function createAiToolExecutor({
     edit_class: (args, context) => editClass(args, context, classStore, classScheduler),
     delete_class: (args, context) => deleteClass(args, context, classStore, classScheduler),
     set_class_bell: (args, context) => setClassBell(args, context, classStore, classScheduler),
+    manage_event: (args, context) => manageEvent(args, context, eventStore, eventScheduler),
   };
 
   /**
@@ -425,6 +430,63 @@ function setClassBell(args, context, classStore, classScheduler) {
   if (!classStore) return failure("The class store is unavailable.");
   const result = classService.setBell({ chatId: context.chatId, enabled: args.enabled }, classStore, classScheduler);
   const presentation = presentClassResult(result);
+  return presentation.ok
+    ? { success: true, action: presentation.action, message: presentation.message }
+    : failure(presentation.code, presentation.message);
+}
+
+/** Converts the LLM event payload into a service DTO and presents its result. */
+function manageEvent(args, context, eventStore, eventScheduler) {
+  if (!eventStore) return failure("The event store is unavailable.");
+  const action = typeof args.action === "string" ? args.action.toLowerCase() : "";
+  let result;
+  switch (action) {
+    case "create":
+      result = eventService.createEvent(
+        {
+          chatId: context.chatId,
+          title: args.title,
+          description: args.description,
+          type: args.type,
+          startAt: args.start_at,
+          location: args.location,
+          recurrence: args.recurrence,
+          createdBy: context.sender?.mentionId,
+        },
+        eventStore,
+        eventScheduler,
+      );
+      break;
+    case "update":
+      result = eventService.updateEvent(
+        {
+          chatId: context.chatId,
+          id: args.id,
+          updates: {
+            ...(Object.hasOwn(args, "title") ? { title: args.title } : {}),
+            ...(Object.hasOwn(args, "description") ? { description: args.description } : {}),
+            ...(Object.hasOwn(args, "type") ? { type: args.type } : {}),
+            ...(Object.hasOwn(args, "start_at") ? { startAt: args.start_at } : {}),
+            ...(Object.hasOwn(args, "location") ? { location: args.location } : {}),
+            ...(Object.hasOwn(args, "recurrence") ? { recurrence: args.recurrence } : {}),
+          },
+        },
+        eventStore,
+        eventScheduler,
+      );
+      break;
+    case "delete": result = eventService.deleteEvent({ chatId: context.chatId, id: args.id }, eventStore, eventScheduler); break;
+    case "get": result = eventService.getEvent({ chatId: context.chatId, id: args.id }, eventStore); break;
+    case "list": result = eventService.listEvents({ chatId: context.chatId }, eventStore); break;
+    case "rsvp":
+      result = eventService.rsvpToEvent(
+        { chatId: context.chatId, id: args.id, participantId: context.sender?.mentionId, status: args.status },
+        eventStore,
+      );
+      break;
+    default: return failure("Unknown event action.");
+  }
+  const presentation = presentEventResult(result);
   return presentation.ok
     ? { success: true, action: presentation.action, message: presentation.message }
     : failure(presentation.code, presentation.message);
