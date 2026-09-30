@@ -35,7 +35,7 @@ Unlike general-purpose assistants like Meta AI, **Munin lives within the group**
   <tr>
     <td align="center" width="33%"><a href="docs/help.PNG"><img src="docs/help.PNG" alt="Munin help menu" width="220"></a><br><sub>Help menu</sub></td>
     <td align="center" width="33%"><a href="docs/saved-messages.PNG"><img src="docs/saved-messages.PNG" alt="Saved messages" width="220"></a><br><sub>Saved messages</sub></td>
-    <td align="center" width="33%"><a href="docs/reminders.PNG"><img src="docs/reminders.PNG" alt="Reminder examples" width="220"></a><a href="docs/reminders-2.PNG"><img src="docs/reminders-2.PNG" alt="Reminder examples" width="220"></a><br><sub>Recurring reminders</sub></td>
+    <td align="center" width="33%"><a href="docs/reminders.PNG"><img src="docs/reminders.PNG" alt="Reminder examples" width="220"></a><br><a href="docs/reminders-2.PNG"><img src="docs/reminders-2.PNG" alt="Reminder examples" width="220"></a><br><sub>Recurring reminders</sub></td>
   </tr>
 </table>
 </div>
