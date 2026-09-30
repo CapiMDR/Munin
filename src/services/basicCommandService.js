@@ -32,12 +32,15 @@ function chooseRandom({ args }, random = Math.random) {
   return success("BASIC_RANDOM_CHOSEN", { choice: options[Math.floor(random() * options.length)] });
 }
 
-function createPoll({ chatId, args, allowMultipleAnswers, senderMentionId }, userStatsStore) {
-  const [title, ...options] = parseCommaSeparatedOptions(args);
-  if (options.length < 2) return failure("BASIC_POLL_INPUT_INVALID");
+function createPoll({ chatId, title, options, allowMultipleAnswers, senderMentionId }, userStatsStore) {
+  const normalizedTitle = typeof title === "string" ? title.trim() : "";
+  const normalizedOptions = Array.isArray(options)
+    ? options.map((option) => (typeof option === "string" ? option.trim() : "")).filter(Boolean)
+    : [];
+  if (!normalizedTitle || normalizedOptions.length < 2) return failure("BASIC_POLL_INPUT_INVALID");
 
   userStatsStore?.recordAction(chatId, senderMentionId, "pollsCreated");
-  return success("BASIC_POLL_CREATED", { allowMultipleAnswers, options, title });
+  return success("BASIC_POLL_CREATED", { allowMultipleAnswers: allowMultipleAnswers === true, options: normalizedOptions, title: normalizedTitle });
 }
 
 function createTimer({ durationText }) {
@@ -51,7 +54,7 @@ function toggleWeeklyReport({ chatId }, weeklyReportStore) {
 }
 
 function requestAnimalImage({ animal }) {
-  if (!['cat', 'dog'].includes(animal)) return failure("BASIC_ANIMAL_INVALID");
+  if (!["cat", "dog"].includes(animal)) return failure("BASIC_ANIMAL_INVALID");
   return success("BASIC_ANIMAL_IMAGE_REQUESTED", { animal });
 }
 

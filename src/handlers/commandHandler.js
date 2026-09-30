@@ -461,10 +461,11 @@ class CommandHandler {
 
   /** Inputs: chat ID, comma-separated title/options, and poll command. Creates a single or multiple-choice poll. Output: sent-poll or usage promise. */
   async handlePoll(chatId, args, quotedMessage, sender, command) {
+    const { title, options } = parsePollArguments(args);
     await this.sendBasicResult(
       chatId,
       basicCommandService.createPoll(
-        { chatId, args, allowMultipleAnswers: command.toLowerCase() === COMMANDS.MULTIPLE_POLL, senderMentionId: sender?.mentionId },
+        { chatId, title, options, allowMultipleAnswers: command.toLowerCase() === COMMANDS.MULTIPLE_POLL, senderMentionId: sender?.mentionId },
         this.userStatsStore,
       ),
     );
@@ -584,6 +585,11 @@ function splitWeatherArguments(args) {
     if (resolveMexicoCityDate(date)) return { date, location: args.slice(dateArgumentCount).join(" ") || undefined };
   }
   return { date: undefined, location: args.join(" ") || undefined };
+}
+
+function parsePollArguments(args) {
+  const [title = "", ...options] = args.join(" ").split(",").map((value) => value.trim());
+  return { title, options: options.filter(Boolean) };
 }
 
 function emptyGroupReport() {

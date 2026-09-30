@@ -183,7 +183,7 @@ function createMessageHandler({
       await deliverText(chatId, toolResult.help);
       return;
     }
-    if (toolResult.success && ["send_animal_image", "generate_image", "start_trivia", "react_to_message"].includes(toolResult.action)) return;
+    if (toolResult.success && ["send_animal_image", "generate_image", "start_trivia", "create_poll"].includes(toolResult.action)) return;
     if (toolResult.success && toolResult.message) {
       await deliverText(chatId, toolResult.message);
       return;

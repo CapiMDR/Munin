@@ -186,6 +186,23 @@ const TOOLS = [
   {
     type: "function",
     function: {
+      name: "create_poll",
+      description:
+        "Create and send a WhatsApp poll in the current group. Use when the user asks to poll, vote on, or survey the group. If the user gives choices but no explicit question, infer a short natural title from their request; for example, choices 'tacos o pizza' should use '¿Qué prefieren cenar?'.",
+      parameters: {
+        type: "object",
+        properties: {
+          title: { type: "string", description: "The poll question or title. Always provide one; infer a concise natural question when the user did not state it explicitly." },
+          options: { type: "array", items: { type: "string" }, minItems: 2, description: "At least two answer choices." },
+          allow_multiple_answers: { type: "boolean", description: "Whether participants may select more than one choice. Defaults to false." },
+        },
+        required: ["title", "options"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "create_custom_command",
       description:
         "Create or update a group-specific custom command that sends a fixed reply. The command name must begin with ! and contain only letters, numbers, underscores, or hyphens.",
@@ -221,7 +238,7 @@ const TOOLS = [
     function: {
       name: "react_to_message",
       description:
-        "Silently react to the invoking message when a reaction is more appropriate than a verbal response. Never use the feather emoji (🪶).",
+        "React to the invoking message with an appropriate emoji. A reaction may accompany a normal verbal answer; use it when it adds warmth, emphasis, or humor. Never use the feather emoji (🪶).",
       parameters: {
         type: "object",
         properties: { emoji: { type: "string", description: "The reaction emoji to use. Never use 🪶." } },

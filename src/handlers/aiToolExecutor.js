@@ -28,7 +28,7 @@ const weatherService = require("../services/weatherService");
 const imageGenerationService = require("../services/imageGenerationService");
 const { presentImageGenerationResult } = require("../presenters/imageGenerationPresenter");
 const basicCommandService = require("../services/basicCommandService");
-const { getTimerFinishedOutput } = require("../presenters/basicCommandPresenter");
+const { getTimerFinishedOutput, presentBasicCommandResult } = require("../presenters/basicCommandPresenter");
 
 /**
  * Creates an executor for LLM tool calls using application-wide dependencies.
@@ -71,6 +71,7 @@ function createAiToolExecutor({
     start_timer: (args, context) => startTimer(args, context, scheduleTimer, output),
     summarize_messages: (args, context) => summarizeMessages(args, context, summarizer),
     show_help: (args) => showHelp(args),
+    create_poll: (args, context) => createPoll(args, context, userStatsStore, output),
     create_custom_command: (args, context) => createCustomCommand(args, context, customCommandStore),
     show_user_stats: (args, context) => showUserStats(context, userStatsStore),
     send_animal_image: (args, context) => sendRandomImageForGroup(context, sendAnimalImage, args.animal),
@@ -243,6 +244,24 @@ function startTimer(args, context, scheduleTimer, output) {
   /** Timers intentionally remain in-memory, matching the !tiempo command. */
   scheduleTimer(result.data.duration, () => output.deliver(getTimerFinishedOutput(context.chatId)));
   return { success: true, action: "start_timer", duration: result.data.durationText };
+}
+
+async function createPoll(args, context, userStatsStore, output) {
+  const result = basicCommandService.createPoll(
+    {
+      chatId: context.chatId,
+      title: args.title,
+      options: args.options,
+      allowMultipleAnswers: args.allow_multiple_answers === true,
+      senderMentionId: context.sender?.mentionId,
+    },
+    userStatsStore,
+  );
+  const presentation = presentBasicCommandResult(result, { chatId: context.chatId });
+  if (!presentation.ok) return failure(presentation.code, presentation.message);
+
+  await output.deliver(presentation.output);
+  return { success: true, action: "create_poll", pollWasSent: true };
 }
 
 function showHelp(args) {
