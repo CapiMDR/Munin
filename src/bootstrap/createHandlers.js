@@ -1,7 +1,7 @@
 const { createAiToolExecutor } = require("../handlers/aiToolExecutor");
 const { createMessageHandler } = require("../handlers/messageHandler");
 const CommandHandler = require("../handlers/commandHandler");
-const { loadBotLid, saveBotLid } = require("../stores/botIdentityStore");
+const { loadBotLid, saveBotLid } = require("../core/botIdentityStore");
 
 /**
  * Creates handlers and wires their circular command/AI dispatch relationship.

@@ -220,16 +220,19 @@ Automatic reports are disabled by default. Anyone in a group can use `!usarrepor
 
 ```text
 src/
-├── ai/             # LLM client, prompts, tools, summaries
+├── ai/             # LLM client, prompt loading, tools, and summaries
 ├── apis/           # External API adapters
 ├── bootstrap/      # Application composition and factories
 ├── config/         # Commands and runtime settings
-├── handlers/       # WhatsApp input, commands, and tool execution
-├── presenters/     # User-facing response formatting
-├── schedulers/     # Reminders, pendings, classes, weekly reports
-├── services/       # Feature validation and application logic
-├── stores/         # JSON-backed persistence
-└── utils/          # Date, time, and message helpers
+├── core/           # Shared persistence, output messages, and timers
+├── features/       # Product features
+│   ├── reminders/  # Stores, services, presenters, schedulers
+│   ├── pendings/
+│   ├── events/
+│   ├── classes/
+│   └── ...
+├── handlers/       # WhatsApp input, commands, tool execution, and output
+└── utils/          # Shared date, time, index, and message helpers
 
 data/               # Local persisted bot data
 docs/               # README artwork and screenshots
