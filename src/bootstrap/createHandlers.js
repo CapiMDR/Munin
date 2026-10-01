@@ -34,6 +34,7 @@ function createHandlers({ ai, infrastructure, services }) {
     reminderStore: stores.reminders,
     reminderScheduler: schedulers.reminders,
     savedMessageStore: stores.savedMessages,
+    eventStore: stores.events,
     customCommandStore: stores.customCommands,
     userStatsStore: stores.userStats,
     adminStore: stores.admins,

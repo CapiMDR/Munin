@@ -4,6 +4,7 @@ const ClassStore = require("../stores/classStore");
 const AdminStore = require("../stores/adminStore");
 const CustomCommandStore = require("../stores/customCommandStore");
 const SavedMessageStore = require("../stores/savedMessageStore");
+const EventStore = require("../stores/eventStore");
 const pendingService = require("../services/pendingService");
 const reminderService = require("../services/reminderService");
 const savedMessageService = require("../services/savedMessageService");
@@ -25,7 +26,10 @@ const { presentSummaryResult } = require("../presenters/summaryPresenter");
 const classService = require("../services/classService");
 const triviaService = require("../services/triviaService");
 const weatherService = require("../services/weatherService");
+const eventService = require("../services/eventService");
+const { presentEventResult } = require("../presenters/eventPresenter");
 const { resolveMexicoCityDate } = require("../utils/dateUtils");
+const { parseOneBasedIndexes } = require("../utils/indexUtils");
 const { COMMANDS, INFINITE_TOKEN } = require("../config/commandConstants");
 const adminService = require("../services/adminService");
 const { presentAdminResult } = require("../presenters/adminPresenter");
@@ -52,6 +56,7 @@ class CommandHandler {
     adminStore = new AdminStore(),
     customCommandStore = new CustomCommandStore(),
     savedMessageStore = new SavedMessageStore(),
+    eventStore = new EventStore(),
     getBotLid = () => undefined,
     summarizer,
     generateSummary,
@@ -72,6 +77,7 @@ class CommandHandler {
       adminStore,
       customCommandStore,
       savedMessageStore,
+      eventStore,
       getBotLid,
       summarizer,
       generateSummary,
@@ -193,6 +199,7 @@ class CommandHandler {
       [COMMANDS.DOG]: this.handleDog,
       [COMMANDS.WEATHER]: this.handleWeather,
       [COMMANDS.TRIVIA]: this.handleTrivia,
+      [COMMANDS.LIST_EVENTS]: this.handleListEvents,
     };
   }
 
@@ -378,8 +385,8 @@ class CommandHandler {
 
   /** Inputs: chat ID and pending-item index. Deletes a pending item. Output: confirmation or validation response. */
   async handleDeletePending(chatId, args) {
-    const index = args.length === 1 ? Number(args[0]) - 1 : undefined;
-    const result = pendingService.deletePending(chatId, index, this.pendingStore);
+    const indexes = parseOneBasedIndexes(args);
+    const result = pendingService.deletePendings(chatId, indexes, this.pendingStore);
     await this.sendMessage(chatId, presentPendingResult(result).message);
   }
 
@@ -436,8 +443,8 @@ class CommandHandler {
   }
   /** Inputs: chat ID and reminder index. Cancels and deletes a reminder. Output: confirmation or validation response. */
   async handleDeleteReminder(chatId, args) {
-    const index = args.length === 1 ? Number(args[0]) - 1 : undefined;
-    const result = reminderService.deleteReminder(chatId, index, this.reminderStore, this.reminderScheduler);
+    const indexes = parseOneBasedIndexes(args);
+    const result = reminderService.deleteReminders(chatId, indexes, this.reminderStore, this.reminderScheduler);
     await this.sendMessage(chatId, presentReminderResult(result).message);
   }
 
@@ -543,6 +550,12 @@ class CommandHandler {
     await this.sendMessage(chatId, presentClassResult(result).message);
   }
 
+  /** Inputs: chat ID. Lists the current group's events. Output: the sent-message promise. */
+  async handleListEvents(chatId) {
+    const result = eventService.listEvents({ chatId }, this.eventStore);
+    await this.sendMessage(chatId, presentEventResult(result).message);
+  }
+
   /** Inputs: chat ID and class fields. Validates and stores a class. Output: confirmation or validation response. */
   async handleAddClass(chatId, args) {
     const result = classService.addClassFromCommand({ chatId, args }, this.classStore, this.classScheduler);
@@ -566,7 +579,10 @@ class CommandHandler {
 
   /** Inputs: chat ID and class identifier. Removes a class. Output: confirmation or validation response. */
   async handleDeleteClass(chatId, args) {
-    const result = classService.deleteClass({ chatId, reference: args.join(" ").trim() }, this.classStore, this.classScheduler);
+    const indexes = parseOneBasedIndexes(args);
+    const result = indexes
+      ? classService.deleteClasses({ chatId, indexes }, this.classStore, this.classScheduler)
+      : classService.deleteClass({ chatId, reference: args.join(" ").trim() }, this.classStore, this.classScheduler);
     await this.sendMessage(chatId, presentClassResult(result).message);
   }
 

@@ -1,5 +1,6 @@
 const { failure, success } = require("./result");
 const { parsePendingDate, parsePendingTime } = require("../utils/pendingUtils");
+const { partitionOneBasedIndexes } = require("../utils/indexUtils");
 
 function createPending({ chatId, content, date, time }, pendingStore) {
   if (!content) return failure("PENDING_CONTENT_REQUIRED");
@@ -35,6 +36,16 @@ function deletePending(chatId, index, pendingStore) {
   return pending ? success("PENDING_DELETED", { index: index + 1, pending, pendings: pendingStore.getAll(chatId) }) : failure("PENDING_NOT_FOUND");
 }
 
+function deletePendings(chatId, indexes, pendingStore) {
+  if (!Array.isArray(indexes) || !indexes.length) return failure("PENDING_INDEX_INVALID");
+  const { valid, invalid } = partitionOneBasedIndexes(indexes, pendingStore.getAll(chatId).length);
+  const deleted = valid
+    .sort((a, b) => b - a)
+    .map((index) => ({ index, pending: pendingStore.remove(chatId, index - 1) }))
+    .reverse();
+  return success("PENDINGS_DELETED", { deleted, invalidIndexes: invalid, pendings: pendingStore.getAll(chatId) });
+}
+
 function updatePending({ chatId, index, content, date, time, invalidDate, invalidTime }, pendingStore) {
   if (!Number.isInteger(index) || index < 0) return failure("PENDING_INDEX_INVALID");
   const current = pendingStore.getAll(chatId)[index];
@@ -61,4 +72,4 @@ function parsePendingDateArguments(args) {
   return { date: undefined, argumentCount: 0 };
 }
 
-module.exports = { createPending, createPendingFromCommand, deletePending, listPendings, updatePending };
+module.exports = { createPending, createPendingFromCommand, deletePending, deletePendings, listPendings, updatePending };

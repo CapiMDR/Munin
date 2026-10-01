@@ -189,11 +189,11 @@ function listPendings(context, pendingStore) {
 }
 
 function deletePending(args, context, pendingStore) {
-  if (!isOneBasedIndex(args.index)) return failure("A positive pending index is required.");
-  const pendingResult = pendingService.deletePending(context.chatId, args.index - 1, pendingStore);
-  const presentation = presentPendingResult(pendingResult, { index: args.index });
+  if (!Array.isArray(args.indexes) || !args.indexes.length || !args.indexes.every(isOneBasedIndex)) return failure("At least one positive pending index is required.");
+  const pendingResult = pendingService.deletePendings(context.chatId, args.indexes, pendingStore);
+  const presentation = presentPendingResult(pendingResult);
   return presentation.ok
-    ? { success: true, action: presentation.action, index: args.index, message: presentation.message }
+    ? { success: true, action: presentation.action, message: presentation.message }
     : failure(presentation.code, presentation.message);
 }
 
@@ -252,11 +252,11 @@ function listReminders(context, reminderStore) {
 }
 
 function deleteReminder(args, context, reminderStore, reminderScheduler) {
-  if (!isOneBasedIndex(args.index)) return failure("A positive reminder index is required.");
-  const result = reminderService.deleteReminder(context.chatId, args.index - 1, reminderStore, reminderScheduler);
-  const presentation = presentReminderResult(result, { index: args.index });
+  if (!Array.isArray(args.indexes) || !args.indexes.length || !args.indexes.every(isOneBasedIndex)) return failure("At least one positive reminder index is required.");
+  const result = reminderService.deleteReminders(context.chatId, args.indexes, reminderStore, reminderScheduler);
+  const presentation = presentReminderResult(result);
   return presentation.ok
-    ? { success: true, action: presentation.action, index: args.index, message: presentation.message }
+    ? { success: true, action: presentation.action, message: presentation.message }
     : failure(presentation.code, presentation.message);
 }
 
@@ -461,7 +461,8 @@ function editClass(args, context, classStore, classScheduler) {
 
 function deleteClass(args, context, classStore, classScheduler) {
   if (!classStore) return failure("The class store is unavailable.");
-  const result = classService.deleteClass({ chatId: context.chatId, index: args.index }, classStore, classScheduler);
+  if (!Array.isArray(args.indexes) || !args.indexes.length || !args.indexes.every(isOneBasedIndex)) return failure("At least one positive class index is required.");
+  const result = classService.deleteClasses({ chatId: context.chatId, indexes: args.indexes }, classStore, classScheduler);
   const presentation = presentClassResult(result);
   return presentation.ok
     ? { success: true, action: presentation.action, message: presentation.message }
@@ -523,7 +524,10 @@ function manageEvent(args, context, eventStore, eventScheduler) {
       );
       }
       break;
-    case "delete": result = eventService.deleteEvent({ chatId: context.chatId, id: args.id }, eventStore, eventScheduler); break;
+    case "delete":
+      if (!Array.isArray(args.indexes) || !args.indexes.length || !args.indexes.every(isOneBasedIndex)) return failure("At least one positive event index is required.");
+      result = eventService.deleteEvents({ chatId: context.chatId, indexes: args.indexes }, eventStore, eventScheduler);
+      break;
     case "get": result = eventService.getEvent({ chatId: context.chatId, id: args.id }, eventStore); break;
     case "list": result = eventService.listEvents({ chatId: context.chatId }, eventStore); break;
     case "rsvp":

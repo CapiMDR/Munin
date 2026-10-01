@@ -50,6 +50,11 @@ function presentClassResult(result) {
       return mutation("edit_class", MESSAGES.CLASS_EDITED(classData, dayName(classData.day)), classes, bellEnabled);
     case "CLASS_DELETED":
       return mutation("delete_class", MESSAGES.CLASS_DELETED(classData.name), classes, bellEnabled);
+    case "CLASSES_DELETED": {
+      const confirmation = result.data.deleted.length ? `Se eliminaron ${result.data.deleted.length} clases.` : "No encontré clases para eliminar.";
+      const clarification = result.data.invalidIndexes.length ? `\nNo encontré los índices: ${result.data.invalidIndexes.join(", ")}.` : "";
+      return mutation("delete_classes", `${confirmation}${clarification}`, classes, bellEnabled);
+    }
     case "CLASS_BELL_SET":
     case "CLASS_BELL_TOGGLED":
       return {

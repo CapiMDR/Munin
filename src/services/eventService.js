@@ -3,6 +3,7 @@ const { createDefaultEventReminders } = require("../config/eventDefaults");
 const { getNextEventOccurrence } = require("../schedulers/eventSchedule");
 const { parseIsoDate } = require("../utils/dateUtils");
 const { mexicoCityDateTimeToTimestamp, timestampOf, toMexicoCityIso } = require("../utils/timeUtils");
+const { partitionOneBasedIndexes } = require("../utils/indexUtils");
 
 const RECURRENCE_FREQUENCIES = new Set(["day", "week", "month", "year"]);
 const WEEKDAYS = new Set(["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]);
@@ -101,6 +102,21 @@ function deleteEvent({ chatId, id }, eventStore, eventScheduler) {
   return event ? success("EVENT_DELETED", { event }) : failure("EVENT_NOT_FOUND");
 }
 
+function deleteEvents({ chatId, indexes }, eventStore, eventScheduler) {
+  if (!Array.isArray(indexes) || !indexes.length) return failure("EVENT_NOT_FOUND");
+  const events = eventStore.getAll(chatId);
+  const { valid, invalid } = partitionOneBasedIndexes(indexes, events.length);
+  const deleted = valid
+    .sort((a, b) => b - a)
+    .map((index) => {
+      const event = eventStore.removeById(chatId, events[index - 1].id);
+      eventScheduler?.cancelEvent(chatId, event.id);
+      return { index, event };
+    })
+    .reverse();
+  return success("EVENTS_DELETED", { deleted, invalidIndexes: invalid, events: eventStore.getAll(chatId) });
+}
+
 function rsvpToEvent({ chatId, id, participantId, participantName, status }, eventStore) {
   const event = eventStore.getById(chatId, id);
   if (!event) return failure("EVENT_NOT_FOUND");
@@ -183,4 +199,4 @@ function toEventTimestamp(value) {
   return date ? mexicoCityDateTimeToTimestamp({ ...date, hour: 0, minute: 0 }) : timestampOf(value);
 }
 
-module.exports = { createEvent, deleteEvent, getEvent, getEventCountdown, listEvents, rsvpToEvent, updateEvent };
+module.exports = { createEvent, deleteEvent, deleteEvents, getEvent, getEventCountdown, listEvents, rsvpToEvent, updateEvent };

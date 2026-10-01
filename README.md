@@ -80,6 +80,8 @@ Unlike general-purpose assistants like Meta AI, **Munin lives within the group**
 - Create one-time, absolute, relative, and recurring reminders
 - Maintain dated pending items and receive a daily pending summary
 - Manage a weekly class schedule and optional class-bell alerts
+- Organize events on a specific date or set them to be recurring ones like birthdays
+- Confirm your attendance and be reminded of upcoming events from the group
 
 ### Group activity
 

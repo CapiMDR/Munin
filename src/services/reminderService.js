@@ -1,7 +1,14 @@
-const { getMexicoCityDateParts, getMexicoCityDateTimeParts, mexicoCityDateTimeToTimestamp, parseClockTime, parseDuration } = require("../utils/timeUtils");
+const {
+  getMexicoCityDateParts,
+  getMexicoCityDateTimeParts,
+  mexicoCityDateTimeToTimestamp,
+  parseClockTime,
+  parseDuration,
+} = require("../utils/timeUtils");
 const { resolveMexicoCityDate } = require("../utils/dateUtils");
 const { WEEKDAYS, getNextWeeklyTrigger, parseTime, toIso } = require("../schedulers/reminderSchedule");
 const { failure, success } = require("./result");
+const { partitionOneBasedIndexes } = require("../utils/indexUtils");
 
 function createRelativeReminder(
   { chatId, text, duration, startAt, count, messageId, senderMentionId },
@@ -46,11 +53,27 @@ function deleteReminder(chatId, index, reminderStore, reminderScheduler) {
     : failure("REMINDER_NOT_FOUND");
 }
 
+function deleteReminders(chatId, indexes, reminderStore, reminderScheduler) {
+  if (!Array.isArray(indexes) || !indexes.length) return failure("REMINDER_INDEX_INVALID");
+  const { valid, invalid } = partitionOneBasedIndexes(indexes, reminderStore.getAll(chatId).length);
+  const deleted = valid
+    .sort((a, b) => b - a)
+    .map((index) => {
+      const reminder = reminderStore.remove(chatId, index - 1);
+      reminderScheduler?.cancel(reminder.id);
+      return { index, reminder };
+    })
+    .reverse();
+  return success("REMINDERS_DELETED", { deleted, invalidIndexes: invalid, reminders: reminderStore.getAll(chatId) });
+}
+
 function updateReminder(dto, reminderStore, reminderScheduler) {
   if (!Number.isInteger(dto.index) || dto.index < 0) return failure("REMINDER_INDEX_INVALID");
   const current = reminderStore.getAll(dto.chatId)[dto.index];
   if (!current) return failure("REMINDER_NOT_FOUND");
-  if (![dto.hasText, dto.hasDuration, dto.hasDueDate, dto.hasDueTime, dto.hasRepeatCount, dto.hasRepeatForever, dto.hasWeeklyRecurrence].some(Boolean)) {
+  if (
+    ![dto.hasText, dto.hasDuration, dto.hasDueDate, dto.hasDueTime, dto.hasRepeatCount, dto.hasRepeatForever, dto.hasWeeklyRecurrence].some(Boolean)
+  ) {
     return failure("REMINDER_UPDATE_REQUIRED");
   }
 
@@ -84,7 +107,9 @@ function updateReminder(dto, reminderStore, reminderScheduler) {
     Object.assign(updates, {
       startAt: toIso(startAt),
       nextTriggerAt: toIso(startAt),
-      recurrence: recurring ? { frequency: "relative", interval: duration, daysOfWeek: null, dayOfMonth: null, until: null, count: countResult.data.count } : null,
+      recurrence: recurring
+        ? { frequency: "relative", interval: duration, daysOfWeek: null, dayOfMonth: null, until: null, count: countResult.data.count }
+        : null,
     });
   } else if (usesAbsolute) {
     const base = getMexicoCityDateTimeParts(new Date(current.startAt));
@@ -107,7 +132,12 @@ function updateReminder(dto, reminderStore, reminderScheduler) {
     reminderScheduler?.cancel(current.id);
     reminderScheduler?.schedule({ chatId: dto.chatId, ...reminder });
   }
-  return success("REMINDER_UPDATED", { index: dto.index + 1, reminder, reminders: reminderStore.getAll(dto.chatId), kind: getReminderKind(reminder) });
+  return success("REMINDER_UPDATED", {
+    index: dto.index + 1,
+    reminder,
+    reminders: reminderStore.getAll(dto.chatId),
+    kind: getReminderKind(reminder),
+  });
 }
 
 function getEditedRepeatCount(dto, recurrence) {
@@ -130,14 +160,20 @@ function buildWeeklyReminderSchedule(weekly) {
   const daysOfWeek = Array.isArray(weekly?.days_of_week) ? [...new Set(weekly.days_of_week.map((day) => String(day).toLowerCase()))] : [];
   const time = typeof weekly?.time === "string" ? weekly.time : "";
   const count = weekly?.count === undefined || weekly.count === null ? null : Number(weekly.count);
-  if (!Number.isInteger(interval) || interval < 1 || !daysOfWeek.length || !daysOfWeek.every((day) => WEEKDAYS.includes(day)) || !parseTime(time)) return failure("REMINDER_WEEKLY_INVALID");
+  if (!Number.isInteger(interval) || interval < 1 || !daysOfWeek.length || !daysOfWeek.every((day) => WEEKDAYS.includes(day)) || !parseTime(time))
+    return failure("REMINDER_WEEKLY_INVALID");
   if (count !== null && (!Number.isInteger(count) || count < 1)) return failure("REMINDER_COUNT_INVALID");
   const startDate = weekly.start_date === undefined ? getMexicoCityDateParts() : resolveMexicoCityDate(weekly.start_date);
   const untilDate = weekly.until_date === undefined || weekly.until_date === null ? undefined : resolveMexicoCityDate(weekly.until_date);
   if (!startDate || (weekly.until_date !== undefined && weekly.until_date !== null && !untilDate)) return failure("REMINDER_ABSOLUTE_INVALID");
   const recurrence = {
-    frequency: "week", interval, daysOfWeek, dayOfMonth: null, time,
-    until: untilDate ? toIso(mexicoCityDateTimeToTimestamp({ ...untilDate, ...parseTime(time) })) : null, count,
+    frequency: "week",
+    interval,
+    daysOfWeek,
+    dayOfMonth: null,
+    time,
+    until: untilDate ? toIso(mexicoCityDateTimeToTimestamp({ ...untilDate, ...parseTime(time) })) : null,
+    count,
   };
   const boundary = mexicoCityDateTimeToTimestamp({ ...startDate, hour: 0, minute: 0 });
   const startAt = getNextWeeklyTrigger({ startAt: toIso(boundary), recurrence: { ...recurrence, interval: 1 } }, boundary - 1);
@@ -225,4 +261,4 @@ function createWeeklyReminderFromDto(dto, reminderStore, reminderScheduler, user
   return success("REMINDER_CREATED", { ...result, kind: "weekly", startAt, count });
 }
 
-module.exports = { createReminder, deleteReminder, listReminders, scheduleReminder, updateReminder };
+module.exports = { createReminder, deleteReminder, deleteReminders, listReminders, scheduleReminder, updateReminder };

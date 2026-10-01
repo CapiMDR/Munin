@@ -99,11 +99,11 @@ const TOOLS = [
     type: "function",
     function: {
       name: "delete_pending",
-      description: "Delete a pending item in the current group by the one-based index returned by list_pendings.",
+      description: "Delete one or more pending items by their one-based current list indexes. Invalid indexes are ignored and reported.",
       parameters: {
         type: "object",
-        properties: { index: { type: "integer", description: "The one-based pending-item index." } },
-        required: ["index"],
+        properties: { indexes: { type: "array", minItems: 1, items: { type: "integer", minimum: 1 }, description: "One or more one-based pending indexes." } },
+        required: ["indexes"],
       },
     },
   },
@@ -164,11 +164,11 @@ const TOOLS = [
     type: "function",
     function: {
       name: "delete_reminder",
-      description: "Delete a reminder in the current group by the one-based index returned by list_reminders.",
+      description: "Delete one or more reminders by their one-based current list indexes. Invalid indexes are ignored and reported.",
       parameters: {
         type: "object",
-        properties: { index: { type: "integer", description: "The one-based reminder index." } },
-        required: ["index"],
+        properties: { indexes: { type: "array", minItems: 1, items: { type: "integer", minimum: 1 }, description: "One or more one-based reminder indexes." } },
+        required: ["indexes"],
       },
     },
   },
@@ -375,11 +375,11 @@ const TOOLS = [
     type: "function",
     function: {
       name: "delete_class",
-      description: "Delete a class by its one-based global index from list_classes.",
+      description: "Delete one or more classes by their one-based current global indexes. Invalid indexes are ignored and reported.",
       parameters: {
         type: "object",
-        properties: { index: { type: "integer", description: "The one-based class index." } },
-        required: ["index"],
+        properties: { indexes: { type: "array", minItems: 1, items: { type: "integer", minimum: 1 }, description: "One or more one-based class indexes." } },
+        required: ["indexes"],
       },
     },
   },
@@ -400,13 +400,14 @@ const TOOLS = [
     function: {
       name: "manage_event",
       description:
-        "Create, update, delete, get, list, or RSVP to a group event. Events include automatic group reminders based on their type; reminder rules cannot be customized yet. Use the current one-based list index to update an event, and its simple numeric ID to delete, get, or RSVP.",
+        "Create, update, delete, get, list, or RSVP to a group event. Events include automatic group reminders based on their type; reminder rules cannot be customized yet. Use current one-based list indexes to update or delete events, and the numeric ID to get or RSVP.",
       parameters: {
         type: "object",
         properties: {
           action: { type: "string", enum: ["create", "update", "delete", "get", "list", "rsvp"] },
           id: { type: ["string", "integer"], description: "Simple numeric event ID, for delete, get, and rsvp." },
           index: { type: "integer", minimum: 1, description: "One-based current event-list index. Use this to update an event." },
+          indexes: { type: "array", minItems: 1, items: { type: "integer", minimum: 1 }, description: "One or more current event-list indexes. Use this to delete events." },
           title: { type: "string", description: "Event title. Required to create an event." },
           description: { type: ["string", "null"], description: "Optional event description. Use null to clear it while updating." },
           type: { type: "string", description: "Optional event type, such as social, birthday, holiday, or meeting. birthday receives birthday reminder defaults; every other type inherits social defaults." },

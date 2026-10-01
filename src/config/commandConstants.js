@@ -40,6 +40,7 @@ const COMMANDS = Object.freeze({
   DOG: "!perro",
   WEATHER: "!clima",
   TRIVIA: "!trivia",
+  LIST_EVENTS: "!e",
 });
 
 const INFINITE_TOKEN = "inf";

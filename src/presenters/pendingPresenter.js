@@ -30,6 +30,13 @@ function presentPendingResult(result) {
       message: mutationWithList(`Pendiente ${result.data.index} eliminado: ${getPendingContent(pending)}`, formatPendings(pendings)),
     };
   }
+  if (result.code === "PENDINGS_DELETED") {
+    return {
+      ok: true,
+      action: "delete_pendings",
+      message: mutationWithList(formatBulkDeletion("pendientes", result.data.deleted.length, result.data.invalidIndexes), formatPendings(pendings)),
+    };
+  }
   if (result.code === "PENDING_UPDATED") {
     return {
       ok: true,
@@ -49,6 +56,10 @@ function pendingUsage() {
 }
 function mutationWithList(confirmation, list) {
   return `${confirmation}\n\n${list}`;
+}
+function formatBulkDeletion(noun, count, invalidIndexes) {
+  const confirmation = count ? `Se eliminaron ${count} ${noun}.` : "No encontré pendientes para eliminar.";
+  return invalidIndexes.length ? `${confirmation}\nNo encontré los índices: ${invalidIndexes.join(", ")}.` : confirmation;
 }
 function formatDailyPendings(groups) {
   return [

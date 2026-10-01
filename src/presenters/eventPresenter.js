@@ -21,6 +21,11 @@ function presentEventResult(result) {
       return { ok: true, action: "update_event", message: `📅 Evento actualizado\n${formatEvent(event)}` };
     case "EVENT_DELETED":
       return { ok: true, action: "delete_event", message: `📅 Evento eliminado: ${event.title} (${event.id})` };
+    case "EVENTS_DELETED": {
+      const confirmation = result.data.deleted.length ? `📅 Se eliminaron ${result.data.deleted.length} eventos.` : "📅 No encontré eventos para eliminar.";
+      const clarification = result.data.invalidIndexes.length ? `\nNo encontré los índices: ${result.data.invalidIndexes.join(", ")}.` : "";
+      return { ok: true, action: "delete_events", message: `${confirmation}${clarification}\n\n${formatEvents(result.data.events)}` };
+    }
     case "EVENT_FOUND":
       return { ok: true, action: "get_event", message: formatEvent(event, true) };
     case "EVENTS_LISTED":

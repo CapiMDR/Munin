@@ -1,5 +1,6 @@
 const { DAYS_ORDER, getMexicoCityTime, parseTimeRange, timeToMinutes } = require("../utils/timeUtils");
 const { failure, success } = require("./result");
+const { partitionOneBasedIndexes } = require("../utils/indexUtils");
 
 function listClasses(chatId, store) {
   return success("CLASSES_LISTED", listData(chatId, store));
@@ -90,6 +91,15 @@ function deleteClass({ chatId, index, reference = index }, store, scheduler) {
   reschedule(scheduler, chatId);
   return success("CLASS_DELETED", { classData, ...listData(chatId, store) });
 }
+function deleteClasses({ chatId, indexes }, store, scheduler) {
+  if (!Array.isArray(indexes) || !indexes.length) return failure("CLASS_REFERENCE_INVALID");
+  const classes = store.getAllSorted(chatId);
+  const { valid, invalid } = partitionOneBasedIndexes(indexes, classes.length);
+  const deleted = valid.map((index) => ({ index, classData: classes[index - 1] }));
+  deleted.forEach(({ classData }) => store.remove(chatId, classData.id));
+  if (deleted.length) reschedule(scheduler, chatId);
+  return success("CLASSES_DELETED", { deleted, invalidIndexes: invalid, ...listData(chatId, store) });
+}
 function setBell({ chatId, enabled }, store, scheduler) {
   if (typeof enabled !== "boolean") return failure("CLASS_BELL_INVALID");
   const value = store.setBell(chatId, enabled);
@@ -149,6 +159,7 @@ module.exports = {
   addClass,
   addClassFromCommand,
   deleteClass,
+  deleteClasses,
   getCurrentClass,
   listClasses,
   listClassesToday,

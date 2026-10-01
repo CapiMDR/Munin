@@ -22,6 +22,15 @@ function presentReminderResult(result, { senderTag, duration } = {}) {
       message: MESSAGES.MUTATION_WITH_LIST(MESSAGES.REMINDER_DELETED(result.data.index, reminder.text), formatReminders(reminders)),
     };
   }
+  if (result.code === "REMINDERS_DELETED") {
+    const confirmation = result.data.deleted.length ? `Se eliminaron ${result.data.deleted.length} recordatorios.` : "No encontré recordatorios para eliminar.";
+    const clarification = result.data.invalidIndexes.length ? `\nNo encontré los índices: ${result.data.invalidIndexes.join(", ")}.` : "";
+    return {
+      ok: true,
+      action: "delete_reminders",
+      message: MESSAGES.MUTATION_WITH_LIST(`${confirmation}${clarification}`, formatReminders(reminders)),
+    };
+  }
   if (result.code === "REMINDER_CREATED") {
     const confirmation =
       kind === "relativeRecurring"
