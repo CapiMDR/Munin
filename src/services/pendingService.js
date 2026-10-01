@@ -35,6 +35,22 @@ function deletePending(chatId, index, pendingStore) {
   return pending ? success("PENDING_DELETED", { index: index + 1, pending, pendings: pendingStore.getAll(chatId) }) : failure("PENDING_NOT_FOUND");
 }
 
+function updatePending({ chatId, index, content, date, time, invalidDate, invalidTime }, pendingStore) {
+  if (!Number.isInteger(index) || index < 0) return failure("PENDING_INDEX_INVALID");
+  const current = pendingStore.getAll(chatId)[index];
+  if (!current) return failure("PENDING_NOT_FOUND");
+  if (content === undefined && date === undefined && time === undefined) return failure("PENDING_UPDATE_REQUIRED");
+  if (content !== undefined && !content?.trim()) return failure("PENDING_CONTENT_REQUIRED");
+  if (invalidDate) return failure("PENDING_DATE_INVALID");
+  if (invalidTime) return failure("PENDING_TIME_INVALID");
+  const pending = pendingStore.update(chatId, index, {
+    ...(content !== undefined ? { content: content.trim() } : {}),
+    ...(date !== undefined ? { date } : {}),
+    ...(time !== undefined ? { time } : {}),
+  });
+  return success("PENDING_UPDATED", { index: index + 1, pending, pendings: pendingStore.getAll(chatId) });
+}
+
 function parsePendingDateArguments(args) {
   if (!args[0]?.startsWith("@")) return { date: undefined, argumentCount: 0 };
   for (const argumentCount of [2, 1]) {
@@ -45,4 +61,4 @@ function parsePendingDateArguments(args) {
   return { date: undefined, argumentCount: 0 };
 }
 
-module.exports = { createPending, createPendingFromCommand, deletePending, listPendings };
+module.exports = { createPending, createPendingFromCommand, deletePending, listPendings, updatePending };

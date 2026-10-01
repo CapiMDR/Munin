@@ -1,6 +1,8 @@
 const { failure, success } = require("./result");
 const { createDefaultEventReminders } = require("../config/eventDefaults");
 const { getNextEventOccurrence } = require("../schedulers/eventSchedule");
+const { parseIsoDate } = require("../utils/dateUtils");
+const { mexicoCityDateTimeToTimestamp, timestampOf, toMexicoCityIso } = require("../utils/timeUtils");
 
 const RECURRENCE_FREQUENCIES = new Set(["day", "week", "month", "year"]);
 const WEEKDAYS = new Set(["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]);
@@ -170,44 +172,15 @@ function normalizeEventType(value) {
 
 function normalizeEventStartAt(value) {
   if (typeof value !== "string") return null;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return isValidCalendarDate(value) ? value : null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return parseIsoDate(value) ? value : null;
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:Z|[+-]\d{2}:\d{2})$/.test(value)) return null;
-  const timestamp = Date.parse(value);
+  const timestamp = timestampOf(value);
   return Number.isFinite(timestamp) ? toMexicoCityIso(timestamp) : null;
 }
 
 function toEventTimestamp(value) {
-  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? Date.parse(`${value}T00:00:00-06:00`) : Date.parse(value);
-}
-
-function isValidCalendarDate(value) {
-  const [year, month, day] = value.split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
-}
-
-function toMexicoCityIso(timestamp) {
-  const values = Object.fromEntries(
-    new Intl.DateTimeFormat("en-US", {
-      timeZone: "America/Mexico_City",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hourCycle: "h23",
-    })
-      .formatToParts(new Date(timestamp))
-      .filter((part) => part.type !== "literal")
-      .map((part) => [part.type, part.value]),
-  );
-  const localTimestamp = Date.UTC(values.year, Number(values.month) - 1, values.day, values.hour, values.minute, values.second);
-  const offsetMinutes = Math.round((localTimestamp - timestamp) / 60_000);
-  const sign = offsetMinutes >= 0 ? "+" : "-";
-  const absoluteOffset = Math.abs(offsetMinutes);
-  const offset = `${sign}${String(Math.floor(absoluteOffset / 60)).padStart(2, "0")}:${String(absoluteOffset % 60).padStart(2, "0")}`;
-  return `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}:${values.second}${offset}`;
+  const date = parseIsoDate(value);
+  return date ? mexicoCityDateTimeToTimestamp({ ...date, hour: 0, minute: 0 }) : timestampOf(value);
 }
 
 module.exports = { createEvent, deleteEvent, getEvent, getEventCountdown, listEvents, rsvpToEvent, updateEvent };

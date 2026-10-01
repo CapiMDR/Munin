@@ -1,5 +1,6 @@
-const { getNextEventReminderTrigger, toIso } = require("./eventSchedule");
+const { getNextEventReminderTrigger } = require("./eventSchedule");
 const { presentEventReminder } = require("../presenters/eventPresenter");
+const { timestampOf, toMexicoCityIso } = require("../utils/timeUtils");
 
 const MAX_TIMEOUT = 2 ** 31 - 1;
 const RETRY_DELAY = 60_000;
@@ -21,7 +22,7 @@ class EventScheduler {
     this.cancelEvent(chatId, event.id);
     const reminders = (event.reminders || []).map((reminder) => {
       const nextTrigger = !reset && reminder.nextTriggerAt ? null : getNextEventReminderTrigger(event, reminder, Date.now());
-      return { ...reminder, nextTriggerAt: !reset && reminder.nextTriggerAt ? reminder.nextTriggerAt : nextTrigger ? toIso(nextTrigger) : null };
+      return { ...reminder, nextTriggerAt: !reset && reminder.nextTriggerAt ? reminder.nextTriggerAt : nextTrigger ? toMexicoCityIso(nextTrigger) : null };
     });
     const changed = JSON.stringify(reminders) !== JSON.stringify(event.reminders || []);
     const scheduledEvent = changed ? this.eventStore.updateById(chatId, event.id, { reminders }) : event;
@@ -31,7 +32,7 @@ class EventScheduler {
 
   scheduleReminder(chatId, event, reminder) {
     if (!reminder.nextTriggerAt) return;
-    const delay = Math.max(0, Date.parse(reminder.nextTriggerAt) - Date.now());
+    const delay = Math.max(0, timestampOf(reminder.nextTriggerAt) - Date.now());
     const key = this.getKey(chatId, event.id, reminder.id);
     this.timers.set(
       key,
@@ -52,7 +53,7 @@ class EventScheduler {
     const event = this.eventStore.getById(chatId, eventId);
     const reminder = event?.reminders?.find((item) => item.id === reminderId);
     if (!event || !reminder?.nextTriggerAt) return;
-    if (Date.parse(reminder.nextTriggerAt) > Date.now()) return this.scheduleReminder(chatId, event, reminder);
+    if (timestampOf(reminder.nextTriggerAt) > Date.now()) return this.scheduleReminder(chatId, event, reminder);
 
     try {
       await this.sendMessage(chatId, presentEventReminder(event));
@@ -60,7 +61,7 @@ class EventScheduler {
       const nextTrigger = getNextEventReminderTrigger(event, reminder, Date.now());
       const reminders = event.reminders.map((item) =>
         item.id === reminderId
-          ? { ...item, lastTriggeredAt: toIso(Date.now()), triggerCount, nextTriggerAt: nextTrigger ? toIso(nextTrigger) : null }
+          ? { ...item, lastTriggeredAt: toMexicoCityIso(Date.now()), triggerCount, nextTriggerAt: nextTrigger ? toMexicoCityIso(nextTrigger) : null }
           : item,
       );
       const updatedEvent = this.eventStore.updateById(chatId, eventId, { reminders });

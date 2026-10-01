@@ -8,6 +8,7 @@ const DAYS_ORDER = Object.freeze([
   "domingo"
 ]);
 const DAYS = Object.freeze(DAYS_ORDER.map((day) => day.charAt(0).toUpperCase() + day.slice(1)));
+const MEXICO_CITY_TIME_ZONE = "America/Mexico_City";
 
 function getDays() {
   return DAYS;
@@ -200,6 +201,49 @@ function mexicoCityDateTimeToTimestamp({ year, month, day, hour, minute }) {
   return timestamp;
 }
 
+function timestampOf(value) {
+  const timestamp = typeof value === "number" ? value : Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : undefined;
+}
+
+function toMexicoCityIso(timestamp) {
+  const values = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: MEXICO_CITY_TIME_ZONE,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hourCycle: "h23",
+    })
+      .formatToParts(new Date(timestamp))
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  );
+  const localTimestamp = Date.UTC(values.year, Number(values.month) - 1, values.day, values.hour, values.minute, values.second);
+  const offsetMinutes = Math.round((localTimestamp - timestamp) / 60_000);
+  const sign = offsetMinutes >= 0 ? "+" : "-";
+  const absoluteOffset = Math.abs(offsetMinutes);
+  const offset = `${sign}${String(Math.floor(absoluteOffset / 60)).padStart(2, "0")}:${String(absoluteOffset % 60).padStart(2, "0")}`;
+  return `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}:${values.second}${offset}`;
+}
+
+function addMexicoCityCalendarOffset(parts, { months = 0, days = 0, hours = 0 }) {
+  const monthStart = new Date(Date.UTC(parts.year, parts.month - 1 + months, 1));
+  const lastDayOfTargetMonth = new Date(Date.UTC(monthStart.getUTCFullYear(), monthStart.getUTCMonth() + 1, 0)).getUTCDate();
+  const date = new Date(Date.UTC(monthStart.getUTCFullYear(), monthStart.getUTCMonth(), Math.min(parts.day, lastDayOfTargetMonth) + days));
+  const timestamp = mexicoCityDateTimeToTimestamp({
+    year: date.getUTCFullYear(),
+    month: date.getUTCMonth() + 1,
+    day: date.getUTCDate(),
+    hour: parts.hour,
+    minute: parts.minute,
+  });
+  return timestamp + hours * 3_600_000;
+}
+
 function getMexicoCityDateTimeParts(date) {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Mexico_City",
@@ -260,6 +304,8 @@ function millisecondsUntilNextDay(time) {
 }
 
 module.exports = {
+  MEXICO_CITY_TIME_ZONE,
+  addMexicoCityCalendarOffset,
   DAYS_ORDER,
   formatDuration,
   formatMexicoCityDateTime,
@@ -280,6 +326,8 @@ module.exports = {
   parseDuration,
   parseTimeRange,
   parseTimerDuration,
+  timestampOf,
   timeToMinutes,
+  toMexicoCityIso,
 };
 

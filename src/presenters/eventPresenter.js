@@ -40,7 +40,7 @@ function presentEventResult(result) {
 
 function formatEvents(events) {
   if (!events.length) return "📅 No hay eventos guardados para este grupo.";
-  return `📅 Eventos del grupo:\n${events.map((event) => `${event.id} — ${event.title}\n${formatEventStartAt(event.startAt)}\n${formatEventMetadata(event)}`).join("\n\n")}`;
+  return `📅 Eventos del grupo:\n${events.map((event, index) => `${index + 1}. ${event.title} (ID: ${event.id})\n${formatEventStartAt(event.startAt)}\n${formatEventMetadata(event)}`).join("\n\n")}`;
 }
 
 function formatEvent(event, detailed = false) {

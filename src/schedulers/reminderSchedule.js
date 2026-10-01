@@ -1,33 +1,9 @@
-const { getMexicoCityDateParts, mexicoCityDateTimeToTimestamp } = require("../utils/timeUtils");
+const { getMexicoCityDateParts, mexicoCityDateTimeToTimestamp, timestampOf, toMexicoCityIso } = require("../utils/timeUtils");
 
 const WEEKDAYS = Object.freeze(["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]);
 const WEEK_MS = 7 * 24 * 60 * 60 * 1_000;
 
-function toIso(timestamp) {
-  const date = new Date(timestamp);
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Mexico_City",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(date);
-  const values = Object.fromEntries(parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
-  const localAsUtc = Date.UTC(values.year, Number(values.month) - 1, values.day, values.hour, values.minute, values.second);
-  const offsetMinutes = Math.round((localAsUtc - timestamp) / 60_000);
-  const sign = offsetMinutes >= 0 ? "+" : "-";
-  const absoluteOffset = Math.abs(offsetMinutes);
-  const offset = `${sign}${String(Math.floor(absoluteOffset / 60)).padStart(2, "0")}:${String(absoluteOffset % 60).padStart(2, "0")}`;
-  return `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}:${values.second}${offset}`;
-}
-
-function timestampOf(value) {
-  const timestamp = typeof value === "number" ? value : Date.parse(value);
-  return Number.isFinite(timestamp) ? timestamp : undefined;
-}
+const toIso = toMexicoCityIso;
 
 function getLocalWeekday(timestamp) {
   const { year, month, day } = getMexicoCityDateParts(new Date(timestamp));

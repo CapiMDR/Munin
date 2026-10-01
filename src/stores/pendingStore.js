@@ -62,6 +62,15 @@ class PendingStore {
     return pending;
   }
 
+  update(chatId, index, fields) {
+    const pendings = this.pendingsByChat[chatId];
+    if (!pendings || index < 0 || index >= pendings.length) return undefined;
+    const pending = typeof pendings[index] === "string" ? { content: pendings[index] } : pendings[index];
+    pendings[index] = { ...pending, ...fields };
+    this.save();
+    return pendings[index];
+  }
+
   save() {
     fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
     fs.writeFileSync(this.filePath, JSON.stringify(this.pendingsByChat, null, 2));

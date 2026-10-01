@@ -81,6 +81,23 @@ const TOOLS = [
   {
     type: "function",
     function: {
+      name: "edit_pending",
+      description: "Edit a pending item by its one-based current list index. Provide at least one field; use null for date or time to clear it.",
+      parameters: {
+        type: "object",
+        properties: {
+          index: { type: "integer", minimum: 1, description: "One-based pending index from list_pendings." },
+          content: { type: "string", description: "Optional replacement pending text." },
+          date: { type: ["string", "null"], description: "Optional replacement date in dd/mm or Spanish relative form; null clears it." },
+          time: { type: ["string", "null"], description: "Optional replacement time in HH:mm; null clears it." },
+        },
+        required: ["index"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "delete_pending",
       description: "Delete a pending item in the current group by the one-based index returned by list_pendings.",
       parameters: {
@@ -151,6 +168,33 @@ const TOOLS = [
       parameters: {
         type: "object",
         properties: { index: { type: "integer", description: "The one-based reminder index." } },
+        required: ["index"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "edit_reminder",
+      description: "Edit a reminder by its one-based current list index. Provide at least one field. Editing duration, date/time, or recurrence immediately recalculates its next delivery; past dates are valid and will be delivered as soon as Munin can send them.",
+      parameters: {
+        type: "object",
+        properties: {
+          index: { type: "integer", minimum: 1, description: "One-based reminder index from list_reminders." },
+          content: { type: "string", description: "Optional replacement reminder text." },
+          duration: { type: "string", description: "Optional relative delay, such as 30m, 2h, or 1d." },
+          due_date: { type: "string", description: "Optional absolute date in dd/mm or Spanish relative form." },
+          due_time: { type: "string", description: "Optional absolute time in HH:mm." },
+          repeat_count: { type: "integer", minimum: 1, description: "Optional replacement count for a recurring reminder." },
+          repeat_forever: { type: "boolean", description: "True makes a recurring reminder repeat forever; false removes recurrence." },
+          weekly_recurrence: {
+            type: ["object", "null"],
+            description: "Optional replacement weekly recurrence; null removes recurrence.",
+            properties: {
+              interval: { type: "integer", minimum: 1 }, days_of_week: { type: "array", items: { type: "string" } }, time: { type: "string", description: "HH:mm" }, start_date: { type: "string" }, until_date: { type: ["string", "null"] }, count: { type: ["integer", "null"], minimum: 1 },
+            },
+          },
+        },
         required: ["index"],
       },
     },
@@ -356,12 +400,13 @@ const TOOLS = [
     function: {
       name: "manage_event",
       description:
-        "Create, update, delete, get, list, or RSVP to a group event. Events include automatic group reminders based on their type; reminder rules cannot be customized yet. Use the simple numeric event ID returned by list or create for update, delete, get, and RSVP.",
+        "Create, update, delete, get, list, or RSVP to a group event. Events include automatic group reminders based on their type; reminder rules cannot be customized yet. Use the current one-based list index to update an event, and its simple numeric ID to delete, get, or RSVP.",
       parameters: {
         type: "object",
         properties: {
           action: { type: "string", enum: ["create", "update", "delete", "get", "list", "rsvp"] },
-          id: { type: ["string", "integer"], description: "Simple numeric event ID, for example 1. Required for update, delete, get, and rsvp." },
+          id: { type: ["string", "integer"], description: "Simple numeric event ID, for delete, get, and rsvp." },
+          index: { type: "integer", minimum: 1, description: "One-based current event-list index. Use this to update an event." },
           title: { type: "string", description: "Event title. Required to create an event." },
           description: { type: ["string", "null"], description: "Optional event description. Use null to clear it while updating." },
           type: { type: "string", description: "Optional event type, such as social, birthday, holiday, or meeting. birthday receives birthday reminder defaults; every other type inherits social defaults." },

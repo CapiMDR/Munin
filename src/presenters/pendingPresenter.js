@@ -30,6 +30,13 @@ function presentPendingResult(result) {
       message: mutationWithList(`Pendiente ${result.data.index} eliminado: ${getPendingContent(pending)}`, formatPendings(pendings)),
     };
   }
+  if (result.code === "PENDING_UPDATED") {
+    return {
+      ok: true,
+      action: "edit_pending",
+      message: mutationWithList(`Pendiente ${result.data.index} actualizado: ${getPendingContent(pending)}`, formatPendings(pendings)),
+    };
+  }
   return { ok: false, code: "PENDING_RESULT_UNKNOWN", message: pendingUsage() };
 }
 

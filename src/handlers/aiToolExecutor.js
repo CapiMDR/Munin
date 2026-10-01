@@ -67,9 +67,11 @@ function createAiToolExecutor({
     view_saved_message: (args, context) => viewSavedMessage(args, context, savedMessageStore, sendMessage),
     list_saved_messages: (args, context) => listSavedMessages(context, savedMessageStore),
     create_pending: (args, context) => createPending(args, context, pendingStore),
+    edit_pending: (args, context) => editPending(args, context, pendingStore),
     list_pendings: (args, context) => listPendings(context, pendingStore),
     delete_pending: (args, context) => deletePending(args, context, pendingStore),
     create_reminder: (args, context) => createReminder(args, context, reminderStore, reminderScheduler, userStatsStore),
+    edit_reminder: (args, context) => editReminder(args, context, reminderStore, reminderScheduler),
     list_reminders: (args, context) => listReminders(context, reminderStore),
     delete_reminder: (args, context) => deleteReminder(args, context, reminderStore, reminderScheduler),
     start_timer: (args, context) => startTimer(args, context, scheduleTimer, output),
@@ -195,6 +197,22 @@ function deletePending(args, context, pendingStore) {
     : failure(presentation.code, presentation.message);
 }
 
+function editPending(args, context, pendingStore) {
+  if (!isOneBasedIndex(args.index)) return failure("A positive pending index is required.");
+  const parsedDate = Object.hasOwn(args, "date") && args.date !== null ? parsePendingDate(`@${args.date}`) : undefined;
+  const parsedTime = Object.hasOwn(args, "time") && args.time !== null ? parsePendingTime(args.time) : undefined;
+  const date = !Object.hasOwn(args, "date") ? undefined : args.date === null ? null : parsedDate;
+  const time = !Object.hasOwn(args, "time") ? undefined : args.time === null ? null : parsedTime;
+  const result = pendingService.updatePending(
+    { chatId: context.chatId, index: args.index - 1, content: args.content, date, time, invalidDate: args.date !== undefined && args.date !== null && !parsedDate, invalidTime: args.time !== undefined && args.time !== null && !parsedTime },
+    pendingStore,
+  );
+  const presentation = presentPendingResult(result);
+  return presentation.ok
+    ? { success: true, action: presentation.action, message: presentation.message }
+    : failure(presentation.code, presentation.message);
+}
+
 function createReminder(args, context, reminderStore, reminderScheduler, userStatsStore) {
   const result = reminderService.createReminder(
     {
@@ -239,6 +257,29 @@ function deleteReminder(args, context, reminderStore, reminderScheduler) {
   const presentation = presentReminderResult(result, { index: args.index });
   return presentation.ok
     ? { success: true, action: presentation.action, index: args.index, message: presentation.message }
+    : failure(presentation.code, presentation.message);
+}
+
+function editReminder(args, context, reminderStore, reminderScheduler) {
+  if (!isOneBasedIndex(args.index)) return failure("A positive reminder index is required.");
+  const result = reminderService.updateReminder(
+    {
+      chatId: context.chatId,
+      index: args.index - 1,
+      text: args.content, hasText: Object.hasOwn(args, "content"),
+      duration: args.duration, hasDuration: Object.hasOwn(args, "duration"),
+      dueDate: args.due_date, hasDueDate: Object.hasOwn(args, "due_date"),
+      dueTime: args.due_time, hasDueTime: Object.hasOwn(args, "due_time"),
+      repeatCount: args.repeat_count, hasRepeatCount: Object.hasOwn(args, "repeat_count"),
+      repeatForever: args.repeat_forever, hasRepeatForever: Object.hasOwn(args, "repeat_forever"),
+      weeklyRecurrence: args.weekly_recurrence, hasWeeklyRecurrence: Object.hasOwn(args, "weekly_recurrence"),
+    },
+    reminderStore,
+    reminderScheduler,
+  );
+  const presentation = presentReminderResult(result, { duration: args.duration });
+  return presentation.ok
+    ? { success: true, action: presentation.action, message: presentation.message }
     : failure(presentation.code, presentation.message);
 }
 
@@ -460,10 +501,14 @@ function manageEvent(args, context, eventStore, eventScheduler) {
       );
       break;
     case "update":
+      if (!isOneBasedIndex(args.index)) return failure("A positive event index is required.");
+      {
+        const event = eventStore.getAll(context.chatId)[args.index - 1];
+        if (!event) return failure("EVENT_NOT_FOUND", "No encontré un evento con ese índice en este grupo.");
       result = eventService.updateEvent(
         {
           chatId: context.chatId,
-          id: args.id,
+          id: event.id,
           updates: {
             ...(Object.hasOwn(args, "title") ? { title: args.title } : {}),
             ...(Object.hasOwn(args, "description") ? { description: args.description } : {}),
@@ -476,6 +521,7 @@ function manageEvent(args, context, eventStore, eventScheduler) {
         eventStore,
         eventScheduler,
       );
+      }
       break;
     case "delete": result = eventService.deleteEvent({ chatId: context.chatId, id: args.id }, eventStore, eventScheduler); break;
     case "get": result = eventService.getEvent({ chatId: context.chatId, id: args.id }, eventStore); break;

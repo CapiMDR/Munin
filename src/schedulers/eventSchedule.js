@@ -1,5 +1,5 @@
-const { getMexicoCityDateTimeParts, mexicoCityDateTimeToTimestamp } = require("../utils/timeUtils");
-const { toIso } = require("./reminderSchedule");
+const { parseIsoDate } = require("../utils/dateUtils");
+const { addMexicoCityCalendarOffset, getMexicoCityDateTimeParts, mexicoCityDateTimeToTimestamp, timestampOf, toMexicoCityIso } = require("../utils/timeUtils");
 
 const WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 
@@ -41,9 +41,9 @@ function getOccurrenceTimestamp(event, occurrenceIndex) {
   const start = getEventStartTimestamp(event);
   if (!recurrence || occurrenceIndex === 0) return start;
   const parts = getEventStartParts(event);
-  if (recurrence.frequency === "day") return addCalendarOffset(parts, { days: occurrenceIndex * recurrence.interval });
-  if (recurrence.frequency === "month") return addCalendarOffset(parts, { months: occurrenceIndex * recurrence.interval });
-  if (recurrence.frequency === "year") return addCalendarOffset(parts, { months: occurrenceIndex * recurrence.interval * 12 });
+  if (recurrence.frequency === "day") return addMexicoCityCalendarOffset(parts, { days: occurrenceIndex * recurrence.interval });
+  if (recurrence.frequency === "month") return addMexicoCityCalendarOffset(parts, { months: occurrenceIndex * recurrence.interval });
+  if (recurrence.frequency === "year") return addMexicoCityCalendarOffset(parts, { months: occurrenceIndex * recurrence.interval * 12 });
   if (recurrence.frequency === "week") return getWeeklyOccurrence(parts, recurrence, occurrenceIndex);
   return undefined;
 }
@@ -70,7 +70,7 @@ function getReminderTimestamp(occurrenceTimestamp, reminder) {
     const [hour, minute] = reminder.time.split(":").map(Number);
     parts = { ...parts, hour, minute };
   }
-  return addCalendarOffset(parts, reminder.offset || {});
+  return addMexicoCityCalendarOffset(parts, reminder.offset || {});
 }
 
 function getEventStartTimestamp(event) {
@@ -80,37 +80,17 @@ function getEventStartTimestamp(event) {
 
 function getEventStartParts(event) {
   if (/^\d{4}-\d{2}-\d{2}$/.test(event.startAt)) {
-    const [year, month, day] = event.startAt.split("-").map(Number);
-    return { year, month, day, hour: 9, minute: 0 };
+    return { ...parseIsoDate(event.startAt), hour: 9, minute: 0 };
   }
   return getMexicoCityDateTimeParts(new Date(event.startAt));
-}
-
-function addCalendarOffset(parts, { months = 0, days = 0, hours = 0 }) {
-  const monthStart = new Date(Date.UTC(parts.year, parts.month - 1 + months, 1));
-  const lastDayOfTargetMonth = new Date(Date.UTC(monthStart.getUTCFullYear(), monthStart.getUTCMonth() + 1, 0)).getUTCDate();
-  const date = new Date(Date.UTC(monthStart.getUTCFullYear(), monthStart.getUTCMonth(), Math.min(parts.day, lastDayOfTargetMonth) + days));
-  const timestamp = mexicoCityDateTimeToTimestamp({
-    year: date.getUTCFullYear(),
-    month: date.getUTCMonth() + 1,
-    day: date.getUTCDate(),
-    hour: parts.hour,
-    minute: parts.minute,
-  });
-  return timestamp + hours * 3_600_000;
 }
 
 function isAfterUntil(timestamp, until) {
   if (!until) return false;
   const untilTimestamp = /^\d{4}-\d{2}-\d{2}$/.test(until)
-    ? mexicoCityDateTimeToTimestamp({ ...getDateParts(until), hour: 23, minute: 59 })
-    : Date.parse(until);
+    ? mexicoCityDateTimeToTimestamp({ ...parseIsoDate(until), hour: 23, minute: 59 })
+    : timestampOf(until);
   return timestamp > untilTimestamp;
-}
-
-function getDateParts(value) {
-  const [year, month, day] = value.split("-").map(Number);
-  return { year, month, day };
 }
 
 function getWeekday(parts) {
@@ -123,4 +103,4 @@ function getWeekStart(parts) {
   return date.getTime();
 }
 
-module.exports = { getNextEventOccurrence, getNextEventReminderTrigger, toIso };
+module.exports = { getNextEventOccurrence, getNextEventReminderTrigger, toIso: toMexicoCityIso };

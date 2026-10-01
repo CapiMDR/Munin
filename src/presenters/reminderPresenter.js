@@ -38,6 +38,13 @@ function presentReminderResult(result, { senderTag, duration } = {}) {
       count,
     };
   }
+  if (result.code === "REMINDER_UPDATED") {
+    return {
+      ok: true,
+      action: "edit_reminder",
+      message: MESSAGES.MUTATION_WITH_LIST(`Recordatorio ${result.data.index} actualizado: ${formatReminder(reminder)}`, formatReminders(reminders)),
+    };
+  }
   return { ok: false, code: "REMINDER_RESULT_UNKNOWN", message: MESSAGES.REMINDER_USAGE };
 }
 
