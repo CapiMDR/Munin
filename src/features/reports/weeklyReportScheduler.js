@@ -13,7 +13,7 @@ class WeeklyReportScheduler {
     userStatsStore,
     buildReport,
     sendMessage,
-    stateFilePath = path.join(__dirname, "..", "..", "data", "weeklyReportState.json"),
+    stateFilePath = path.join(__dirname, "..", "..", "..", "data", "weeklyReportState.json"),
   ) {
     this.weeklyReportStore = weeklyReportStore;
     this.userStatsStore = userStatsStore;

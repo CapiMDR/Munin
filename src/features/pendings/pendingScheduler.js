@@ -7,7 +7,7 @@ const { getMexicoCityDate, getMexicoCityDateKey, getMexicoCityTime, milliseconds
 const DAILY_SUMMARY_MINUTES = 8 * 60;
 
 class PendingScheduler {
-  constructor(pendingStore, sendMessage, stateFilePath = path.join(__dirname, "..", "..", "data", "pendingSummaryState.json")) {
+  constructor(pendingStore, sendMessage, stateFilePath = path.join(__dirname, "..", "..", "..", "data", "pendingSummaryState.json")) {
     this.pendingStore = pendingStore;
     this.sendMessage = sendMessage;
     this.stateFilePath = stateFilePath;

@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 
 class CustomCommandStore {
-  constructor(filePath = path.join(__dirname, "..", "..", "data", "customCommands.json")) {
+  constructor(filePath = path.join(__dirname, "..", "..", "..", "data", "customCommands.json")) {
     this.filePath = filePath;
     this.commandsByChat = this.load();
   }

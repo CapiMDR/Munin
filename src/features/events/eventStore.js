@@ -4,7 +4,7 @@ const { createDefaultEventReminders } = require("./eventDefaults");
 
 /** Persists the events belonging to each WhatsApp group. */
 class EventStore {
-  constructor(filePath = path.join(__dirname, "..", "..", "data", "events.json")) {
+  constructor(filePath = path.join(__dirname, "..", "..", "..", "data", "events.json")) {
     this.filePath = filePath;
     this.eventsByChat = this.load();
   }

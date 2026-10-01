@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 
 class PendingStore {
-  constructor(filePath = path.join(__dirname, "..", "..", "data", "pendientes.json")) {
+  constructor(filePath = path.join(__dirname, "..", "..", "..", "data", "pendientes.json")) {
     this.filePath = filePath;
     this.pendingsByChat = this.load();
   }

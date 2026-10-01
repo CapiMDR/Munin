@@ -5,7 +5,7 @@ const { GLOBAL_ADMIN_ID } = require("../../config/adminConfig");
 const INDEFINITE_DURATION = "indefinite";
 
 class AdminStore {
-  constructor(filePath = path.join(__dirname, "..", "..", "data", "admins.json")) {
+  constructor(filePath = path.join(__dirname, "..", "..", "..", "data", "admins.json")) {
     this.filePath = filePath;
     this.data = this.load();
   }

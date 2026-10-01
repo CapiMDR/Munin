@@ -3,7 +3,7 @@ const fs = require("fs");
 const path = require("path");
 
 class ReminderStore {
-  constructor(filePath = path.join(__dirname, "..", "..", "data", "reminders.json")) {
+  constructor(filePath = path.join(__dirname, "..", "..", "..", "data", "reminders.json")) {
     this.filePath = filePath;
     this.remindersByChat = this.load();
   }

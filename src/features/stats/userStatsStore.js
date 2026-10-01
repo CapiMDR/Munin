@@ -36,7 +36,7 @@ const TRIVIA_LIFETIME_FIELDS = ["gamesPlayed", "gamesWon", "questionsAnswered", 
 const TRIVIA_DAILY_FIELDS = ["gamesPlayed", "gamesWon", "questionsAnswered", "correctAnswers"];
 
 class UserStatsStore {
-  constructor(filePath = path.join(__dirname, "..", "..", "data", "userStats.json")) {
+  constructor(filePath = path.join(__dirname, "..", "..", "..", "data", "userStats.json")) {
     this.filePath = filePath;
     this.data = this.load();
   }

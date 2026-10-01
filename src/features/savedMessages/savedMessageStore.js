@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 
 class SavedMessageStore {
-  constructor(filePath = path.join(__dirname, "..", "..", "data", "savedMessages.json")) {
+  constructor(filePath = path.join(__dirname, "..", "..", "..", "data", "savedMessages.json")) {
     this.filePath = filePath;
     this.messagesByChat = this.load();
   }

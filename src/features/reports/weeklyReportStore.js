@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 
 class WeeklyReportStore {
-  constructor(filePath = path.join(__dirname, "..", "..", "data", "weeklyReports.json")) {
+  constructor(filePath = path.join(__dirname, "..", "..", "..", "data", "weeklyReports.json")) {
     this.filePath = filePath;
     this.enabledByChat = this.load();
   }

@@ -4,7 +4,7 @@ const path = require("path");
 const { DAYS_ORDER } = require("../../utils/timeUtils");
 
 class ClassStore {
-  constructor(filePath = path.join(__dirname, "..", "..", "data", "classes.json")) {
+  constructor(filePath = path.join(__dirname, "..", "..", "..", "data", "classes.json")) {
     this.filePath = filePath;
     this.dataByChat = this.load();
   }
