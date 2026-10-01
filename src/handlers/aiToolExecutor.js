@@ -91,6 +91,7 @@ function createAiToolExecutor({
     delete_class: (args, context) => deleteClass(args, context, classStore, classScheduler),
     set_class_bell: (args, context) => setClassBell(args, context, classStore, classScheduler),
     manage_event: (args, context) => manageEvent(args, context, eventStore, eventScheduler),
+    get_event_countdown: (args, context) => getEventCountdown(args, context, eventStore),
   };
 
   /**
@@ -452,6 +453,7 @@ function manageEvent(args, context, eventStore, eventScheduler) {
           location: args.location,
           recurrence: args.recurrence,
           createdBy: context.sender?.mentionId,
+          createdByName: context.sender?.name || context.sender?.tag,
         },
         eventStore,
         eventScheduler,
@@ -480,13 +482,28 @@ function manageEvent(args, context, eventStore, eventScheduler) {
     case "list": result = eventService.listEvents({ chatId: context.chatId }, eventStore); break;
     case "rsvp":
       result = eventService.rsvpToEvent(
-        { chatId: context.chatId, id: args.id, participantId: context.sender?.mentionId, status: args.status },
+        {
+          chatId: context.chatId,
+          id: args.id,
+          participantId: context.sender?.mentionId,
+          participantName: context.sender?.name || context.sender?.tag,
+          status: args.status,
+        },
         eventStore,
       );
       break;
     default: return failure("Unknown event action.");
   }
   const presentation = presentEventResult(result);
+  return presentation.ok
+    ? { success: true, action: presentation.action, message: presentation.message }
+    : failure(presentation.code, presentation.message);
+}
+
+/** Parses a countdown tool call and delegates the event lookup to the service. */
+function getEventCountdown(args, context, eventStore) {
+  if (!eventStore) return failure("The event store is unavailable.");
+  const presentation = presentEventResult(eventService.getEventCountdown({ chatId: context.chatId, id: args.id }, eventStore));
   return presentation.ok
     ? { success: true, action: presentation.action, message: presentation.message }
     : failure(presentation.code, presentation.message);

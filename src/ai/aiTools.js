@@ -399,6 +399,18 @@ const TOOLS = [
   {
     type: "function",
     function: {
+      name: "get_event_countdown",
+      description: "Show how much time remains until an event's next occurrence. For recurring events, uses the next occurrence. Use the numeric event ID from the event list.",
+      parameters: {
+        type: "object",
+        properties: { id: { type: ["string", "integer"], description: "Numeric event ID, for example 1." } },
+        required: ["id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "generate_image",
       description:
         "Generate an image and send it to the current WhatsApp group when a user explicitly asks Munin to create, draw, generate, or make an image.",

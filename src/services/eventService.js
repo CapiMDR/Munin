@@ -1,5 +1,6 @@
 const { failure, success } = require("./result");
 const { createDefaultEventReminders } = require("../config/eventDefaults");
+const { getNextEventOccurrence } = require("../schedulers/eventSchedule");
 
 const RECURRENCE_FREQUENCIES = new Set(["day", "week", "month", "year"]);
 const WEEKDAYS = new Set(["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]);
@@ -30,6 +31,7 @@ function createEvent(dto, eventStore, eventScheduler) {
     reminders: createDefaultEventReminders(type, id),
     participants: { going: [], maybe: [], declined: [] },
     createdBy,
+    createdByName: normalizeOptionalText(dto.createdByName),
     createdAt: toMexicoCityIso(Date.now()),
   });
   return success("EVENT_CREATED", { event: eventScheduler?.scheduleEvent(dto.chatId, event) || event });
@@ -42,6 +44,13 @@ function listEvents({ chatId }, eventStore) {
 function getEvent({ chatId, id }, eventStore) {
   const event = eventStore.getById(chatId, id);
   return event ? success("EVENT_FOUND", { event }) : failure("EVENT_NOT_FOUND");
+}
+
+function getEventCountdown({ chatId, id, now = Date.now() }, eventStore) {
+  const event = eventStore.getById(chatId, id);
+  if (!event) return failure("EVENT_NOT_FOUND");
+  const occurrenceAt = getNextEventOccurrence(event, now);
+  return occurrenceAt ? success("EVENT_COUNTDOWN_FOUND", { event, occurrenceAt }) : failure("EVENT_ALREADY_PASSED", { event });
 }
 
 function updateEvent(dto, eventStore, eventScheduler) {
@@ -90,16 +99,23 @@ function deleteEvent({ chatId, id }, eventStore, eventScheduler) {
   return event ? success("EVENT_DELETED", { event }) : failure("EVENT_NOT_FOUND");
 }
 
-function rsvpToEvent({ chatId, id, participantId, status }, eventStore) {
+function rsvpToEvent({ chatId, id, participantId, participantName, status }, eventStore) {
   const event = eventStore.getById(chatId, id);
   if (!event) return failure("EVENT_NOT_FOUND");
   if (!participantId || !RSVP_STATUSES.has(status)) return failure("EVENT_RSVP_INVALID");
 
   const participants = Object.fromEntries(
-    [...RSVP_STATUSES].map((rsvpStatus) => [rsvpStatus, (event.participants?.[rsvpStatus] || []).filter((id) => id !== participantId)]),
+    [...RSVP_STATUSES].map((rsvpStatus) => [
+      rsvpStatus,
+      (event.participants?.[rsvpStatus] || []).filter((participant) => getParticipantId(participant) !== participantId),
+    ]),
   );
-  participants[status].push(participantId);
+  participants[status].push({ mentionId: participantId, name: normalizeOptionalText(participantName) || participantId });
   return success("EVENT_RSVP_UPDATED", { event: eventStore.updateById(chatId, id, { participants }), status });
+}
+
+function getParticipantId(participant) {
+  return typeof participant === "string" ? participant : participant?.mentionId;
 }
 
 function normalizeRecurrence(value, startAt) {
@@ -194,4 +210,4 @@ function toMexicoCityIso(timestamp) {
   return `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}:${values.second}${offset}`;
 }
 
-module.exports = { createEvent, deleteEvent, getEvent, listEvents, rsvpToEvent, updateEvent };
+module.exports = { createEvent, deleteEvent, getEvent, getEventCountdown, listEvents, rsvpToEvent, updateEvent };

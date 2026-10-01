@@ -22,6 +22,20 @@ function getNextEventReminderTrigger(event, reminder, afterTimestamp) {
   return undefined;
 }
 
+function getNextEventOccurrence(event, afterTimestamp) {
+  const start = getEventStartTimestamp(event);
+  if (!Number.isFinite(start)) return undefined;
+  if (!event.recurrence) return start > afterTimestamp ? start : undefined;
+
+  const maxOccurrences = event.recurrence.count ?? 100_000;
+  for (let occurrenceIndex = 0; occurrenceIndex < maxOccurrences; occurrenceIndex++) {
+    const occurrence = getOccurrenceTimestamp(event, occurrenceIndex);
+    if (!occurrence || isAfterUntil(occurrence, event.recurrence.until)) return undefined;
+    if (occurrence > afterTimestamp) return occurrence;
+  }
+  return undefined;
+}
+
 function getOccurrenceTimestamp(event, occurrenceIndex) {
   const recurrence = event.recurrence;
   const start = getEventStartTimestamp(event);
@@ -109,4 +123,4 @@ function getWeekStart(parts) {
   return date.getTime();
 }
 
-module.exports = { getNextEventReminderTrigger, toIso };
+module.exports = { getNextEventOccurrence, getNextEventReminderTrigger, toIso };
