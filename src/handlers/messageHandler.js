@@ -1,4 +1,4 @@
-const { MESSAGES } = require("../presenters/messages");
+const { MESSAGES } = require("../core/messages");
 const { FEATHER_COOLDOWN_MS, SEND_MAINTENANCE_MESSAGE, TEST_CHAT_ID, TEST_MODE } = require("../config/settings");
 const {
   countWords,

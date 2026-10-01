@@ -1,23 +1,23 @@
-const PendingStore = require("../stores/pendingStore");
-const CustomCommandStore = require("../stores/customCommandStore");
-const SavedMessageStore = require("../stores/savedMessageStore");
-const ReminderStore = require("../stores/reminderStore");
-const ClassStore = require("../stores/classStore");
-const AdminStore = require("../stores/adminStore");
-const UserStatsStore = require("../stores/userStatsStore");
-const WeeklyReportStore = require("../stores/weeklyReportStore");
-const EventStore = require("../stores/eventStore");
-const PendingScheduler = require("../schedulers/pendingScheduler");
-const ReminderScheduler = require("../schedulers/reminderScheduler");
-const ClassScheduler = require("../schedulers/classScheduler");
-const WeeklyReportScheduler = require("../schedulers/weeklyReportScheduler");
-const EventScheduler = require("../schedulers/eventScheduler");
-const { scheduleTimer } = require("../schedulers/timerScheduler");
+const PendingStore = require("../features/pendings/pendingStore");
+const CustomCommandStore = require("../features/customCommands/customCommandStore");
+const SavedMessageStore = require("../features/savedMessages/savedMessageStore");
+const ReminderStore = require("../features/reminders/reminderStore");
+const ClassStore = require("../features/classes/classStore");
+const AdminStore = require("../features/admin/adminStore");
+const UserStatsStore = require("../features/stats/userStatsStore");
+const WeeklyReportStore = require("../features/reports/weeklyReportStore");
+const EventStore = require("../features/events/eventStore");
+const PendingScheduler = require("../features/pendings/pendingScheduler");
+const ReminderScheduler = require("../features/reminders/reminderScheduler");
+const ClassScheduler = require("../features/classes/classScheduler");
+const WeeklyReportScheduler = require("../features/reports/weeklyReportScheduler");
+const EventScheduler = require("../features/events/eventScheduler");
+const { scheduleTimer } = require("../core/timerScheduler");
 const AnimalImageApi = require("../apis/animalImageApi");
 const OpenMeteoApi = require("../apis/openMeteoApi");
 const OpenTriviaApi = require("../apis/openTriviaApi");
 const { createWhatsAppOutput } = require("../handlers/whatsappOutput");
-const { presentGroupReport } = require("../presenters/groupReportPresenter");
+const { presentGroupReport } = require("../features/reports/groupReportPresenter");
 
 /**
  * Creates process-wide storage, API, scheduling, and WhatsApp transport dependencies.

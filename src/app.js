@@ -4,7 +4,7 @@ const { IMAGE_MIME_TYPE, generateImage } = require("./apis/cloudflareImageApi");
 const { createInfrastructure } = require("./bootstrap/createInfrastructure");
 const { createServices } = require("./bootstrap/createServices");
 const { createHandlers } = require("./bootstrap/createHandlers");
-const { MESSAGES } = require("./presenters/messages");
+const { MESSAGES } = require("./core/messages");
 
 function createMuninApp({
   client = new Client({

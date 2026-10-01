@@ -1,5 +1,5 @@
 const { Summarizer } = require("../ai/summarizer");
-const { TriviaManager } = require("../services/triviaManager");
+const { TriviaManager } = require("../features/trivia/triviaManager");
 
 /**
  * Creates stateful application services that depend on shared infrastructure.
