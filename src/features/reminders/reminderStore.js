@@ -72,7 +72,7 @@ class ReminderStore {
   }
 
   getAll(chatId) {
-    return this.remindersByChat[chatId] || [];
+    return (this.remindersByChat[chatId] || []).sort(compareRemindersByNextTrigger);
   }
 
   getAllWithChatIds() {
@@ -175,6 +175,12 @@ function toTimestamp(value) {
   const timestamp = typeof value === "number" ? value : Date.parse(value);
   if (!Number.isFinite(timestamp)) throw new Error("Reminder timestamps must be valid.");
   return timestamp;
+}
+
+function compareRemindersByNextTrigger(left, right) {
+  const leftTrigger = Date.parse(left.nextTriggerAt);
+  const rightTrigger = Date.parse(right.nextTriggerAt);
+  return (Number.isFinite(leftTrigger) ? leftTrigger : Infinity) - (Number.isFinite(rightTrigger) ? rightTrigger : Infinity);
 }
 
 module.exports = ReminderStore;

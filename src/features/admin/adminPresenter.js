@@ -15,6 +15,8 @@ const MESSAGES = {
       "",
       "*Administradores:*",
       admins.length ? admins.map((userId) => `@${userId.split("@")[0]}`).join("\n") : "No hay administradores en este grupo.",
+      "",
+      '> Dime *"Haz administrador a @usuario"* para agregar un administrador.',
     ].join("\n"),
   USER_UNBANNED: "Usuario desbloqueado.",
   USER_NOT_BANNED: "El usuario no está bloqueado.",

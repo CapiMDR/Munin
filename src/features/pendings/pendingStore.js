@@ -1,5 +1,7 @@
 const fs = require("fs");
 const path = require("path");
+const { getMexicoCityDate } = require("../../utils/timeUtils");
+const { sortPendingsByPriority } = require("./pendingUtils");
 
 class PendingStore {
   constructor(filePath = path.join(__dirname, "..", "..", "..", "data", "pendientes.json")) {
@@ -40,7 +42,7 @@ class PendingStore {
   }
 
   getAll(chatId) {
-    return this.pendingsByChat[chatId] || [];
+    return sortPendingsByPriority(this.pendingsByChat[chatId] || [], getMexicoCityDate());
   }
 
   getAllWithChatIds() {

@@ -1,16 +1,18 @@
 const { COMMANDS } = require("../../config/commandConstants");
 const { DAYS_ORDER, getDays, getMexicoCityTime, timeToMinutes } = require("../../utils/timeUtils");
 
+const CLASS_LIST_EXAMPLE = '> Dime *"Agrega Matemáticas el lunes de 8:00 a 9:30 en A-301"*.';
+
 const MESSAGES = {
   MUTATION_WITH_LIST: (confirmation, list) => `${confirmation}\n\n${list}`,
   CURRENT_CLASS_ACTIVE: (cls) => `📚 Ahora: ${cls.name} (${cls.startTime} - ${cls.endTime}) en ${cls.classroom}`,
   CURRENT_CLASS_NEXT: (cls, day) => `📚 Siguiente: ${cls.name} — ${day} ${cls.startTime} - ${cls.endTime} en ${cls.classroom}`,
-  NO_CLASSES: "No hay clases registradas.",
-  NO_CLASSES_TODAY: "No hay clases hoy.",
+  NO_CLASSES: `No hay clases registradas.\n\n${CLASS_LIST_EXAMPLE}`,
+  NO_CLASSES_TODAY: `No hay clases hoy.\n\n${CLASS_LIST_EXAMPLE}`,
   CLASSES_TODAY: (day, lines, bellEnabled) =>
-    `🐦‍⬛ Estas son las clases de hoy (${day}):\n${bellEnabled ? "🔔 Campana activada" : "🔕 Campana desactivada"}\n\n${lines.join("\n")}`,
+    `🐦‍⬛ Clases de este grupo para hoy (${day}):\n${bellEnabled ? "🔔 Campana activada" : "🔕 Campana desactivada"}\n\n${lines.join("\n")}\n\n${CLASS_LIST_EXAMPLE}`,
   ALL_CLASSES: (groups, bellEnabled) =>
-    `🐦‍⬛ Estas son todas las clases:\n${bellEnabled ? "🔔 Campana activada" : "🔕 Campana desactivada"}\n\n${groups.join("\n\n")}`,
+    `🐦‍⬛ Horario de este grupo:\n${bellEnabled ? "🔔 Campana activada" : "🔕 Campana desactivada"}\n\n${groups.join("\n\n")}\n\n${CLASS_LIST_EXAMPLE}`,
   ADD_CLASS_USAGE: `Uso: ${COMMANDS.ADD_CLASS} <nombre>, <día>, <inicio>-<fin>, <salón>\nEjemplo: ${COMMANDS.ADD_CLASS} Matemáticas, Lunes, 8:00-9:30, A-301`,
   CLASS_ADDED: (cls, day) => `✅ Clase agregada: ${cls.name} — ${day} ${cls.startTime} - ${cls.endTime} en ${cls.classroom}`,
   CLASS_EDITED: (cls, day) => `✅ Clase editada: ${cls.name} — ${day} ${cls.startTime} - ${cls.endTime} en ${cls.classroom}`,

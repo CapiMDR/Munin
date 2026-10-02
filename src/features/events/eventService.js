@@ -2,7 +2,7 @@ const { failure, success } = require("../../core/result");
 const { createDefaultEventReminders } = require("./eventDefaults");
 const { getNextEventOccurrence } = require("./eventSchedule");
 const { parseIsoDate } = require("../../utils/dateUtils");
-const { mexicoCityDateTimeToTimestamp, timestampOf, toMexicoCityIso } = require("../../utils/timeUtils");
+const { getMexicoCityDateTimeParts, mexicoCityDateTimeToTimestamp, timestampOf, toMexicoCityIso } = require("../../utils/timeUtils");
 const { partitionOneBasedIndexes } = require("../../utils/indexUtils");
 
 const RECURRENCE_FREQUENCIES = new Set(["day", "week", "month", "year"]);
@@ -13,7 +13,9 @@ const EVENT_UPDATE_FIELDS = new Set(["title", "description", "type", "startAt", 
 function createEvent(dto, eventStore, eventScheduler) {
   const title = normalizeRequiredText(dto.title);
   const createdBy = normalizeRequiredText(dto.createdBy);
-  const startAt = normalizeEventStartAt(dto.startAt);
+  const type = normalizeEventType(dto.type);
+  const normalizedStartAt = normalizeEventStartAt(dto.startAt);
+  const startAt = type === "birthday" ? getNextBirthdayOccurrence(normalizedStartAt, dto.now) : normalizedStartAt;
   if (!title || !createdBy || !startAt) return failure("EVENT_CREATE_INVALID");
 
   const recurrence = normalizeRecurrence(dto.recurrence, startAt);
@@ -22,7 +24,6 @@ function createEvent(dto, eventStore, eventScheduler) {
   if (!location.ok) return location;
 
   const id = eventStore.getNextId(dto.chatId);
-  const type = normalizeEventType(dto.type);
   const event = eventStore.add(dto.chatId, {
     id,
     title,
@@ -192,6 +193,49 @@ function normalizeEventStartAt(value) {
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:Z|[+-]\d{2}:\d{2})$/.test(value)) return null;
   const timestamp = timestampOf(value);
   return Number.isFinite(timestamp) ? toMexicoCityIso(timestamp) : null;
+}
+
+/**
+ * Replaces a birthday's supplied year with its next calendar occurrence in
+ * Mexico City. All-day birthdays remain valid for the entire current day.
+ */
+function getNextBirthdayOccurrence(startAt, now = Date.now()) {
+  if (!startAt) return null;
+  const current = getMexicoCityDateTimeParts(new Date(now));
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(startAt)) {
+    const birthday = parseIsoDate(startAt);
+    let year = getNextValidBirthdayYear(current.year, birthday.month, birthday.day);
+    if (isCalendarDateBefore({ year, month: birthday.month, day: birthday.day }, current)) {
+      year = getNextValidBirthdayYear(year + 1, birthday.month, birthday.day);
+    }
+    return formatDateOnly(year, birthday.month, birthday.day);
+  }
+
+  const birthday = getMexicoCityDateTimeParts(new Date(startAt));
+  let year = getNextValidBirthdayYear(current.year, birthday.month, birthday.day);
+  let occurrenceAt = mexicoCityDateTimeToTimestamp({ ...birthday, year });
+  if (occurrenceAt < now) {
+    year = getNextValidBirthdayYear(year + 1, birthday.month, birthday.day);
+    occurrenceAt = mexicoCityDateTimeToTimestamp({ ...birthday, year });
+  }
+  return toMexicoCityIso(occurrenceAt);
+}
+
+function formatDateOnly(year, month, day) {
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function getNextValidBirthdayYear(year, month, day) {
+  let candidateYear = year;
+  while (!parseIsoDate(formatDateOnly(candidateYear, month, day))) candidateYear += 1;
+  return candidateYear;
+}
+
+function isCalendarDateBefore(left, right) {
+  if (left.year !== right.year) return left.year < right.year;
+  if (left.month !== right.month) return left.month < right.month;
+  return left.day < right.day;
 }
 
 function toEventTimestamp(value) {

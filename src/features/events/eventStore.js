@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const { createDefaultEventReminders } = require("./eventDefaults");
+const { getNextEventOccurrence } = require("./eventSchedule");
 
 /** Persists the events belonging to each WhatsApp group. */
 class EventStore {
@@ -40,7 +41,12 @@ class EventStore {
   }
 
   getAll(chatId) {
-    return this.eventsByChat[chatId] || [];
+    const now = Date.now();
+    return (this.eventsByChat[chatId] || []).sort((left, right) => {
+      const leftOccurrence = getNextEventOccurrence(left, now) ?? Infinity;
+      const rightOccurrence = getNextEventOccurrence(right, now) ?? Infinity;
+      return leftOccurrence - rightOccurrence || String(left.id).localeCompare(String(right.id), undefined, { numeric: true });
+    });
   }
 
   getById(chatId, id) {

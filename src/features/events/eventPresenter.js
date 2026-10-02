@@ -1,4 +1,10 @@
-const { formatMexicoCityDateTime, formatRemainingDuration } = require("../../utils/timeUtils");
+const {
+  getMexicoCityDateTimeParts,
+  mexicoCityDateTimeToTimestamp,
+  formatMexicoCityDateTime,
+  formatRemainingDuration,
+} = require("../../utils/timeUtils");
+const { getNextEventOccurrence } = require("./eventSchedule");
 
 const RSVP_LABELS = { going: "voy", maybe: "tal vez", declined: "no voy" };
 const WEEKDAY_LABELS = {
@@ -20,9 +26,11 @@ function presentEventResult(result) {
     case "EVENT_UPDATED":
       return { ok: true, action: "update_event", message: `📅 Evento actualizado\n${formatEvent(event)}` };
     case "EVENT_DELETED":
-      return { ok: true, action: "delete_event", message: `📅 Evento eliminado: ${event.title} (${event.id})` };
+      return { ok: true, action: "delete_event", message: `📅 Evento eliminado: ${event.title}` };
     case "EVENTS_DELETED": {
-      const confirmation = result.data.deleted.length ? `📅 Se eliminaron ${result.data.deleted.length} eventos.` : "📅 No encontré eventos para eliminar.";
+      const confirmation = result.data.deleted.length
+        ? `📅 Se eliminaron ${result.data.deleted.length} eventos.`
+        : "📅 No encontré eventos para eliminar.";
       const clarification = result.data.invalidIndexes.length ? `\nNo encontré los índices: ${result.data.invalidIndexes.join(", ")}.` : "";
       return { ok: true, action: "delete_events", message: `${confirmation}${clarification}\n\n${formatEvents(result.data.events)}` };
     }
@@ -44,12 +52,17 @@ function presentEventResult(result) {
 }
 
 function formatEvents(events) {
-  if (!events.length) return "📅 No hay eventos guardados para este grupo.";
-  return `📅 Eventos del grupo:\n${events.map((event, index) => `${index + 1}. ${event.title} (ID: ${event.id})\n${formatEventStartAt(event.startAt)}\n${formatEventMetadata(event)}`).join("\n\n")}`;
+  if (!events.length) return '📅 No hay eventos guardados para este grupo.\n\n> Dime *"Agrega un evento: noche de cine el viernes a las 20:00"*.';
+  return `📅 Eventos del grupo:\n> Dime *"Muéstrame el evento #"* para ver sus detalles.\n${events
+    .map(
+      (event, index) =>
+        `${index + 1}. *${event.title}*\n${formatEventStartAt(event.startAt)}\n${formatDaysRemaining(event)}\n${formatEventMetadata(event)}`,
+    )
+    .join("\n\n")}\n\n> Dime *"Agrega un evento: noche de cine el viernes a las 20:00"*.`;
 }
 
 function formatEvent(event, detailed = false) {
-  const lines = [`${event.title}`, `ID: ${event.id}`, `Fecha: ${formatEventStartAt(event.startAt)}`];
+  const lines = [`${event.title}`, `Fecha: ${formatEventStartAt(event.startAt)}`, formatDaysRemaining(event)];
   lines.push(formatEventMetadata(event));
   if (event.description) lines.push(event.description);
   const location = [event.location?.name, event.location?.place].filter(Boolean).join(" · ");
@@ -65,14 +78,37 @@ function formatEventMetadata(event) {
   return `Tipo: ${formatEventType(event.type)}\nOrganiza: ${getOrganizerName(event)}`;
 }
 
+function formatDaysRemaining(event, now = Date.now()) {
+  const occurrenceAt = getNextOccurrenceForDisplay(event, now);
+  if (!occurrenceAt) return "Falta: 0 días";
+
+  const today = getMexicoCityDateTimeParts(new Date(now));
+  const occurrence = getMexicoCityDateTimeParts(new Date(occurrenceAt));
+  const days = Math.max(
+    0,
+    Math.round((Date.UTC(occurrence.year, occurrence.month - 1, occurrence.day) - Date.UTC(today.year, today.month - 1, today.day)) / 86_400_000),
+  );
+  return `Falta: ${days} ${days === 1 ? "día" : "días"}`;
+}
+
+function getNextOccurrenceForDisplay(event, now) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(event.startAt)) return getNextEventOccurrence(event, now);
+
+  const today = getMexicoCityDateTimeParts(new Date(now));
+  const startOfToday = mexicoCityDateTimeToTimestamp({ ...today, hour: 0, minute: 0 });
+  return getNextEventOccurrence(event, startOfToday - 1);
+}
+
 function formatEventType(type) {
-  return {
-    social: "social",
-    birthday: "cumpleaños",
-    anniversary: "aniversario",
-    holiday: "festividad",
-    meeting: "reunión",
-  }[type] || type;
+  return (
+    {
+      social: "social",
+      birthday: "cumpleaños",
+      anniversary: "aniversario",
+      holiday: "festividad",
+      meeting: "reunión",
+    }[type] || type
+  );
 }
 
 function getOrganizerName(event) {

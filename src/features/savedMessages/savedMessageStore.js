@@ -34,14 +34,14 @@ class SavedMessageStore {
   }
 
   getAll(chatId) {
-    return Object.values(this.messagesByChat[chatId] || {});
+    return Object.values(this.messagesByChat[chatId] || {}).sort((left, right) => left.title.localeCompare(right.title, "es"));
   }
 
   removeAt(chatId, index) {
+    const savedMessage = this.getAll(chatId)[index];
+    if (!savedMessage) return undefined;
     const messages = this.messagesByChat[chatId];
-    const key = Object.keys(messages || {})[index];
-    if (!key) return undefined;
-    const savedMessage = messages[key];
+    const key = savedMessage.title.toLowerCase();
     delete messages[key];
     this.save();
     return savedMessage;

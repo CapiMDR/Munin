@@ -48,7 +48,9 @@ function presentPendingResult(result) {
 }
 
 function formatPendings(pendings) {
-  return pendings.length ? formatDailyPendings(groupPendingsByDate(pendings, getMexicoCityDate())) : "No hay pendientes guardados para este chat.";
+  return pendings.length
+    ? `${formatDailyPendings(groupPendingsByDate(pendings, getMexicoCityDate()))}\n\n> Dime *"Agrega un pendiente para comprar hielo"*.`
+    : 'No hay pendientes guardados para este chat.\n\n> Dime *"Agrega un pendiente para comprar hielo"*.';
 }
 
 function pendingUsage() {
@@ -63,7 +65,7 @@ function formatBulkDeletion(noun, count, invalidIndexes) {
 }
 function formatDailyPendings(groups) {
   return [
-    "🐦‍⬛ Esto es lo que se tiene pendiente:",
+    "🐦‍⬛ Pendientes de este grupo:",
     groups.expired.length && `Ya se te pasaron:\n${groups.expired.join("\n")}`,
     groups.today.length && `Para hoy, no se te olviden:\n${groups.today.join("\n")}`,
     groups.active.length && `Todavía hay tiempo:\n${groups.active.join("\n")}`,

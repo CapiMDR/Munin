@@ -37,7 +37,9 @@ class CustomCommandStore {
   }
 
   getAll(chatId) {
-    return Object.entries(this.commandsByChat[chatId] || {}).map(([command, reply]) => ({ command, reply }));
+    return Object.entries(this.commandsByChat[chatId] || {})
+      .map(([command, reply]) => ({ command, reply }))
+      .sort((left, right) => left.command.localeCompare(right.command, "es"));
   }
 
   remove(chatId, command) {
@@ -49,7 +51,7 @@ class CustomCommandStore {
   }
 
   removeAt(chatId, index) {
-    const command = Object.keys(this.commandsByChat[chatId] || {})[index];
+    const command = this.getAll(chatId)[index]?.command;
     return command ? { command, reply: this.remove(chatId, command) } : undefined;
   }
 

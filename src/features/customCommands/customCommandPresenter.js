@@ -18,8 +18,8 @@ function presentCustomCommandResult(result) {
       ok: true,
       action: "list_custom_commands",
       message: commands.length
-        ? `Comandos personalizados:\n${commands.map((command, index) => `${index + 1}. ${command.command}`).join("\n")}`
-        : "No hay comandos personalizados en este grupo.",
+        ? `Comandos personalizados de este grupo:\n${commands.map((command, index) => `${index + 1}. ${command.command}`).join("\n")}\n\n> Dime *"Cuando diga buenos días, di: Buenos días, manada"*.`
+        : 'No hay comandos personalizados en este grupo.\n\n> Dime *"Cuando diga buenos días, di: Buenos días, manada"*.',
     };
   }
   if (result.code === "CUSTOM_COMMAND_DELETED")

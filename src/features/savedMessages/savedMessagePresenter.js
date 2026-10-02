@@ -10,7 +10,7 @@ function presentSavedMessageResult(result, { title } = {}) {
     return {
       ok: true,
       action: "save_message",
-      message: result.data.updated ? `Mensaje guardado actualizado: ${result.data.title}` : `Mensaje guardado como: ${result.data.title}`,
+      message: `${result.data.updated ? "Mensaje guardado actualizado" : "Mensaje guardado"}: ${result.data.title}\n${getSavedMessageUsage(result.data.title)}`,
     };
   }
   if (result.code === "SAVED_MESSAGES_LISTED")
@@ -28,6 +28,10 @@ function presentSavedMessageResult(result, { title } = {}) {
   return { ok: false, code: "SAVED_MESSAGE_RESULT_UNKNOWN", message: SAVE_MESSAGE_USAGE };
 }
 
+function getSavedMessageUsage(title) {
+  return `> Usa *${COMMANDS.VIEW_SAVED_MESSAGE} ${title}* para verlo\n> Usa *${COMMANDS.LIST_SAVED_MESSAGES}* para ver todos los mensajes guardados`;
+}
+
 function getSavedMessageErrorMessage(code, title) {
   if (code === "SAVED_MESSAGE_NOT_FOUND") return `No existe un mensaje guardado con el título: ${title}`;
   if (code === "SAVED_MESSAGE_TITLE_INVALID") return VIEW_SAVED_MESSAGE_USAGE;
@@ -38,8 +42,8 @@ function getSavedMessageErrorMessage(code, title) {
 
 function formatSavedMessages(savedMessages) {
   return savedMessages.length
-    ? `🐦‍⬛ Cosas que me pediste recordar.\nUsa !ver <nombre> para verlas:\n${savedMessages.map((message, index) => `${index + 1}. ${message.title}`).join("\n")}`
-    : "No hay mensajes guardados en este grupo.";
+    ? `🐦‍⬛ Mensajes guardados de este grupo.\nUsa ${COMMANDS.VIEW_SAVED_MESSAGE} <nombre> para verlos:\n${savedMessages.map((message, index) => `${index + 1}. ${message.title}`).join("\n")}\n\n> Responde a un mensaje y dime *"Guarda esto como reglas"*.`
+    : 'No hay mensajes guardados en este grupo.\n\n> Responde a un mensaje y dime *"Guarda esto como reglas"*.';
 }
 
 module.exports = { formatSavedMessages, presentSavedMessageResult };
