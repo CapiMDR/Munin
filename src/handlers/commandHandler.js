@@ -35,8 +35,7 @@ const adminService = require("../features/admin/adminService");
 const { presentAdminResult } = require("../features/admin/adminPresenter");
 const basicCommandService = require("../features/basicCommands/basicCommandService");
 const { presentBasicCommandResult } = require("../features/basicCommands/basicCommandPresenter");
-const {
-} = require("../utils/timeUtils");
+const {} = require("../utils/timeUtils");
 
 /**
  * Parses formal commands, invokes the appropriate application services, and
@@ -591,10 +590,10 @@ class CommandHandler {
     const result = classService.toggleBell({ chatId }, this.classStore, this.classScheduler);
     await this.sendMessage(chatId, presentClassResult(result).message);
   }
-
 }
 
 function splitWeatherArguments(args) {
+  console.log(args);
   for (const dateArgumentCount of [2, 1]) {
     if (args.length < dateArgumentCount) continue;
     const date = args.slice(0, dateArgumentCount).join(" ");
@@ -604,7 +603,10 @@ function splitWeatherArguments(args) {
 }
 
 function parsePollArguments(args) {
-  const [title = "", ...options] = args.join(" ").split(",").map((value) => value.trim());
+  const [title = "", ...options] = args
+    .join(" ")
+    .split(",")
+    .map((value) => value.trim());
   return { title, options: options.filter(Boolean) };
 }
 

@@ -20,6 +20,7 @@ const HELP_PAGES = Object.freeze([
     HELP_SECTION_INDEX,
     "",
     "Munin es el cuervo asistente del grupo. Está listo para ayudar a organizarse, recordar cosas y pasarla bien.",
+    "Solamente responde en chats grupales e ignorará cualquier mensaje privado.",
     "",
     "*Habla como quieras*",
     "Mencióname con @Munin y pide lo que necesites en lenguaje natural, o usa comandos que empiezan con `!`.",

@@ -21,7 +21,9 @@ class OpenMeteoApi {
   async getWeather(dateInput, locationInput) {
     const date = parseWeatherDate(dateInput);
     if (!date) throw new Error("Invalid weather date.");
-    const location = locationInput?.trim() ? await this.findLocation(locationInput) : { ...DEFAULT_LOCATION, name: this.locationName };
+    const location = locationInput?.trim()
+      ? await this.findLocation(locationInput)
+      : { ...DEFAULT_LOCATION, latitude: this.latitude, longitude: this.longitude, name: this.locationName };
 
     const params = new URLSearchParams({
       latitude: String(location.latitude),
