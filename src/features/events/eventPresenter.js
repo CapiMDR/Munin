@@ -58,7 +58,7 @@ function formatEvents(events) {
       (event, index) =>
         `${index + 1}. *${event.title}*\n${formatEventStartAt(event.startAt)}\n${formatDaysRemaining(event)}\n${formatEventMetadata(event)}`,
     )
-    .join("\n\n")}\n\n> Dime *"Agrega un evento: noche de cine el viernes a las 20:00"*.`;
+    .join("\n\n")}\n\n> Dime *"Agrega un evento: noche de cine el viernes a las 20:00"*.\n> Dime *"Voy/Tal vez/No voy al evento #"*.`;
 }
 
 function formatEvent(event, detailed = false) {

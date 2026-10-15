@@ -143,6 +143,7 @@ function saveMessage(args, context, savedMessageStore, userStatsStore) {
       quotedParticipant: context.message._data?.quotedParticipant,
       botLid: context.botLid,
       senderMentionId: context.sender?.mentionId,
+      savedAt: context.message.timestamp,
     },
     savedMessageStore,
     userStatsStore,

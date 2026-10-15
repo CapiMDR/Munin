@@ -270,6 +270,7 @@ class CommandHandler {
         quotedParticipant: message._data?.quotedParticipant,
         botLid,
         senderMentionId: sender?.mentionId,
+        savedAt: message.timestamp,
       },
       this.savedMessageStore,
       this.userStatsStore,

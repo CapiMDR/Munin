@@ -1,4 +1,5 @@
 const { COMMANDS } = require("../../config/commandConstants");
+const { formatMexicoCityDateTime } = require("../../utils/timeUtils");
 
 const SAVE_MESSAGE_USAGE = `Uso: responde a un mensaje con ${COMMANDS.SAVE_MESSAGE} <título>`;
 const VIEW_SAVED_MESSAGE_USAGE = `Uso: ${COMMANDS.VIEW_SAVED_MESSAGE} <título>`;
@@ -21,7 +22,7 @@ function presentSavedMessageResult(result, { title } = {}) {
     return {
       ok: true,
       action: "view_saved_message",
-      message: `Mensaje guardado: ${result.data.savedMessage.title}`,
+      message: `Mensaje guardado: ${result.data.savedMessage.title}\nFecha de guardado: ${formatSavedAt(result.data.savedMessage.savedAt)}`,
       sendOptions: { quotedMessageId: result.data.savedMessage.messageId },
     };
   }
@@ -42,8 +43,12 @@ function getSavedMessageErrorMessage(code, title) {
 
 function formatSavedMessages(savedMessages) {
   return savedMessages.length
-    ? `🐦‍⬛ Mensajes guardados de este grupo.\nUsa ${COMMANDS.VIEW_SAVED_MESSAGE} <nombre> para verlos:\n${savedMessages.map((message, index) => `${index + 1}. ${message.title}`).join("\n")}\n\n> Responde a un mensaje y dime *"Guarda esto como reglas"*.`
+    ? `🐦‍⬛ Mensajes guardados de este grupo.\nUsa ${COMMANDS.VIEW_SAVED_MESSAGE} <nombre> para verlos:\n${savedMessages.map((message, index) => `${index + 1}. ${message.title}\nFecha de guardado: ${formatSavedAt(message.savedAt)}`).join("\n\n")}\n\n> Responde a un mensaje y dime *"Guarda esto como reglas"*.`
     : 'No hay mensajes guardados en este grupo.\n\n> Responde a un mensaje y dime *"Guarda esto como reglas"*.';
+}
+
+function formatSavedAt(savedAt) {
+  return Number.isFinite(Date.parse(savedAt)) ? formatMexicoCityDateTime(savedAt) : "No disponible";
 }
 
 module.exports = { formatSavedMessages, presentSavedMessageResult };

@@ -20,11 +20,11 @@ class SavedMessageStore {
     }
   }
 
-  set(chatId, title, messageId) {
+  set(chatId, title, messageId, savedAt) {
     if (!this.messagesByChat[chatId]) this.messagesByChat[chatId] = {};
     const key = title.toLowerCase();
     const alreadyExists = Object.hasOwn(this.messagesByChat[chatId], key);
-    this.messagesByChat[chatId][key] = { title, messageId };
+    this.messagesByChat[chatId][key] = { title, messageId, savedAt };
     this.save();
     return alreadyExists;
   }

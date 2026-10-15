@@ -35,6 +35,7 @@ function createMessageHandler({
   completeToolCall,
   output,
   scheduleTimer,
+  debugQuotedMessageDate = false,
 }) {
   let botLid = initialBotLid;
   const deliverText = (chatId, text, options) => deliverOutputs([{ type: "text", chatId, text, options }]);
@@ -59,6 +60,8 @@ function createMessageHandler({
       summarizer.addMessage(message);
 
       const body = getMessageBody(message);
+      const quotedMessage = getQuotedMessage(message);
+      if (debugQuotedMessageDate && quotedMessage) logQuotedMessageDate(quotedMessage);
       const isCommand = body.startsWith("!");
       const isMention = isBotMention(message, botLid);
 
@@ -91,7 +94,7 @@ function createMessageHandler({
         if (SEND_MAINTENANCE_MESSAGE) await deliverText(chatId, MESSAGES.TEST_MODE_MAINTENANCE);
         return;
       }
-
+      //console.dir(message._data, { depth: 3 });
       if (isCommand) return handleFormalCommand(message, chatId, sender);
       return handleMention(message, chatId, sender, isMention);
     } catch (error) {
@@ -253,6 +256,12 @@ function createMessageHandler({
   }
 
   return { getBotLid, handleMessageCreate, reactToInvokingMessage: reactToMessage };
+}
+
+function logQuotedMessageDate(quotedMessage) {
+  const timestamp = Number(quotedMessage.timestamp ?? quotedMessage.t);
+  const date = Number.isFinite(timestamp) ? new Date(timestamp * 1_000).toISOString() : "unavailable";
+  console.log("Quoted message date:", date);
 }
 
 function sanitizeQuotedContent(content) {

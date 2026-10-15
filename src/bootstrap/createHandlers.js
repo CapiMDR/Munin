@@ -59,6 +59,7 @@ function createHandlers({ ai, infrastructure, services }) {
     adminStore: stores.admins,
     customCommandStore: stores.customCommands,
     savedMessageStore: stores.savedMessages,
+    eventStore: stores.events,
     getBotLid: messageHandler.getBotLid,
     summarizer,
     generateSummary: ai.generateSummary,

@@ -50,7 +50,7 @@ function presentPendingResult(result) {
 function formatPendings(pendings) {
   return pendings.length
     ? `${formatDailyPendings(groupPendingsByDate(pendings, getMexicoCityDate()))}\n\n> Dime *"Agrega un pendiente para comprar hielo"*.`
-    : 'No hay pendientes guardados para este chat.\n\n> Dime *"Agrega un pendiente para comprar hielo"*.';
+    : 'No hay pendientes guardados para este chat.\n\n> Dime *"Agrega un pendiente para pagar la luz el martes"*.';
 }
 
 function pendingUsage() {

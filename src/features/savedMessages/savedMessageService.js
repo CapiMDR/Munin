@@ -1,14 +1,19 @@
 const { failure, success } = require("../../core/result");
-function saveMessage({ chatId, title, quotedStanzaId, quotedParticipant, botLid, senderMentionId }, savedMessageStore, userStatsStore) {
+function saveMessage({ chatId, title, quotedStanzaId, quotedParticipant, botLid, senderMentionId, savedAt }, savedMessageStore, userStatsStore) {
   if (!title || !quotedStanzaId || !quotedParticipant) return failure("SAVED_MESSAGE_INPUT_INVALID");
 
   const participant = typeof quotedParticipant === "string" ? quotedParticipant : quotedParticipant._serialized;
   if (!participant) return failure("SAVED_MESSAGE_INPUT_INVALID");
 
   const messageId = `${participant === botLid}_${chatId}_${quotedStanzaId}_${participant}`;
-  const updated = savedMessageStore.set(chatId, title, messageId);
+  const updated = savedMessageStore.set(chatId, title, messageId, normalizeSavedAt(savedAt));
   userStatsStore?.recordAction(chatId, senderMentionId, "messagesSaved");
   return success(updated ? "SAVED_MESSAGE_UPDATED" : "SAVED_MESSAGE_CREATED", { title, updated, messageId });
+}
+
+function normalizeSavedAt(timestamp) {
+  const seconds = Number(timestamp);
+  return Number.isFinite(seconds) ? new Date(seconds * 1_000).toISOString() : null;
 }
 
 function getSavedMessage(chatId, title, savedMessageStore) {
