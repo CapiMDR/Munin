@@ -102,7 +102,9 @@ const TOOLS = [
       description: "Delete one or more pending items by their one-based current list indexes. Invalid indexes are ignored and reported.",
       parameters: {
         type: "object",
-        properties: { indexes: { type: "array", minItems: 1, items: { type: "integer", minimum: 1 }, description: "One or more one-based pending indexes." } },
+        properties: {
+          indexes: { type: "array", minItems: 1, items: { type: "integer", minimum: 1 }, description: "One or more one-based pending indexes." },
+        },
         required: ["indexes"],
       },
     },
@@ -167,7 +169,9 @@ const TOOLS = [
       description: "Delete one or more reminders by their one-based current list indexes. Invalid indexes are ignored and reported.",
       parameters: {
         type: "object",
-        properties: { indexes: { type: "array", minItems: 1, items: { type: "integer", minimum: 1 }, description: "One or more one-based reminder indexes." } },
+        properties: {
+          indexes: { type: "array", minItems: 1, items: { type: "integer", minimum: 1 }, description: "One or more one-based reminder indexes." },
+        },
         required: ["indexes"],
       },
     },
@@ -176,7 +180,8 @@ const TOOLS = [
     type: "function",
     function: {
       name: "edit_reminder",
-      description: "Edit a reminder by its one-based current list index. Provide at least one field. Editing duration, date/time, or recurrence immediately recalculates its next delivery; past dates are valid and will be delivered as soon as Munin can send them.",
+      description:
+        "Edit a reminder by its one-based current list index. Provide at least one field. Editing duration, date/time, or recurrence immediately recalculates its next delivery; past dates are valid and will be delivered as soon as Munin can send them.",
       parameters: {
         type: "object",
         properties: {
@@ -191,7 +196,12 @@ const TOOLS = [
             type: ["object", "null"],
             description: "Optional replacement weekly recurrence; null removes recurrence.",
             properties: {
-              interval: { type: "integer", minimum: 1 }, days_of_week: { type: "array", items: { type: "string" } }, time: { type: "string", description: "HH:mm" }, start_date: { type: "string" }, until_date: { type: ["string", "null"] }, count: { type: ["integer", "null"], minimum: 1 },
+              interval: { type: "integer", minimum: 1 },
+              days_of_week: { type: "array", items: { type: "string" } },
+              time: { type: "string", description: "HH:mm" },
+              start_date: { type: "string" },
+              until_date: { type: ["string", "null"] },
+              count: { type: ["integer", "null"], minimum: 1 },
             },
           },
         },
@@ -236,7 +246,11 @@ const TOOLS = [
       parameters: {
         type: "object",
         properties: {
-          title: { type: "string", description: "The poll question or title. Always provide one; infer a concise natural question when the user did not state it explicitly." },
+          title: {
+            type: "string",
+            description:
+              "The poll question or title. Always provide one; infer a concise natural question when the user did not state it explicitly.",
+          },
           options: { type: "array", items: { type: "string" }, minItems: 2, description: "At least two answer choices." },
           allow_multiple_answers: { type: "boolean", description: "Whether participants may select more than one choice. Defaults to false." },
         },
@@ -378,7 +392,9 @@ const TOOLS = [
       description: "Delete one or more classes by their one-based current global indexes. Invalid indexes are ignored and reported.",
       parameters: {
         type: "object",
-        properties: { indexes: { type: "array", minItems: 1, items: { type: "integer", minimum: 1 }, description: "One or more one-based class indexes." } },
+        properties: {
+          indexes: { type: "array", minItems: 1, items: { type: "integer", minimum: 1 }, description: "One or more one-based class indexes." },
+        },
         required: ["indexes"],
       },
     },
@@ -407,13 +423,23 @@ const TOOLS = [
           action: { type: "string", enum: ["create", "update", "delete", "get", "list", "rsvp"] },
           id: { type: ["string", "integer"], description: "Simple numeric event ID, for delete, get, and rsvp." },
           index: { type: "integer", minimum: 1, description: "One-based current event-list index. Use this to update an event." },
-          indexes: { type: "array", minItems: 1, items: { type: "integer", minimum: 1 }, description: "One or more current event-list indexes. Use this to delete events." },
+          indexes: {
+            type: "array",
+            minItems: 1,
+            items: { type: "integer", minimum: 1 },
+            description: "One or more current event-list indexes. Use this to delete events.",
+          },
           title: { type: "string", description: "Event title. Required to create an event." },
           description: { type: ["string", "null"], description: "Optional event description. Use null to clear it while updating." },
-          type: { type: "string", description: "Optional event type, such as social, birthday, holiday, or meeting. birthday receives birthday reminder defaults; every other type inherits social defaults." },
+          type: {
+            type: "string",
+            description:
+              "Optional event type, such as social, birthday, holiday, or meeting. birthday receives birthday reminder defaults; every other type inherits social defaults.",
+          },
           start_at: {
             type: "string",
-            description: "Required event start. For an event with a time, use a complete Mexico City ISO 8601 timestamp with offset, for example 2026-10-02T20:00:00-06:00. For an all-day event with no supplied time, use date-only YYYY-MM-DD, for example 2026-10-02.",
+            description:
+              "Required event start. For an event with a time, use a complete Mexico City ISO 8601 timestamp with offset, for example 2026-10-02T20:00:00-06:00. For an all-day event with no supplied time, use date-only YYYY-MM-DD, for example 2026-10-02.",
           },
           location: {
             type: ["object", "null"],
@@ -426,12 +452,20 @@ const TOOLS = [
           },
           recurrence: {
             type: ["object", "null"],
-            description: "Optional recurrence. Use null for a one-shot event or to remove recurrence during an update. until is inclusive and count includes the first occurrence; whichever limit is reached first applies.",
+            description:
+              "Optional recurrence. Use null for a one-shot event or to remove recurrence during an update. until is inclusive and count includes the first occurrence; whichever limit is reached first applies.",
             properties: {
               frequency: { type: "string", enum: ["day", "week", "month", "year"] },
               interval: { type: "integer", minimum: 1, description: "Repeat every N frequency units; defaults to 1." },
-              days_of_week: { type: ["array", "null"], items: { type: "string", enum: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] }, description: "Optional stable weekday values, valid only for weekly recurrence." },
-              until: { type: ["string", "null"], description: "Optional inclusive final occurrence. Use YYYY-MM-DD for all-day events, otherwise a Mexico City ISO 8601 timestamp." },
+              days_of_week: {
+                type: ["array", "null"],
+                items: { type: "string", enum: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] },
+                description: "Optional stable weekday values, valid only for weekly recurrence.",
+              },
+              until: {
+                type: ["string", "null"],
+                description: "Optional inclusive final occurrence. Use YYYY-MM-DD for all-day events, otherwise a Mexico City ISO 8601 timestamp.",
+              },
               count: { type: ["integer", "null"], minimum: 1, description: "Optional maximum occurrence count, including the first occurrence." },
             },
             required: ["frequency"],
@@ -446,7 +480,8 @@ const TOOLS = [
     type: "function",
     function: {
       name: "get_event_countdown",
-      description: "Show how much time remains until an event's next occurrence. For recurring events, uses the next occurrence. Use the numeric event ID from the event list.",
+      description:
+        "Show how much time remains until an event's next occurrence. For recurring events, uses the next occurrence. Use the numeric event ID from the event list.",
       parameters: {
         type: "object",
         properties: { id: { type: ["string", "integer"], description: "Numeric event ID, for example 1." } },
@@ -469,6 +504,26 @@ const TOOLS = [
           },
         },
         required: ["prompt"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "search_web",
+      description:
+        "Search the internet for current events, recent news, " +
+        "up-to-date facts, or information that requires external sources. " +
+        "Use when the answer may have changed or the user asks about recent events.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description: "A concise web search query.",
+          },
+        },
+        required: ["query"],
       },
     },
   },

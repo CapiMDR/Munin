@@ -31,6 +31,7 @@ const basicCommandService = require("../features/basicCommands/basicCommandServi
 const { getTimerFinishedOutput, presentBasicCommandResult } = require("../features/basicCommands/basicCommandPresenter");
 const eventService = require("../features/events/eventService");
 const { presentEventResult } = require("../features/events/eventPresenter");
+const webSearchService = require("../features/webSearch/webSearchService");
 
 /**
  * Creates an executor for LLM tool calls using application-wide dependencies.
@@ -94,6 +95,7 @@ function createAiToolExecutor({
     set_class_bell: (args, context) => setClassBell(args, context, classStore, classScheduler),
     manage_event: (args, context) => manageEvent(args, context, eventStore, eventScheduler),
     get_event_countdown: (args, context) => getEventCountdown(args, context, eventStore),
+    search_web: (args) => searchWeb(args),
   };
 
   /**
@@ -173,8 +175,8 @@ function listSavedMessages(context, savedMessageStore) {
 
 function createPending(args, context, pendingStore) {
   const content = args.content?.trim();
-  const date = args.date === undefined ? undefined : (parsePendingDate(`@${args.date}`) || null);
-  const time = args.time === undefined ? undefined : (parsePendingTime(args.time) || null);
+  const date = args.date === undefined ? undefined : parsePendingDate(`@${args.date}`) || null;
+  const time = args.time === undefined ? undefined : parsePendingTime(args.time) || null;
 
   const pendingResult = pendingService.createPending({ chatId: context.chatId, content, date, time }, pendingStore);
   const presentation = presentPendingResult(pendingResult);
@@ -190,7 +192,8 @@ function listPendings(context, pendingStore) {
 }
 
 function deletePending(args, context, pendingStore) {
-  if (!Array.isArray(args.indexes) || !args.indexes.length || !args.indexes.every(isOneBasedIndex)) return failure("At least one positive pending index is required.");
+  if (!Array.isArray(args.indexes) || !args.indexes.length || !args.indexes.every(isOneBasedIndex))
+    return failure("At least one positive pending index is required.");
   const pendingResult = pendingService.deletePendings(context.chatId, args.indexes, pendingStore);
   const presentation = presentPendingResult(pendingResult);
   return presentation.ok
@@ -205,7 +208,15 @@ function editPending(args, context, pendingStore) {
   const date = !Object.hasOwn(args, "date") ? undefined : args.date === null ? null : parsedDate;
   const time = !Object.hasOwn(args, "time") ? undefined : args.time === null ? null : parsedTime;
   const result = pendingService.updatePending(
-    { chatId: context.chatId, index: args.index - 1, content: args.content, date, time, invalidDate: args.date !== undefined && args.date !== null && !parsedDate, invalidTime: args.time !== undefined && args.time !== null && !parsedTime },
+    {
+      chatId: context.chatId,
+      index: args.index - 1,
+      content: args.content,
+      date,
+      time,
+      invalidDate: args.date !== undefined && args.date !== null && !parsedDate,
+      invalidTime: args.time !== undefined && args.time !== null && !parsedTime,
+    },
     pendingStore,
   );
   const presentation = presentPendingResult(result);
@@ -253,7 +264,8 @@ function listReminders(context, reminderStore) {
 }
 
 function deleteReminder(args, context, reminderStore, reminderScheduler) {
-  if (!Array.isArray(args.indexes) || !args.indexes.length || !args.indexes.every(isOneBasedIndex)) return failure("At least one positive reminder index is required.");
+  if (!Array.isArray(args.indexes) || !args.indexes.length || !args.indexes.every(isOneBasedIndex))
+    return failure("At least one positive reminder index is required.");
   const result = reminderService.deleteReminders(context.chatId, args.indexes, reminderStore, reminderScheduler);
   const presentation = presentReminderResult(result);
   return presentation.ok
@@ -267,13 +279,20 @@ function editReminder(args, context, reminderStore, reminderScheduler) {
     {
       chatId: context.chatId,
       index: args.index - 1,
-      text: args.content, hasText: Object.hasOwn(args, "content"),
-      duration: args.duration, hasDuration: Object.hasOwn(args, "duration"),
-      dueDate: args.due_date, hasDueDate: Object.hasOwn(args, "due_date"),
-      dueTime: args.due_time, hasDueTime: Object.hasOwn(args, "due_time"),
-      repeatCount: args.repeat_count, hasRepeatCount: Object.hasOwn(args, "repeat_count"),
-      repeatForever: args.repeat_forever, hasRepeatForever: Object.hasOwn(args, "repeat_forever"),
-      weeklyRecurrence: args.weekly_recurrence, hasWeeklyRecurrence: Object.hasOwn(args, "weekly_recurrence"),
+      text: args.content,
+      hasText: Object.hasOwn(args, "content"),
+      duration: args.duration,
+      hasDuration: Object.hasOwn(args, "duration"),
+      dueDate: args.due_date,
+      hasDueDate: Object.hasOwn(args, "due_date"),
+      dueTime: args.due_time,
+      hasDueTime: Object.hasOwn(args, "due_time"),
+      repeatCount: args.repeat_count,
+      hasRepeatCount: Object.hasOwn(args, "repeat_count"),
+      repeatForever: args.repeat_forever,
+      hasRepeatForever: Object.hasOwn(args, "repeat_forever"),
+      weeklyRecurrence: args.weekly_recurrence,
+      hasWeeklyRecurrence: Object.hasOwn(args, "weekly_recurrence"),
     },
     reminderStore,
     reminderScheduler,
@@ -380,6 +399,24 @@ async function getWeather(args, openMeteoApi) {
     : failure(presentation.code, presentation.message);
 }
 
+async function searchWeb(args) {
+  const result = await webSearchService.searchWeb(args.query);
+
+  if (!result.ok) {
+    return failure(
+      result.code === "WEB_SEARCH_QUERY_INVALID" ? "A web search query is required." : "Web search is currently unavailable.",
+    "No pude buscar en la web en este momento.",
+    );
+  }
+
+  return {
+    success: true,
+    action: "search_web",
+    query: result.data.query,
+    results: result.data.results,
+  };
+}
+
 async function reactToInvokingMessageTool(args, context, sendReaction) {
   const emoji = typeof args.emoji === "string" ? args.emoji.trim() : "";
   if (!emoji || emoji.includes("🪶") || !/\p{Extended_Pictographic}/u.test(emoji)) return failure("A non-feather emoji reaction is required.");
@@ -462,7 +499,8 @@ function editClass(args, context, classStore, classScheduler) {
 
 function deleteClass(args, context, classStore, classScheduler) {
   if (!classStore) return failure("The class store is unavailable.");
-  if (!Array.isArray(args.indexes) || !args.indexes.length || !args.indexes.every(isOneBasedIndex)) return failure("At least one positive class index is required.");
+  if (!Array.isArray(args.indexes) || !args.indexes.length || !args.indexes.every(isOneBasedIndex))
+    return failure("At least one positive class index is required.");
   const result = classService.deleteClasses({ chatId: context.chatId, indexes: args.indexes }, classStore, classScheduler);
   const presentation = presentClassResult(result);
   return presentation.ok
@@ -507,30 +545,35 @@ function manageEvent(args, context, eventStore, eventScheduler) {
       {
         const event = eventStore.getAll(context.chatId)[args.index - 1];
         if (!event) return failure("EVENT_NOT_FOUND", "No encontré un evento con ese índice en este grupo.");
-      result = eventService.updateEvent(
-        {
-          chatId: context.chatId,
-          id: event.id,
-          updates: {
-            ...(Object.hasOwn(args, "title") ? { title: args.title } : {}),
-            ...(Object.hasOwn(args, "description") ? { description: args.description } : {}),
-            ...(Object.hasOwn(args, "type") ? { type: args.type } : {}),
-            ...(Object.hasOwn(args, "start_at") ? { startAt: args.start_at } : {}),
-            ...(Object.hasOwn(args, "location") ? { location: args.location } : {}),
-            ...(Object.hasOwn(args, "recurrence") ? { recurrence: args.recurrence } : {}),
+        result = eventService.updateEvent(
+          {
+            chatId: context.chatId,
+            id: event.id,
+            updates: {
+              ...(Object.hasOwn(args, "title") ? { title: args.title } : {}),
+              ...(Object.hasOwn(args, "description") ? { description: args.description } : {}),
+              ...(Object.hasOwn(args, "type") ? { type: args.type } : {}),
+              ...(Object.hasOwn(args, "start_at") ? { startAt: args.start_at } : {}),
+              ...(Object.hasOwn(args, "location") ? { location: args.location } : {}),
+              ...(Object.hasOwn(args, "recurrence") ? { recurrence: args.recurrence } : {}),
+            },
           },
-        },
-        eventStore,
-        eventScheduler,
-      );
+          eventStore,
+          eventScheduler,
+        );
       }
       break;
     case "delete":
-      if (!Array.isArray(args.indexes) || !args.indexes.length || !args.indexes.every(isOneBasedIndex)) return failure("At least one positive event index is required.");
+      if (!Array.isArray(args.indexes) || !args.indexes.length || !args.indexes.every(isOneBasedIndex))
+        return failure("At least one positive event index is required.");
       result = eventService.deleteEvents({ chatId: context.chatId, indexes: args.indexes }, eventStore, eventScheduler);
       break;
-    case "get": result = eventService.getEvent({ chatId: context.chatId, id: args.id }, eventStore); break;
-    case "list": result = eventService.listEvents({ chatId: context.chatId }, eventStore); break;
+    case "get":
+      result = eventService.getEvent({ chatId: context.chatId, id: args.id }, eventStore);
+      break;
+    case "list":
+      result = eventService.listEvents({ chatId: context.chatId }, eventStore);
+      break;
     case "rsvp":
       result = eventService.rsvpToEvent(
         {
@@ -543,7 +586,8 @@ function manageEvent(args, context, eventStore, eventScheduler) {
         eventStore,
       );
       break;
-    default: return failure("Unknown event action.");
+    default:
+      return failure("Unknown event action.");
   }
   const presentation = presentEventResult(result);
   return presentation.ok
