@@ -12,7 +12,7 @@
 
 **Munin** is an AI-powered WhatsApp group assistant built with Node.js.
 
-Inspired by **Muninn**, the raven of memory and messenger of Odin from Norse mythology, Munin can join group conversations, remember and retrieve important messages, understand natural language requests, and handle useful commands, all while maintaining its own witty, raven-like personality.
+Inspired by **Muninn**, the raven of memory and messenger of Odin from Norse mythology, Munin can join group conversations, remember and retrieve important messages, understand natural language requests, search the internet and handle useful commands, all while maintaining its own witty, raven-like personality.
 
 Interact with Munin however you prefer: talk to it naturally or use direct commands. Ask "Remind me to submit the assignment tomorrow at 8" or type !r 1d submit the assignment. Munin understands both and gets the job done.
 
@@ -72,6 +72,7 @@ Unlike general-purpose assistants like Meta AI, **Munin lives within the group**
 
 - Converses naturally and chooses from dedicated tools when appropriate
 - Summarizes recent messages and suggests similarly named commands
+- Searches the web with Tavily when a request needs current information, returning source links
 - Can react to messages and even award rare raven feathers to exceptional contributions
 
 ### Planning and memory
@@ -113,7 +114,7 @@ Unlike general-purpose assistants like Meta AI, **Munin lives within the group**
 | WhatsApp      | [![whatsapp-web.js](https://img.shields.io/badge/whatsapp--web.js-25D366?logo=whatsapp&logoColor=white)](https://wwebjs.dev/) ![Puppeteer](https://img.shields.io/badge/Puppeteer-40B5A4?logo=puppeteer&logoColor=white)                                                                                                                                                                                   |
 | AI            | ![Groq](https://img.shields.io/badge/Groq-F55036?logo=groq&logoColor=white) ![Tool Calling](https://img.shields.io/badge/Tool%20Calling-AI-8A2BE2)                                                                                                                                                                                                                                                         |
 | Storage       | ![JSON](https://img.shields.io/badge/JSON-000000?logo=json&logoColor=white)                                                                                                                                                                                                                                                                                                                                |
-| External APIs | ![Open-Meteo](https://img.shields.io/badge/Open--Meteo-Weather-2196F3) ![Open Trivia DB](https://img.shields.io/badge/Open%20Trivia%20DB-Trivia-7B1FA2) ![TheCatAPI](https://img.shields.io/badge/TheCatAPI-Cats-FF9800) ![TheDogAPI](https://img.shields.io/badge/TheDogAPI-Dogs-795548) ![Cloudflare](https://img.shields.io/badge/Cloudflare-Image%20Generation-F38020?logo=cloudflare&logoColor=white) |
+| External APIs | ![Tavily](https://img.shields.io/badge/Tavily-Web%20Search-5C4EE5) ![Open-Meteo](https://img.shields.io/badge/Open--Meteo-Weather-2196F3) ![Open Trivia DB](https://img.shields.io/badge/Open%20Trivia%20DB-Trivia-7B1FA2) ![TheCatAPI](https://img.shields.io/badge/TheCatAPI-Cats-FF9800) ![TheDogAPI](https://img.shields.io/badge/TheDogAPI-Dogs-795548) ![Cloudflare](https://img.shields.io/badge/Cloudflare-Image%20Generation-F38020?logo=cloudflare&logoColor=white) |
 
 ---
 
@@ -124,6 +125,7 @@ Unlike general-purpose assistants like Meta AI, **Munin lives within the group**
 - Node.js 18 or newer
 - A WhatsApp account available to link by QR code
 - A Groq API key
+- A Tavily API key for web search
 - API keys for the optional cat, dog, and image-generation integrations
 
 ### Run locally
@@ -140,6 +142,9 @@ Create a `.env` file in the repository root:
 
 ```env
 GROQ_API_KEY=your_groq_key
+
+# Tavily web search
+TAVILY_API_KEY=your_tavily_api_key
 
 # Optional animal-image commands
 THE_CAT_API_KEY=your_cat_api_key
@@ -258,12 +263,13 @@ Use `!ayuda` in a group for the complete, current paginated command list. Common
 | `!gato`, `!perro`                | Send a random animal image            |
 
 You can also mention Munin naturally; the LLM can use supported tools when it understands the request.
+For current events, recent news, or facts that may have changed, Munin can search the web through Tavily and answer with the sources it found.
 
 ---
 
 ## Data and Privacy
 
-Munin stores its operational data locally in `data/`, including group configuration, saved messages, reminders, schedules, and statistics. It connects to third-party APIs only for the features that require them. Review each API provider's terms and privacy policy before deploying Munin in a group.
+Munin stores its operational data locally in `data/`, including group configuration, saved messages, reminders, schedules, and statistics. It connects to third-party APIs only for the features that require them. Web-search queries are sent to Tavily when Munin uses the web-search tool. Review each API provider's terms and privacy policy before deploying Munin in a group.
 
 ---
 
