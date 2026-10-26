@@ -6,6 +6,8 @@ const { buildSystemPrompt } = require("./promptLoader");
 const { createGroqClient } = require("./groqClient");
 
 const MAX_HISTORY = 20;
+const VISION_MODEL = "qwen/qwen3.8-27b";
+const VISION_MAX_COMPLETION_TOKENS = 1_000;
 
 // Models are tried in this order.
 const MODELS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "openai/gpt-oss-safeguard-20b"];
@@ -13,24 +15,46 @@ const MODELS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "openai/gpt-oss-saf
 const conversationStore = createConversationStore(MAX_HISTORY);
 const { complete } = createGroqClient({ models: MODELS, tools: TOOLS });
 
-async function generateResponse(chatId, senderName, message) {
+async function generateResponse(chatId, senderName, input) {
   const history = conversationStore.get(chatId);
+  const message = typeof input === "string" ? input : input.text;
+  const hasVisionInput = Boolean(input.imageDataUrl);
+  const content = input.imageDataUrl
+    ? [
+        { type: "text", text: `[${senderName}]: ${message}` },
+        { type: "image_url", image_url: { url: input.imageDataUrl } },
+      ]
+    : `[${senderName}]: ${message}`;
 
   const userMessage = {
     role: "user",
-    content: `[${senderName}]: ${message}`,
+    content,
   };
 
-  const messages = [
-    {
-      role: "system",
-      content: buildSystemPrompt(),
-    },
-    ...history,
-    userMessage,
-  ];
+  const systemMessage = {
+    role: "system",
+    content: buildSystemPrompt(),
+  };
+  const messages = hasVisionInput ? [systemMessage, userMessage] : [systemMessage, ...history, userMessage];
 
-  const { completion, model } = await complete(messages);
+  const requestedModels = hasVisionInput ? [VISION_MODEL] : undefined;
+  console.log("LLM model routing:", {
+    hasVisionInput,
+    historyMessages: hasVisionInput ? 0 : history.length,
+    requestedModels: requestedModels || MODELS,
+    useTools: !hasVisionInput,
+  });
+  const { completion, model } = await complete(
+    messages,
+    requestedModels
+      ? {
+          requestedModels,
+          useTools: false,
+          reasoningEffort: "low",
+          maxCompletionTokens: VISION_MAX_COMPLETION_TOKENS,
+        }
+      : undefined,
+  );
 
   const assistantMessage = completion.choices[0]?.message;
 
@@ -57,7 +81,7 @@ async function generateResponse(chatId, senderName, message) {
     return undefined;
   }
 
-  history.push(userMessage);
+  history.push(toHistoryMessage(userMessage));
 
   history.push({
     role: "assistant",
@@ -128,9 +152,17 @@ async function completeToolCall(chatId, toolCall, toolResult, messages, assistan
 }
 
 function storeToolResponse(history, userMessage, response) {
-  history.push(userMessage);
+  history.push(toHistoryMessage(userMessage));
   history.push({ role: "assistant", content: response });
   conversationStore.trim(history);
+}
+
+function toHistoryMessage(message) {
+  if (!Array.isArray(message.content)) return message;
+  return {
+    ...message,
+    content: `${message.content.find((part) => part.type === "text")?.text || ""}\n[Imagen adjunta analizada]`,
+  };
 }
 
 function formatToolResultFallback(toolResult, toolCall, assistantMessage) {

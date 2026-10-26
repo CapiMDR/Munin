@@ -2,13 +2,15 @@ const Groq = require("groq-sdk");
 function createGroqClient({ apiKey = process.env.GROQ_API_KEY, models, tools, client } = {}) {
   const resolvedClient = client || new Groq({ apiKey });
 
-  async function complete(messages, { useTools = true, toolChoice = "auto", temperature } = {}) {
+  async function complete(messages, { useTools = true, toolChoice = "auto", temperature, maxCompletionTokens, reasoningEffort, requestedModels = models } = {}) {
     let lastError;
-    for (const model of models) {
+    for (const model of requestedModels) {
       try {
         const options = { model, messages };
         if (useTools) Object.assign(options, { tools, tool_choice: toolChoice });
         if (temperature !== undefined) options.temperature = temperature;
+        if (maxCompletionTokens !== undefined) options.max_completion_tokens = maxCompletionTokens;
+        if (reasoningEffort !== undefined) options.reasoning_effort = reasoningEffort;
 
         console.log(`Trying model: ${model}`);
         const completion = await resolvedClient.chat.completions.create(options);

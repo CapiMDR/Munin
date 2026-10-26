@@ -1,10 +1,14 @@
 const { MESSAGES } = require("../core/messages");
+const { getImageDataUrl } = require("../features/vision/visionInput");
 const { FEATHER_COOLDOWN_MS, SEND_MAINTENANCE_MESSAGE, TEST_CHAT_ID, TEST_MODE } = require("../config/settings");
 const {
   countWords,
+  formatMessageForLLM,
   getChatId,
+  getImageMessage,
   getMentionIds,
   getMessageBody,
+  getMessageTimestampIso,
   getQuotedMessage,
   getQuotedParticipantId,
   getSenderMentionId,
@@ -61,7 +65,7 @@ function createMessageHandler({
 
       const body = getMessageBody(message);
       const quotedMessage = getQuotedMessage(message);
-      if (debugQuotedMessageDate && quotedMessage) logQuotedMessageDate(quotedMessage);
+      if (debugQuotedMessageDate && quotedMessage) console.log("Quoted message date:", getMessageTimestampIso(quotedMessage));
       const isCommand = body.startsWith("!");
       const isMention = isBotMention(message, botLid);
 
@@ -159,12 +163,17 @@ function createMessageHandler({
   async function handleMention(message, chatId, sender, isMention = isBotMention(message, botLid)) {
     if (!isMention) return;
 
-    const prompt = (await getLLMPrompt(message)) || "El usuario te mencionó sin escribir ningún mensaje.";
+    const prompt = (await formatMessageForLLM(message, botLid)) || "El usuario te mencionó sin escribir ningún mensaje.";
+    const imageDataUrl = await getMentionImageDataUrl(message);
+    console.log("Mention vision routing:", {
+      isImage: isImage(message),
+      hasVisionInput: Boolean(imageDataUrl),
+    });
     const featherDecision = shouldAwardFeather(prompt).catch((error) => {
       console.warn("Could not judge feather award:", error.message);
       return false;
     });
-    const aiResult = await generateResponse(chatId, sender.name, prompt);
+    const aiResult = await generateResponse(chatId, sender.name, { text: prompt, imageDataUrl });
     if (!aiResult) return;
     if (await featherDecision) await awardFeather(message, chatId, sender);
 
@@ -219,34 +228,17 @@ function createMessageHandler({
     }
   }
 
-  async function getLLMPrompt(message) {
-    let content = message.body || "";
-    const mentionedIds = message.mentionedIds || [];
-    let contacts = [];
-    if (mentionedIds.length) {
-      try {
-        contacts = await message.getMentions();
-      } catch (error) {
-        console.warn("Could not resolve mentioned contacts for the LLM:", error.message);
-      }
+  async function getMentionImageDataUrl(message) {
+    try {
+      const imageMessage = await getImageMessage(message);
+      if (!imageMessage) return undefined;
+
+      console.log("Vision image source:", imageMessage === message ? "mention" : "quoted message");
+      return await getImageDataUrl(imageMessage);
+    } catch (error) {
+      console.warn("Could not prepare image for the LLM:", error.message);
+      return undefined;
     }
-
-    mentionedIds.forEach((mention, index) => {
-      const mentionId = typeof mention === "string" ? mention : mention?._serialized;
-      if (!mentionId) return;
-      const rawMention = `@${mentionId.split("@")[0]}`;
-      if (mentionId === botLid) {
-        content = content.split(rawMention).join("Munin");
-        return;
-      }
-      const contact = contacts[index];
-      const displayName = contact?.pushname || contact?.name || contact?.shortName || contact?.number || "alguien";
-      content = content.split(rawMention).join(`@${displayName}`);
-    });
-
-    const quotedContent = getQuotedMessage(message)?.body?.trim();
-    if (!quotedContent) return content.trim();
-    return `${content.trim()}\n\n[Mensaje citado]\n${sanitizeQuotedContent(quotedContent)}\n[/Mensaje citado]`;
   }
 
   async function reactToMessage(message, reaction) {
@@ -256,16 +248,6 @@ function createMessageHandler({
   }
 
   return { getBotLid, handleMessageCreate, reactToInvokingMessage: reactToMessage };
-}
-
-function logQuotedMessageDate(quotedMessage) {
-  const timestamp = Number(quotedMessage.timestamp ?? quotedMessage.t);
-  const date = Number.isFinite(timestamp) ? new Date(timestamp * 1_000).toISOString() : "unavailable";
-  console.log("Quoted message date:", date);
-}
-
-function sanitizeQuotedContent(content) {
-  return content.replace(/@\d{5,}(?=\s|$|[.,;:!?])/g, "@alguien");
 }
 
 module.exports = { createMessageHandler };
