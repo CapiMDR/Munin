@@ -82,6 +82,14 @@ function isImage(message) {
   return message?.type === "image" || message?._data?.type === "image";
 }
 
+async function getImageMessage(message) {
+  if (isImage(message)) return message;
+  if (!message?.hasQuotedMsg || typeof message.getQuotedMessage !== "function") return undefined;
+
+  const quotedMessage = await message.getQuotedMessage();
+  return isImage(quotedMessage) ? quotedMessage : undefined;
+}
+
 function isVoiceNote(message) {
   return message?.type === "ptt" || message?._data?.type === "ptt";
 }
@@ -122,12 +130,55 @@ function getSerializedMessageId(message) {
   return undefined;
 }
 
+async function formatMessageForLLM(message, botLid) {
+  let content = getMessageBody(message);
+  const mentionedIds = message.mentionedIds || [];
+  let contacts = [];
+  if (mentionedIds.length) {
+    try {
+      contacts = await message.getMentions();
+    } catch (error) {
+      console.warn("Could not resolve mentioned contacts for the LLM:", error.message);
+    }
+  }
+
+  mentionedIds.forEach((mention, index) => {
+    const mentionId = typeof mention === "string" ? mention : mention?._serialized;
+    if (!mentionId) return;
+    const rawMention = `@${mentionId.split("@")[0]}`;
+    if (mentionId === botLid) {
+      content = content.split(rawMention).join("Munin");
+      return;
+    }
+    const contact = contacts[index];
+    const displayName = contact?.pushname || contact?.name || contact?.shortName || contact?.number || "alguien";
+    content = content.split(rawMention).join(`@${displayName}`);
+  });
+
+  const quotedMessage = getQuotedMessage(message);
+  const quotedContent = isImage(quotedMessage) ? "" : quotedMessage?.body?.trim();
+  if (!quotedContent) return content.trim();
+  return `${content.trim()}\n\n[Mensaje citado]\n${sanitizeQuotedContent(quotedContent)}\n[/Mensaje citado]`;
+}
+
+function getMessageTimestampIso(message) {
+  const timestamp = Number(message?.timestamp ?? message?.t);
+  return Number.isFinite(timestamp) ? new Date(timestamp * 1_000).toISOString() : "unavailable";
+}
+
+function sanitizeQuotedContent(content) {
+  return content.replace(/@\d{5,}(?=\s|$|[.,;:!?])/g, "@alguien");
+}
+
 module.exports = {
+  formatMessageForLLM,
   countWords,
   getChatId,
   getMentionIds,
   getMentionedUsers,
+  getImageMessage,
   getMessageBody,
+  getMessageTimestampIso,
   getQuotedMessage,
   getQuotedParticipantId,
   getSender,
