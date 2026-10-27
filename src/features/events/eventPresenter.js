@@ -29,7 +29,7 @@ function presentEventResult(result) {
       return { ok: true, action: "delete_event", message: `📅 Evento eliminado: ${event.title}` };
     case "EVENTS_DELETED": {
       const confirmation = result.data.deleted.length
-        ? `📅 Se eliminaron ${result.data.deleted.length} eventos.`
+        ? `${result.data.deleted.length === 1 ? "📅 Evento eliminado" : "📅 Eventos eliminados"}: ${result.data.deleted.map(({ event }) => event.title).join(", ")}`
         : "📅 No encontré eventos para eliminar.";
       const clarification = result.data.invalidIndexes.length ? `\nNo encontré los índices: ${result.data.invalidIndexes.join(", ")}.` : "";
       return { ok: true, action: "delete_events", message: `${confirmation}${clarification}\n\n${formatEvents(result.data.events)}` };
@@ -58,7 +58,7 @@ function formatEvents(events) {
       (event, index) =>
         `${index + 1}. *${event.title}*\n${formatEventStartAt(event.startAt)}\n${formatDaysRemaining(event)}\n${formatEventMetadata(event)}`,
     )
-    .join("\n\n")}\n\n> Dime *"Agrega un evento: noche de cine el viernes a las 20:00"*.\n> Dime *"Voy/Tal vez/No voy al evento #"*.`;
+    .join("\n\n")}\n\n> Dime *"Agrega un evento: noche de cine el viernes a las 20:00"*.\n> Dime *"Voy/Tal vez/No voy al evento #"*.\n> Usa *!e - <índice1> ... <índiceN>* para eliminarlos.`;
 }
 
 function formatEvent(event, detailed = false) {
@@ -163,6 +163,7 @@ function pluralizeFrequency(key, label) {
 function getErrorMessage(code) {
   const errors = {
     EVENT_NOT_FOUND: "No encontré un evento con ese ID en este grupo.",
+    EVENT_DELETE_INDEX_INVALID: "Uso: !e - <índice1> ... <índiceN>",
     EVENT_UPDATE_REQUIRED: "Indica qué dato del evento quieres cambiar.",
     EVENT_RSVP_INVALID: "No entendí tu respuesta al evento. Usa voy, tal vez o no voy.",
     EVENT_LOCATION_INVALID: "La ubicación del evento no es válida.",

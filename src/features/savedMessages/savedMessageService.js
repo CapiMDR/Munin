@@ -1,4 +1,5 @@
 const { failure, success } = require("../../core/result");
+const { partitionOneBasedIndexes } = require("../../utils/indexUtils");
 function saveMessage({ chatId, title, quotedStanzaId, quotedParticipant, botLid, senderMentionId, savedAt }, savedMessageStore, userStatsStore) {
   if (!title || !quotedStanzaId || !quotedParticipant) return failure("SAVED_MESSAGE_INPUT_INVALID");
 
@@ -26,10 +27,12 @@ function listSavedMessages(chatId, savedMessageStore) {
   return success("SAVED_MESSAGES_LISTED", { savedMessages: savedMessageStore.getAll(chatId) });
 }
 
-function deleteSavedMessage(chatId, index, savedMessageStore) {
-  if (!Number.isInteger(index) || index < 0) return failure("SAVED_MESSAGE_INDEX_INVALID");
-  const savedMessage = savedMessageStore.removeAt(chatId, index);
-  return savedMessage ? success("SAVED_MESSAGE_DELETED", { savedMessage }) : failure("SAVED_MESSAGE_INDEX_NOT_FOUND");
+function deleteSavedMessages(chatId, indexes, savedMessageStore) {
+  if (!Array.isArray(indexes) || !indexes.length) return failure("SAVED_MESSAGE_INDEX_INVALID");
+
+  const { valid, invalid } = partitionOneBasedIndexes(indexes, savedMessageStore.getAll(chatId).length);
+  const deleted = savedMessageStore.removeAtMany(chatId, valid.map((index) => index - 1));
+  return success("SAVED_MESSAGES_DELETED", { deleted, invalidIndexes: invalid });
 }
 
-module.exports = { deleteSavedMessage, getSavedMessage, listSavedMessages, saveMessage };
+module.exports = { deleteSavedMessages, getSavedMessage, listSavedMessages, saveMessage };

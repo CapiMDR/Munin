@@ -421,7 +421,7 @@ const TOOLS = [
         type: "object",
         properties: {
           action: { type: "string", enum: ["create", "update", "delete", "get", "list", "rsvp"] },
-          id: { type: ["string", "integer"], description: "Simple numeric event ID, for delete, get, and rsvp." },
+          id: { type: ["string", "integer"], description: "Simple numeric event ID, for get and rsvp." },
           index: { type: "integer", minimum: 1, description: "One-based current event-list index. Use this to update an event." },
           indexes: {
             type: "array",

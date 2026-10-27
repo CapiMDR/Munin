@@ -47,6 +47,17 @@ class SavedMessageStore {
     return savedMessage;
   }
 
+  removeAtMany(chatId, indexes) {
+    const savedMessages = this.getAll(chatId);
+    const removed = [...new Set(indexes)].map((index) => savedMessages[index]).filter(Boolean);
+    if (!removed.length) return removed;
+
+    const messages = this.messagesByChat[chatId];
+    removed.forEach((savedMessage) => delete messages[savedMessage.title.toLowerCase()]);
+    this.save();
+    return removed;
+  }
+
   save() {
     fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
     fs.writeFileSync(this.filePath, JSON.stringify(this.messagesByChat, null, 2));

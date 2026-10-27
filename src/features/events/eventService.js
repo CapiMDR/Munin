@@ -104,7 +104,7 @@ function deleteEvent({ chatId, id }, eventStore, eventScheduler) {
 }
 
 function deleteEvents({ chatId, indexes }, eventStore, eventScheduler) {
-  if (!Array.isArray(indexes) || !indexes.length) return failure("EVENT_NOT_FOUND");
+  if (!Array.isArray(indexes) || !indexes.length) return failure("EVENT_DELETE_INDEX_INVALID");
   const events = eventStore.getAll(chatId);
   const { valid, invalid } = partitionOneBasedIndexes(indexes, events.length);
   const deleted = valid

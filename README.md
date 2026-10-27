@@ -252,7 +252,7 @@ Use `!ayuda` in a group for the complete, current paginated command list. Common
 
 | Command                          | Purpose                               |
 | -------------------------------- | ------------------------------------- |
-| `!guardar`, `!ver`, `!guardados` | Save and retrieve quoted messages     |
+| `!g`, `!ver`                     | Save, list, and retrieve quoted messages |
 | `!r`                             | Create or manage reminders            |
 | `!p`                             | Create, list, or remove pending items |
 | `!resumen`                       | Summarize recent group messages       |

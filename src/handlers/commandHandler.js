@@ -162,10 +162,8 @@ class CommandHandler {
       [COMMANDS.ECHO]: this.handleEcho,
       [COMMANDS.CREATE_CUSTOM_COMMAND]: this.handleCreateCustomCommand,
       [COMMANDS.LIST_CUSTOM_COMMANDS]: this.handleListCustomCommands,
-      [COMMANDS.SAVE_MESSAGE]: this.handleSaveMessage,
+      [COMMANDS.SAVED_MESSAGES]: this.handleSavedMessages,
       [COMMANDS.VIEW_SAVED_MESSAGE]: this.handleViewSavedMessage,
-      [COMMANDS.LIST_SAVED_MESSAGES]: this.handleListSavedMessages,
-      [COMMANDS.DELETE_SAVED_MESSAGE]: this.handleDeleteSavedMessage,
       [COMMANDS.PENDING]: this.handlePending,
       [COMMANDS.REMINDER]: this.handleReminder,
       [COMMANDS.COIN]: this.handleCoin,
@@ -258,7 +256,14 @@ class CommandHandler {
     }
     await this.sendMessage(chatId, this.customCommandStore.get(chatId, commandKey));
   }
-  /** Inputs: chat ID, title arguments, quoted message, command message, and serialized message ID. Saves the command message ID under a group-specific title. Output: confirmation or usage response. */
+  /** Inputs: chat ID, saved-message arguments, quoted message, command message, and serialized message ID. Lists, saves, or deletes group-specific saved messages. Output: confirmation or usage response. */
+  async handleSavedMessages(chatId, args, quotedMessage, sender, command, message, messageId, botLid) {
+    if (args[0] === "-") return this.handleDeleteSavedMessages(chatId, args.slice(1));
+    if (args.length === 0) return this.handleListSavedMessages(chatId);
+    return this.handleSaveMessage(chatId, args, quotedMessage, sender, command, message, messageId, botLid);
+  }
+
+  /** Inputs: chat ID, title arguments, quoted message, command message, and serialized message ID. Saves the quoted message under a group-specific title. Output: confirmation or usage response. */
   async handleSaveMessage(chatId, args, quotedMessage, sender, command, message, messageId, botLid) {
     const title = args.join(" ").trim();
 
@@ -292,10 +297,10 @@ class CommandHandler {
     const presentation = presentSavedMessageResult(result);
     await this.sendMessage(chatId, presentation.message);
   }
-  /** Inputs: chat ID and saved-message index. Deletes a saved message from the current group. Output: confirmation, usage, or not-found response. */
-  async handleDeleteSavedMessage(chatId, args) {
-    const index = args.length === 1 ? Number(args[0]) - 1 : undefined;
-    const result = savedMessageService.deleteSavedMessage(chatId, index, this.savedMessageStore);
+  /** Inputs: chat ID and one or more saved-message indexes. Deletes saved messages from the current group. Output: confirmation, usage, or not-found response. */
+  async handleDeleteSavedMessages(chatId, args) {
+    const indexes = parseOneBasedIndexes(args);
+    const result = savedMessageService.deleteSavedMessages(chatId, indexes, this.savedMessageStore);
     const presentation = presentSavedMessageResult(result);
     await this.sendMessage(chatId, presentation.message);
   }
@@ -550,9 +555,16 @@ class CommandHandler {
     await this.sendMessage(chatId, presentClassResult(result).message);
   }
 
-  /** Inputs: chat ID. Lists the current group's events. Output: the sent-message promise. */
-  async handleListEvents(chatId) {
+  /** Inputs: chat ID and event arguments. Lists the current group's events or deletes selected list indexes. Output: the sent-message promise. */
+  async handleListEvents(chatId, args) {
+    if (args[0] === "-") return this.handleDeleteEvents(chatId, args.slice(1));
     const result = eventService.listEvents({ chatId }, this.eventStore);
+    await this.sendMessage(chatId, presentEventResult(result).message);
+  }
+
+  /** Inputs: chat ID and one or more event-list indexes. Deletes selected events. Output: confirmation, usage, or not-found response. */
+  async handleDeleteEvents(chatId, args) {
+    const result = eventService.deleteEvents({ chatId, indexes: parseOneBasedIndexes(args) }, this.eventStore, this.eventScheduler);
     await this.sendMessage(chatId, presentEventResult(result).message);
   }
 
