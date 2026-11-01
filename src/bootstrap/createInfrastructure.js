@@ -7,6 +7,7 @@ const AdminStore = require("../features/admin/adminStore");
 const UserStatsStore = require("../features/stats/userStatsStore");
 const WeeklyReportStore = require("../features/reports/weeklyReportStore");
 const EventStore = require("../features/events/eventStore");
+const CronometerStore = require("../features/cronometers/cronometerStore");
 const PendingScheduler = require("../features/pendings/pendingScheduler");
 const ReminderScheduler = require("../features/reminders/reminderScheduler");
 const ClassScheduler = require("../features/classes/classScheduler");
@@ -39,6 +40,7 @@ function createInfrastructure({ client, generateImage, imageMimeType }) {
     userStats: new UserStatsStore(),
     weeklyReports: new WeeklyReportStore(),
     events: new EventStore(),
+    cronometers: new CronometerStore(),
   };
   const apis = {
     animals: animalImageApis,

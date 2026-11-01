@@ -32,6 +32,8 @@ const { getTimerFinishedOutput, presentBasicCommandResult } = require("../featur
 const eventService = require("../features/events/eventService");
 const { presentEventResult } = require("../features/events/eventPresenter");
 const webSearchService = require("../features/webSearch/webSearchService");
+const cronometerService = require("../features/cronometers/cronometerService");
+const { presentCronometerResult } = require("../features/cronometers/cronometerPresenter");
 
 /**
  * Creates an executor for LLM tool calls using application-wide dependencies.
@@ -40,6 +42,7 @@ const webSearchService = require("../features/webSearch/webSearchService");
  */
 function createAiToolExecutor({
   pendingStore,
+  cronometerStore,
   reminderStore,
   reminderScheduler,
   savedMessageStore,
@@ -71,6 +74,9 @@ function createAiToolExecutor({
     edit_pending: (args, context) => editPending(args, context, pendingStore),
     list_pendings: (args, context) => listPendings(context, pendingStore),
     delete_pending: (args, context) => deletePending(args, context, pendingStore),
+    save_cronometer: (args, context) => saveCronometer(args, context, cronometerStore),
+    list_cronometers: (args, context) => listCronometers(context, cronometerStore),
+    delete_cronometers: (args, context) => deleteCronometers(args, context, cronometerStore),
     create_reminder: (args, context) => createReminder(args, context, reminderStore, reminderScheduler, userStatsStore),
     edit_reminder: (args, context) => editReminder(args, context, reminderStore, reminderScheduler),
     list_reminders: (args, context) => listReminders(context, reminderStore),
@@ -196,6 +202,32 @@ function deletePending(args, context, pendingStore) {
     return failure("At least one positive pending index is required.");
   const pendingResult = pendingService.deletePendings(context.chatId, args.indexes, pendingStore);
   const presentation = presentPendingResult(pendingResult);
+  return presentation.ok
+    ? { success: true, action: presentation.action, message: presentation.message }
+    : failure(presentation.code, presentation.message);
+}
+
+function saveCronometer(args, context, cronometerStore) {
+  if (!cronometerStore) return failure("The cronometer store is unavailable.");
+  const result = cronometerService.saveCronometer({ chatId: context.chatId, title: args.title }, cronometerStore);
+  const presentation = presentCronometerResult(result);
+  return presentation.ok
+    ? { success: true, action: presentation.action, message: presentation.message }
+    : failure(presentation.code, presentation.message);
+}
+
+function listCronometers(context, cronometerStore) {
+  if (!cronometerStore) return failure("The cronometer store is unavailable.");
+  const presentation = presentCronometerResult(cronometerService.listCronometers({ chatId: context.chatId }, cronometerStore));
+  return { success: true, action: presentation.action, message: presentation.message };
+}
+
+function deleteCronometers(args, context, cronometerStore) {
+  if (!cronometerStore) return failure("The cronometer store is unavailable.");
+  if (!Array.isArray(args.indexes) || !args.indexes.length || !args.indexes.every(isOneBasedIndex)) {
+    return failure("At least one positive cronometer index is required.");
+  }
+  const presentation = presentCronometerResult(cronometerService.deleteCronometers({ chatId: context.chatId, indexes: args.indexes }, cronometerStore));
   return presentation.ok
     ? { success: true, action: presentation.action, message: presentation.message }
     : failure(presentation.code, presentation.message);

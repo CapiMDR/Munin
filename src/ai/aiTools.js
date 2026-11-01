@@ -112,6 +112,40 @@ const TOOLS = [
   {
     type: "function",
     function: {
+      name: "save_cronometer",
+      description: "Save the current time under a title as a group-specific cronometer starting point.",
+      parameters: {
+        type: "object",
+        properties: { title: { type: "string", description: "A title for the saved time." } },
+        required: ["title"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_cronometers",
+      description: "List all saved group cronometers with their saved time and elapsed time.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "delete_cronometers",
+      description: "Delete one or more group cronometers by their one-based current list indexes. Invalid indexes are ignored and reported.",
+      parameters: {
+        type: "object",
+        properties: {
+          indexes: { type: "array", minItems: 1, items: { type: "integer", minimum: 1 }, description: "One or more one-based cronometer indexes." },
+        },
+        required: ["indexes"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "create_reminder",
       description:
         "Create a reminder for the current group. Use either a relative duration such as 30m, 2h, or 1d, or an absolute date and time. Dates accept dd/mm or Spanish relative words such as hoy, mañana, pasado mañana, or a weekday. A request like 'cada 10 minutos' is an indefinite relative recurrence: use duration '10m' and repeat_forever true. Optional repetition is only for relative reminders.",

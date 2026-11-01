@@ -31,6 +31,7 @@ function createHandlers({ ai, infrastructure, services }) {
 
   aiToolExecutor = createAiToolExecutor({
     pendingStore: stores.pending,
+    cronometerStore: stores.cronometers,
     reminderStore: stores.reminders,
     reminderScheduler: schedulers.reminders,
     savedMessageStore: stores.savedMessages,
@@ -52,6 +53,7 @@ function createHandlers({ ai, infrastructure, services }) {
   });
   commandHandler = new CommandHandler({
     pendingStore: stores.pending,
+    cronometerStore: stores.cronometers,
     reminderStore: stores.reminders,
     reminderScheduler: schedulers.reminders,
     classStore: stores.classes,

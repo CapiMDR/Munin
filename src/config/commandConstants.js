@@ -15,6 +15,7 @@ const COMMANDS = Object.freeze({
   POLL: "!encuesta",
   MULTIPLE_POLL: "!encuestam",
   TIMER: "!tiempo",
+  CRONOMETER: "!c",
   SUMMARY: "!resumen",
   BAN: "!ban",
   CONFIG: "!config",

@@ -5,6 +5,7 @@ const AdminStore = require("../features/admin/adminStore");
 const CustomCommandStore = require("../features/customCommands/customCommandStore");
 const SavedMessageStore = require("../features/savedMessages/savedMessageStore");
 const EventStore = require("../features/events/eventStore");
+const CronometerStore = require("../features/cronometers/cronometerStore");
 const pendingService = require("../features/pendings/pendingService");
 const reminderService = require("../features/reminders/reminderService");
 const savedMessageService = require("../features/savedMessages/savedMessageService");
@@ -28,6 +29,8 @@ const triviaService = require("../features/trivia/triviaService");
 const weatherService = require("../features/weather/weatherService");
 const eventService = require("../features/events/eventService");
 const { presentEventResult } = require("../features/events/eventPresenter");
+const cronometerService = require("../features/cronometers/cronometerService");
+const { presentCronometerResult } = require("../features/cronometers/cronometerPresenter");
 const { resolveMexicoCityDate } = require("../utils/dateUtils");
 const { parseOneBasedIndexes } = require("../utils/indexUtils");
 const { COMMANDS, INFINITE_TOKEN } = require("../config/commandConstants");
@@ -48,6 +51,7 @@ class CommandHandler {
    */
   constructor({
     pendingStore = new PendingStore(),
+    cronometerStore = new CronometerStore(),
     reminderStore = new ReminderStore(),
     reminderScheduler,
     classStore = new ClassStore(),
@@ -69,6 +73,7 @@ class CommandHandler {
   } = {}) {
     Object.assign(this, {
       pendingStore,
+      cronometerStore,
       reminderStore,
       reminderScheduler,
       classStore,
@@ -173,6 +178,7 @@ class CommandHandler {
       [COMMANDS.POLL]: this.handlePoll,
       [COMMANDS.MULTIPLE_POLL]: this.handlePoll,
       [COMMANDS.TIMER]: this.handleTimer,
+      [COMMANDS.CRONOMETER]: this.handleCronometer,
       [COMMANDS.SUMMARY]: this.handleSummary,
       [COMMANDS.BAN]: this.handleBan,
       [COMMANDS.CONFIG]: this.handleConfig,
@@ -393,6 +399,27 @@ class CommandHandler {
     const indexes = parseOneBasedIndexes(args);
     const result = pendingService.deletePendings(chatId, indexes, this.pendingStore);
     await this.sendMessage(chatId, presentPendingResult(result).message);
+  }
+
+  /** Inputs: chat ID and title or delete indexes. Saves, lists, or deletes group cronometers. Output: the sent-message promise. */
+  async handleCronometer(chatId, args) {
+    if (args[0] === "-") return this.handleDeleteCronometers(chatId, args.slice(1));
+    if (!args.length) return this.handleListCronometers(chatId);
+
+    const result = cronometerService.saveCronometer({ chatId, title: args.join(" ") }, this.cronometerStore);
+    await this.sendMessage(chatId, presentCronometerResult(result).message);
+  }
+
+  /** Inputs: chat ID. Lists this group's saved cronometers. Output: the sent-message promise. */
+  async handleListCronometers(chatId) {
+    const result = cronometerService.listCronometers({ chatId }, this.cronometerStore);
+    await this.sendMessage(chatId, presentCronometerResult(result).message);
+  }
+
+  /** Inputs: chat ID and one-based indexes. Deletes selected group cronometers. Output: confirmation or validation response. */
+  async handleDeleteCronometers(chatId, args) {
+    const result = cronometerService.deleteCronometers({ chatId, indexes: parseOneBasedIndexes(args) }, this.cronometerStore);
+    await this.sendMessage(chatId, presentCronometerResult(result).message);
   }
 
   /** Inputs: chat ID, arguments, optional quote, and sender. Adds, lists, or deletes reminders based on the !r syntax. Output: the sent-message promise. */
