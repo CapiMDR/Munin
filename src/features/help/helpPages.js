@@ -24,6 +24,7 @@ const HELP_PAGES = Object.freeze([
     "",
     "*Habla como quieras*",
     "Mencióname con @Munin y pide lo que necesites en lenguaje natural, o usa comandos que empiezan con `!`.",
+    "También puedes responder a uno de mis mensajes sin mencionarme.",
     "`!munin`  `!ping`  `!echo hola`",
     "",
     "*¿Qué puede hacer?*",

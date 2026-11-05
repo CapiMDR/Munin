@@ -17,6 +17,7 @@ const {
   isImage,
   isNightMessage,
   isOwnMessage,
+  isReplyToBot,
   isReplyToMessage,
   isSticker,
   isVoiceNote,
@@ -68,6 +69,7 @@ function createMessageHandler({
       if (debugQuotedMessageDate && quotedMessage) console.log("Quoted message date:", getMessageTimestampIso(quotedMessage));
       const isCommand = body.startsWith("!");
       const isMention = isBotMention(message, botLid);
+      const isReplyToMunin = isReplyToBot(message, botLid);
 
       userStatsStore.recordMessage(chatId, {
         mentionId: senderMentionId,
@@ -92,7 +94,7 @@ function createMessageHandler({
         return;
       }
 
-      if (!isCommand && !isMention) return;
+      if (!isCommand && !isMention && !isReplyToMunin) return;
 
       if (TEST_MODE && chatId !== TEST_CHAT_ID) {
         if (SEND_MAINTENANCE_MESSAGE) await deliverText(chatId, MESSAGES.TEST_MODE_MAINTENANCE);
@@ -100,7 +102,7 @@ function createMessageHandler({
       }
       //console.dir(message._data, { depth: 3 });
       if (isCommand) return handleFormalCommand(message, chatId, sender);
-      return handleMention(message, chatId, sender, isMention);
+      return handleMention(message, chatId, sender, isMention || isReplyToMunin);
     } catch (error) {
       console.error("Message handler error:", error);
     }

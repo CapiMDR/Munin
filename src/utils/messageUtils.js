@@ -65,6 +65,11 @@ function isReplyToMessage(message) {
   return Boolean(message?.hasQuotedMsg);
 }
 
+/** Determines whether the message quotes one of Munin's own messages. */
+function isReplyToBot(message, botLid) {
+  return Boolean(botLid && getQuotedParticipantId(message) === botLid);
+}
+
 function getQuotedParticipantId(message) {
   const participant = message?._data?.quotedParticipant;
   return isReplyToMessage(message) ? (typeof participant === "string" ? participant : participant?._serialized) : undefined;
@@ -189,6 +194,7 @@ module.exports = {
   isImage,
   isNightMessage,
   isOwnMessage,
+  isReplyToBot,
   isReplyToMessage,
   isSticker,
   isVoiceNote,
