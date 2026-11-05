@@ -9,6 +9,7 @@ const { resolveMexicoCityDate } = require("../../utils/dateUtils");
 const { WEEKDAYS, getNextWeeklyTrigger, parseTime, toIso } = require("./reminderSchedule");
 const { failure, success } = require("../../core/result");
 const { partitionOneBasedIndexes } = require("../../utils/indexUtils");
+const { DEFAULT_BOT_TIME } = require("../../config/settings");
 
 function createRelativeReminder(
   { chatId, text, duration, startAt, count, messageId, senderMentionId },
@@ -205,7 +206,7 @@ function createReminder(dto, reminderStore, reminderScheduler, userStatsStore) {
   } else {
     if (recurring) return failure("REMINDER_ABSOLUTE_CANNOT_REPEAT");
     const date = resolveMexicoCityDate(dto.dueDate);
-    const time = parseClockTime(dto.dueTime);
+    const time = parseClockTime(dto.dueTime ?? DEFAULT_BOT_TIME);
     if (!date || !time) return failure("REMINDER_ABSOLUTE_INVALID");
     startAt = mexicoCityDateTimeToTimestamp({ ...date, ...time });
     if (startAt <= Date.now()) return failure("REMINDER_TIME_PASSED");

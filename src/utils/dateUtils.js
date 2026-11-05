@@ -21,7 +21,12 @@ function resolveMexicoCityDate(input, now = new Date()) {
   if (Object.hasOwn(RELATIVE_DAY_OFFSETS, normalized)) return addDays(current, RELATIVE_DAY_OFFSETS[normalized]);
 
   const numeric = normalized.match(/^(\d{1,2})\/(\d{1,2})$/);
-  if (numeric) return fromParts(current.year, Number(numeric[2]), Number(numeric[1]));
+  if (numeric) {
+    const month = Number(numeric[2]);
+    const day = Number(numeric[1]);
+    const year = isCalendarDateBefore({ month, day }, current) ? current.year + 1 : current.year;
+    return fromParts(year, month, day);
+  }
 
   const weekday = normalized.match(/^(?:(este|esta|el|proximo|proxima) )?(lunes|martes|miercoles|jueves|viernes|sabado|domingo)$/);
   if (!weekday) return undefined;
@@ -44,6 +49,10 @@ function normalizeDateText(value) {
 function addDays(parts, days) {
   const date = new Date(Date.UTC(parts.year, parts.month - 1, parts.day + days));
   return fromParts(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate());
+}
+
+function isCalendarDateBefore(left, right) {
+  return left.month < right.month || (left.month === right.month && left.day < right.day);
 }
 
 function fromParts(year, month, day) {

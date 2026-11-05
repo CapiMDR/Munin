@@ -4,9 +4,13 @@ const { formatDuration, formatMexicoCityDateTime, formatReminder } = require("..
 const MESSAGES = {
   MUTATION_WITH_LIST: (confirmation, list) => `${confirmation}\n\n${list}`,
   REMINDER_USAGE: `Uso: ${COMMANDS.REMINDER} <cantidad><m/h/d> [x<veces> o ${INFINITE_TOKEN}] <contenido>. Responde a un mensaje para usarlo como contenido; ${COMMANDS.REMINDER} - <índice> lo elimina. Los recordatorios repetidos requieren un mínimo de 10m.`,
-  REMINDER_INVALID_DURATION: "No entendí el tiempo del recordatorio. Usa una cantidad positiva seguida de m, h o d; por ejemplo: 30m, 2h o 1d.",
-  REMINDER_INVALID_ABSOLUTE_TIME: "No entendí la fecha u hora del recordatorio. Usa hoy o mañana y una hora HH:mm, por ejemplo: hoy a las 10:00.",
-  REMINDER_TIME_ALREADY_PASSED: "Esa hora de hoy ya paso. Indica una hora futura o pide el recordatorio para mañana.",
+  REMINDER_INVALID_DURATION:
+    "No entendí cuándo quieres el recordatorio. Indica una fecha o un plazo, por ejemplo: mañana, 25/11, 25 de noviembre, en 30 minutos o en 2 días.",
+
+  REMINDER_INVALID_ABSOLUTE_TIME:
+    "No entendí la fecha del recordatorio. Puedes escribirla como 25/11, 25 de noviembre o mañana. La hora es opcional, si no la indicas, te recordaré a las 8:00 a. m.",
+
+  REMINDER_TIME_ALREADY_PASSED: "La fecha y hora que indicaste ya pasaron. Elige un momento futuro, por ejemplo: mañana a las 10:00 a. m.",
   RECURRING_REMINDER_ADDED: (interval, repetitions, content) => `Recordatorio repetido cada ${interval}, ${repetitions}: ${content}`,
   REMINDER_ADDED: (userTag, time, content) => `${userTag ? `${userTag} ` : ""}Te recordaré en ${time}: ${content}`,
   REMINDER_CREATED: (content, dueAt) => `Recordatorio agregado para ${dueAt}: ${content}`,

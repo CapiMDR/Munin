@@ -1,5 +1,5 @@
 const { COMMANDS } = require("../../config/commandConstants");
-const { getPendingContent, groupPendingsByDate } = require("./pendingUtils");
+const { formatPendingDate, getPendingContent, groupPendingsByDate } = require("./pendingUtils");
 const { getMexicoCityDate } = require("../../utils/timeUtils");
 
 function presentPendingResult(result) {
@@ -18,7 +18,7 @@ function presentPendingResult(result) {
       ok: true,
       action: "create_pending",
       message: mutationWithList(
-        `Pendiente agregado${pending.date ? ` para ${pending.date}` : ""}${pending.time ? ` a las ${pending.time}` : ""}: ${pending.content}`,
+        `Pendiente agregado${pending.date ? ` para ${formatPendingDate(pending.date)}` : ""}${pending.time ? ` a las ${pending.time}` : ""}: ${pending.content}`,
         formatPendings(pendings),
       ),
     };

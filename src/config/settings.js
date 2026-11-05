@@ -23,6 +23,10 @@ const SEND_MAINTENANCE_MESSAGE = getBooleanSetting(process.env.SEND_MAINTENANCE_
 const FEATHER_COOLDOWN_MS = getCooldownMs(process.env.FEATHER_COOLDOWN_MS, 30 * 60 * 1_000); //30 mins
 //How long a user has to wait before generating another image (per user, per group)
 const IMAGE_GENERATION_COOLDOWN_MS = getCooldownMs(process.env.IMAGE_GENERATION_COOLDOWN_MS, 2 * 60 * 1_000); // 2 mins
+// Default Mexico City time for daily bot actions and date-only reminders.
+const DEFAULT_BOT_TIME = "08:00";
+const [defaultBotHour, defaultBotMinute] = DEFAULT_BOT_TIME.split(":").map(Number);
+const DEFAULT_BOT_TIME_MINUTES = defaultBotHour * 60 + defaultBotMinute;
 
 module.exports = {
   TEST_MODE,
@@ -30,4 +34,6 @@ module.exports = {
   SEND_MAINTENANCE_MESSAGE,
   FEATHER_COOLDOWN_MS,
   IMAGE_GENERATION_COOLDOWN_MS,
+  DEFAULT_BOT_TIME,
+  DEFAULT_BOT_TIME_MINUTES,
 };

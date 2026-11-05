@@ -3,8 +3,9 @@ const path = require("path");
 const { formatDailyPendings } = require("./pendingPresenter");
 const { groupPendingsByDate } = require("./pendingUtils");
 const { getMexicoCityDate, getMexicoCityDateKey, getMexicoCityTime, millisecondsUntilTime } = require("../../utils/timeUtils");
+const { DEFAULT_BOT_TIME_MINUTES } = require("../../config/settings");
 
-const DAILY_SUMMARY_MINUTES = 8 * 60;
+const DAILY_SUMMARY_MINUTES = DEFAULT_BOT_TIME_MINUTES;
 
 class PendingScheduler {
   constructor(pendingStore, sendMessage, stateFilePath = path.join(__dirname, "..", "..", "..", "data", "pendingSummaryState.json")) {

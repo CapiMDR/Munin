@@ -156,12 +156,13 @@ function formatRemainingDuration(milliseconds) {
 function getMexicoCityDate(date = new Date()) {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Mexico_City",
+    year: "numeric",
     day: "2-digit",
     month: "2-digit",
   }).formatToParts(date);
   const values = Object.fromEntries(parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
 
-  return { day: Number(values.day), month: Number(values.month) };
+  return { year: Number(values.year), day: Number(values.day), month: Number(values.month) };
 }
 
 function getMexicoCityDateParts(date = new Date()) {
