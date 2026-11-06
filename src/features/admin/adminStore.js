@@ -34,6 +34,14 @@ class AdminStore {
       this.save();
     }
   }
+  replaceAdminId(chatId, previousId, userId) {
+    if (!previousId || !userId || previousId === userId) return false;
+    const chat = this.chat(chatId);
+    if (!chat.admins.includes(previousId)) return false;
+    chat.admins = [...new Set(chat.admins.map((id) => (id === previousId ? userId : id)))];
+    this.save();
+    return true;
+  }
   removeAdmin(chatId, userId) {
     if (userId === GLOBAL_ADMIN_ID) return false;
     const chat = this.chat(chatId);

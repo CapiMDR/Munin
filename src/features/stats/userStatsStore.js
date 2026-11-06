@@ -87,8 +87,9 @@ class UserStatsStore {
     if (humanMentions.length) {
       this.increment(sender, "mentionsSent", humanMentions.length);
       humanMentions.forEach((id) => {
-        const mentionedUser = mentionedUsers.find((user) => user.mentionId === id);
-        this.increment(this.getProfile(group, id, mentionedUser?.name), "mentionsReceived");
+        const mentionedUser = mentionedUsers.find((user) => user.sourceMentionId === id || user.mentionId === id);
+        const mentionedId = mentionedUser?.mentionId || id;
+        this.increment(this.getProfile(group, mentionedId, mentionedUser?.name), "mentionsReceived");
       });
     }
     const muninMentions = mentionedIds.filter((id) => id === botMentionId).length;

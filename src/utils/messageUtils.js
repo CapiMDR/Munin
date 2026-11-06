@@ -3,15 +3,18 @@ const { getMexicoCityTime } = require("./timeUtils");
 /**
  * Resolves the WhatsApp contact that sent a message into Munin's sender DTO.
  * @param {object} message WhatsApp message.
- * @returns {Promise<{name?: string, tag: string, mentionId?: string}|undefined>} Sender details.
+ * @returns {Promise<{name?: string, tag: string, mentionId?: string, mentionAliases?: string[]}|undefined>} Sender details.
  */
 async function getSender(message) {
   try {
     const contact = await message.getContact();
     const userName = contact.pushname || contact.name || contact.shortName;
-    const mentionId = contact.id?._serialized || message.author || message.id.participant;
+    const mentionId = getContactMentionId(contact, message.author || message.id.participant);
     if (!mentionId) return userName ? { tag: userName } : undefined;
-    return { name: userName, tag: `@${mentionId.split("@")[0]}`, mentionId };
+    const mentionAliases = [contact.id?._serialized, message.author, message.id?.participant, message._data?.id?.participant]
+      .map((id) => (typeof id === "string" ? id : id?._serialized))
+      .filter(Boolean);
+    return { name: userName, tag: `@${mentionId.split("@")[0]}`, mentionId, mentionAliases };
   } catch (error) {
     console.warn("Could not retrieve sender contact:", error.message);
     return undefined;
@@ -28,15 +31,24 @@ async function getMentionedUsers(message) {
   try {
     const contacts = await message.getMentions();
     return contacts
-      .map((contact) => ({
-        mentionId: contact.id?._serialized,
+      .map((contact, index) => ({
+        mentionId: getContactMentionId(contact, message.mentionedIds[index]),
+        sourceMentionId: typeof message.mentionedIds[index] === "string" ? message.mentionedIds[index] : message.mentionedIds[index]?._serialized,
         name: contact.pushname || contact.name || contact.shortName,
       }))
-      .filter((user) => user.mentionId && user.name);
+      .filter((user) => user.mentionId);
   } catch (error) {
     console.warn("Could not retrieve mentioned contacts:", error.message);
     return [];
   }
+}
+
+function getContactMentionId(contact, fallback) {
+  const contactId = contact?.id?._serialized;
+  if (typeof contactId === "string" && contactId.endsWith("@c.us")) return contactId;
+  const number = typeof contact?.number === "string" ? contact.number.replace(/\D/g, "") : "";
+  if (number) return `${number}@c.us`;
+  return contactId || (typeof fallback === "string" ? fallback : fallback?._serialized);
 }
 
 /**

@@ -182,6 +182,7 @@ Persistence directory `/data` is created at runtime.
 - `SEND_MAINTENANCE_MESSAGE=true` — explain test-mode silence to users.
 - `FEATHER_COOLDOWN_MS=<milliseconds>` — feather cooldown per user and group.
 - `IMAGE_GENERATION_COOLDOWN_MS=<milliseconds>` — image-generation cooldown per user and group.
+- `DEFAULT_BOT_TIME=<24-hour HH:mm format>` — the Mexico City time used for daily pending summaries and for date-only reminders.
 
 ---
 

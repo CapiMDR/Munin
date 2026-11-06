@@ -33,6 +33,7 @@ const cronometerService = require("../features/cronometers/cronometerService");
 const { presentCronometerResult } = require("../features/cronometers/cronometerPresenter");
 const { resolveMexicoCityDate } = require("../utils/dateUtils");
 const { parseOneBasedIndexes } = require("../utils/indexUtils");
+const { getMentionedUsers } = require("../utils/messageUtils");
 const { COMMANDS, INFINITE_TOKEN } = require("../config/commandConstants");
 const adminService = require("../features/admin/adminService");
 const { presentAdminResult } = require("../features/admin/adminPresenter");
@@ -145,7 +146,8 @@ class CommandHandler {
   async handleCommand(message, chatId, quotedMessage, sender, messageId, commandText = message.body) {
     const [command, ...args] = commandText.trim().split(/\s+/);
     if (this.adminStore.isBanned(chatId, sender?.mentionId)) return;
-    if (this.adminStore.isPaused(chatId) && !this.adminStore.isAdmin(chatId, sender?.mentionId)) return;
+    const adminSenderId = this.getAdminSenderId(chatId, sender);
+    if (this.adminStore.isPaused(chatId) && !this.adminStore.isAdmin(chatId, adminSenderId)) return;
     const commandKey = command.toLowerCase();
     const handlers = this.getHandlers();
     const handler = handlers[commandKey] || (this.customCommandStore.has(chatId, commandKey) ? this.handleCustomCommand : this.handleUnknown);
@@ -204,6 +206,15 @@ class CommandHandler {
       [COMMANDS.TRIVIA]: this.handleTrivia,
       [COMMANDS.LIST_EVENTS]: this.handleListEvents,
     };
+  }
+
+  /** Normalizes legacy LID-based group-admin entries to the sender's canonical WhatsApp @c.us ID. */
+  getAdminSenderId(chatId, sender) {
+    const senderId = sender?.mentionId;
+    if (!senderId || this.adminStore.isAdmin(chatId, senderId)) return senderId;
+    const legacyId = sender?.mentionAliases?.find((id) => this.adminStore.isAdmin(chatId, id));
+    if (legacyId && senderId.endsWith("@c.us")) this.adminStore.replaceAdminId(chatId, legacyId, senderId);
+    return senderId;
   }
 
   /** Inputs: chat ID. Sends the greeting. Output: the sent-message promise. */
@@ -538,8 +549,9 @@ class CommandHandler {
 
   /** Inputs: chat ID, mentioned user, and duration. Bans a user from commands. Output: confirmation or validation response. */
   async handleBan(chatId, args, quotedMessage, sender, command, message) {
+    const userId = await getFirstMentionedContactId(message);
     const result = adminService.banUser(
-      { chatId, senderId: sender?.mentionId, userId: message.mentionedIds?.[0], argumentCount: args.length, durationText: args.at(-1) },
+      { chatId, senderId: this.getAdminSenderId(chatId, sender), userId, argumentCount: args.length, durationText: args.at(-1) },
       this.adminStore,
     );
     const presentation = presentAdminResult(result);
@@ -552,35 +564,38 @@ class CommandHandler {
   }
   /** Inputs: chat ID and mentioned user. Clears an active ban. Output: confirmation or validation response. */
   async handleUnban(chatId, args, quotedMessage, sender, command, message) {
+    const userId = await getFirstMentionedContactId(message);
     const presentation = presentAdminResult(
-      adminService.unbanUser({ chatId, senderId: sender?.mentionId, userId: message.mentionedIds?.[0] }, this.adminStore),
+      adminService.unbanUser({ chatId, senderId: this.getAdminSenderId(chatId, sender), userId }, this.adminStore),
     );
     await this.sendMessage(chatId, presentation.message, presentation.sendOptions);
   }
   /** Inputs: chat ID and mentioned user. Grants group-admin access. Output: confirmation or validation response. */
   async handleAdmin(chatId, args, quotedMessage, sender, command, message) {
+    const userId = await getFirstMentionedContactId(message);
     const presentation = presentAdminResult(
-      adminService.addAdmin({ chatId, senderId: sender?.mentionId, userId: message.mentionedIds?.[0] }, this.adminStore),
+      adminService.addAdmin({ chatId, senderId: this.getAdminSenderId(chatId, sender), userId }, this.adminStore),
     );
     await this.sendMessage(chatId, presentation.message, presentation.sendOptions);
   }
   /** Inputs: chat ID and mentioned user. Revokes group-admin access. Output: confirmation or validation response. */
   async handleNoAdmin(chatId, args, quotedMessage, sender, command, message) {
+    const userId = await getFirstMentionedContactId(message);
     const presentation = presentAdminResult(
-      adminService.removeAdmin({ chatId, senderId: sender?.mentionId, userId: message.mentionedIds?.[0] }, this.adminStore),
+      adminService.removeAdmin({ chatId, senderId: this.getAdminSenderId(chatId, sender), userId }, this.adminStore),
     );
     await this.sendMessage(chatId, presentation.message, presentation.sendOptions);
   }
   /** Inputs: chat ID and duration. Pauses non-admin bot responses in the group. Output: confirmation or validation response. */
   async handlePause(chatId, args, quotedMessage, sender) {
     const presentation = presentAdminResult(
-      adminService.pauseBot({ chatId, senderId: sender?.mentionId, argumentCount: args.length, durationText: args[0] }, this.adminStore),
+      adminService.pauseBot({ chatId, senderId: this.getAdminSenderId(chatId, sender), argumentCount: args.length, durationText: args[0] }, this.adminStore),
     );
     await this.sendMessage(chatId, presentation.message, presentation.sendOptions);
   }
   /** Inputs: chat ID and sender. Clears the group pause. Output: confirmation or permission response. */
   async handleUnpause(chatId, args, quotedMessage, sender) {
-    const presentation = presentAdminResult(adminService.unpauseBot({ chatId, senderId: sender?.mentionId }, this.adminStore));
+    const presentation = presentAdminResult(adminService.unpauseBot({ chatId, senderId: this.getAdminSenderId(chatId, sender) }, this.adminStore));
     await this.sendMessage(chatId, presentation.message, presentation.sendOptions);
   }
 
@@ -672,6 +687,10 @@ function parsePollArguments(args) {
 
 function splitCommandContents(content) {
   return typeof content === "string" ? content.split(";").map((item) => item.trim()).filter(Boolean) : [];
+}
+
+async function getFirstMentionedContactId(message) {
+  return (await getMentionedUsers(message))[0]?.mentionId;
 }
 
 function parseReminderCommandSegment(segment) {
