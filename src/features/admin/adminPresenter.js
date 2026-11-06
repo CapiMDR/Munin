@@ -1,5 +1,5 @@
 const { COMMANDS, INFINITE_TOKEN } = require("../../config/commandConstants");
-const { formatDuration, formatRemainingDuration } = require("../../utils/timeUtils");
+const { formatDuration, formatMexicoCityDateTime, formatRemainingDuration } = require("../../utils/timeUtils");
 
 const MESSAGES = {
   USER_BANNED: (duration) => `Usuario bloqueado por ${duration}.`,
@@ -29,11 +29,11 @@ const MESSAGES = {
   BOT_UNPAUSED: "Bot reanudado en este grupo.",
   BOT_NOT_PAUSED: "El bot no está pausado en este grupo.",
   ADMIN_ONLY: "Este comando es solo para administradores.",
-  BAN_USAGE: `Uso: ${COMMANDS.BAN} @usuario <cantidad><m/h/d> o ${INFINITE_TOKEN}`,
-  UNBAN_USAGE: `Uso: ${COMMANDS.UNBAN} @usuario`,
-  ADMIN_USAGE: `Uso: ${COMMANDS.ADMIN} @usuario`,
-  NO_ADMIN_USAGE: `Uso: ${COMMANDS.NO_ADMIN} @usuario`,
-  PAUSE_USAGE: `Uso: ${COMMANDS.PAUSE} <cantidad><m/h/d> o ${INFINITE_TOKEN}`,
+  BAN_USAGE: `Uso: ${COMMANDS.BAN} @usuario <cantidad><m/h/d> o ${INFINITE_TOKEN}\nEjemplo: ${COMMANDS.BAN} @usuario 1h`,
+  UNBAN_USAGE: `Uso: ${COMMANDS.UNBAN} @usuario\nEjemplo: ${COMMANDS.UNBAN} @usuario`,
+  ADMIN_USAGE: `Uso: ${COMMANDS.ADMIN} @usuario\nEjemplo: ${COMMANDS.ADMIN} @usuario`,
+  NO_ADMIN_USAGE: `Uso: ${COMMANDS.NO_ADMIN} @usuario\nEjemplo: ${COMMANDS.NO_ADMIN} @usuario`,
+  PAUSE_USAGE: `Uso: ${COMMANDS.PAUSE} <cantidad><m/h/d> o ${INFINITE_TOKEN}\nEjemplo: ${COMMANDS.PAUSE} 30m`,
 };
 
 function presentAdminResult(result) {
@@ -47,7 +47,7 @@ function presentAdminResult(result) {
     case "ADMIN_CONFIGURATION": {
       const bans = result.data.bans.map((ban) => ({
         ...ban,
-        remaining: ban.isIndefinite ? "indefinidamente" : formatRemainingDuration(ban.until - Date.now()),
+        remaining: ban.isIndefinite ? "indefinidamente" : `${formatRemainingDuration(ban.until - Date.now())} (hasta ${formatMexicoCityDateTime(ban.until)})`,
       }));
       return {
         ok: true,

@@ -204,6 +204,8 @@ Use the WhatsApp identifier format shown above—digits plus `@c.us`. The global
 | `!admin @usuario`   | Grant a user administrator access in the current group              |
 | `!noadmin @usuario` | Remove a group administrator; the global administrator is protected |
 
+Examples: `!admin @usuario`, `!noadmin @usuario`, and `!config`.
+
 ### Moderation and pause controls
 
 | Command                           | Purpose                                                                       |
@@ -214,6 +216,8 @@ Use the WhatsApp identifier format shown above—digits plus `@c.us`. The global
 | `!pausa <cantidad><m/h/d>`        | Pause Munin in the current group for a duration                               |
 | `!pausa inf`                      | Pause Munin until an administrator resumes it                                 |
 | `!despausa`                       | Resume Munin in the current group                                             |
+
+Examples: `!ban @usuario 1h`, `!ban @usuario inf`, `!unban @usuario`, `!pausa 30m`, and `!despausa`.
 
 When a group is paused, Munin ignores normal interaction in that group from non-admin users. Bans and pauses are stored locally in `data/admins.json`.
 
