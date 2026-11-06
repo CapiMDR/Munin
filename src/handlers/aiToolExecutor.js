@@ -71,6 +71,7 @@ function createAiToolExecutor({
     view_saved_message: (args, context) => viewSavedMessage(args, context, savedMessageStore, sendMessage),
     list_saved_messages: (args, context) => listSavedMessages(context, savedMessageStore),
     create_pending: (args, context) => createPending(args, context, pendingStore),
+    create_pendings: (args, context) => createPendings(args, context, pendingStore),
     edit_pending: (args, context) => editPending(args, context, pendingStore),
     list_pendings: (args, context) => listPendings(context, pendingStore),
     delete_pending: (args, context) => deletePending(args, context, pendingStore),
@@ -78,6 +79,7 @@ function createAiToolExecutor({
     list_cronometers: (args, context) => listCronometers(context, cronometerStore),
     delete_cronometers: (args, context) => deleteCronometers(args, context, cronometerStore),
     create_reminder: (args, context) => createReminder(args, context, reminderStore, reminderScheduler, userStatsStore),
+    create_reminders: (args, context) => createReminders(args, context, reminderStore, reminderScheduler, userStatsStore),
     edit_reminder: (args, context) => editReminder(args, context, reminderStore, reminderScheduler),
     list_reminders: (args, context) => listReminders(context, reminderStore),
     delete_reminder: (args, context) => deleteReminder(args, context, reminderStore, reminderScheduler),
@@ -191,6 +193,19 @@ function createPending(args, context, pendingStore) {
     : failure(presentation.code, presentation.message);
 }
 
+function createPendings(args, context, pendingStore) {
+  const pendings = args.pendings?.map((pending) => ({
+    content: pending.content,
+    date: pending.date === undefined ? undefined : parsePendingDate(`@${pending.date}`) || null,
+    time: pending.time === undefined ? undefined : parsePendingTime(pending.time) || null,
+  }));
+  const result = pendingService.createPendings({ chatId: context.chatId, pendings }, pendingStore);
+  const presentation = presentPendingResult(result);
+  return presentation.ok
+    ? { success: true, action: presentation.action, contents: result.data.created.map((pending) => pending.content), message: presentation.message }
+    : failure(presentation.code, presentation.message);
+}
+
 function listPendings(context, pendingStore) {
   const result = pendingService.listPendings(context.chatId, pendingStore);
   const presentation = presentPendingResult(result);
@@ -288,6 +303,32 @@ function createReminder(args, context, reminderStore, reminderScheduler, userSta
     repetitions: result.data.count === null ? "infinite" : (result.data.count ?? null),
     message: presentation.message,
   };
+}
+
+function createReminders(args, context, reminderStore, reminderScheduler, userStatsStore) {
+  const result = reminderService.createReminders(
+    {
+      chatId: context.chatId,
+      reminders: args.reminders?.map((reminder) => ({
+        content: reminder.content,
+        duration: reminder.duration,
+        dueDate: reminder.due_date,
+        dueTime: reminder.due_time,
+        repeatCount: reminder.repeat_count,
+        repeatForever: reminder.repeat_forever === true,
+        weeklyRecurrence: reminder.weekly_recurrence,
+      })),
+      messageId: context.messageId,
+      senderMentionId: context.sender?.mentionId,
+    },
+    reminderStore,
+    reminderScheduler,
+    userStatsStore,
+  );
+  const presentation = presentReminderResult(result, { duration: args.duration });
+  return presentation.ok
+    ? { success: true, action: presentation.action, contents: result.data.created.map((reminder) => reminder.text), dueAt: presentation.dueAt, message: presentation.message }
+    : failure(presentation.code, presentation.message);
 }
 
 function listReminders(context, reminderStore) {

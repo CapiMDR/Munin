@@ -1,6 +1,6 @@
 const { COMMANDS } = require("../../config/commandConstants");
 
-const TRIVIA_USAGE = `Uso: ${COMMANDS.TRIVIA} <número de preguntas entre 1 y 50>`;
+const TRIVIA_USAGE = `Uso: ${COMMANDS.TRIVIA} <número de preguntas entre 1 y 50>\n\n> Dime *"Inicia una trivia de 10 preguntas"*.`;
 const TRIVIA_UNAVAILABLE = "No pude conseguir preguntas de trivia ahora. Inténtalo de nuevo más tarde.";
 
 function presentTriviaResult(result) {

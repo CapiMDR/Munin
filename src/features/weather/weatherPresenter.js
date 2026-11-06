@@ -1,6 +1,6 @@
 const { COMMANDS } = require("../../config/commandConstants");
 
-const WEATHER_USAGE = `Uso: ${COMMANDS.WEATHER} [fecha] [ubicación]`;
+const WEATHER_USAGE = `Uso: ${COMMANDS.WEATHER} [fecha] [ubicación]\n\n> Dime *"¿Cómo estará el clima mañana?"*.`;
 const WEATHER_UNAVAILABLE = "No pude consultar el clima para esa fecha. Inténtalo con una fecha próxima.";
 const WEATHER_LOCATION_NOT_FOUND = "No encontré la ubicación indicada. Revisa el nombre e inténtalo de nuevo.";
 

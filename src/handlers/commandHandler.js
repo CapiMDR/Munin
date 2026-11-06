@@ -427,6 +427,11 @@ class CommandHandler {
     if (args[0] === "-") return this.handleDeleteReminder(chatId, args.slice(1));
     if (args.length === 0) return this.handleListReminders(chatId);
 
+    const segments = args.join(" ").split(";").map((segment) => segment.trim()).filter(Boolean);
+    if (segments.length > 1 && segments.every((segment) => /^\d+[mhd](?:\s|$)/i.test(segment))) {
+      return this.handleAddIndividualReminders(chatId, segments, sender, messageId);
+    }
+
     const durationText = args[0];
     const recurrenceMatch = args[1]?.match(/^x(\d+)$/i);
     const repeatsForever = args[1]?.toLowerCase() === INFINITE_TOKEN;
@@ -435,11 +440,25 @@ class CommandHandler {
       : this.handleAddReminder(chatId, durationText, args.slice(1), quotedMessage, sender, messageId);
   }
 
+  /** Inputs: chat ID, complete semicolon-separated reminder specifications, and sender. Creates reminders with independent durations or recurrences. Output: a confirmation or validation response. */
+  async handleAddIndividualReminders(chatId, segments, sender, messageId) {
+    const reminders = segments.map(parseReminderCommandSegment);
+    const result = reminderService.createReminders(
+      { chatId, reminders, messageId, senderMentionId: sender?.mentionId },
+      this.reminderStore,
+      this.reminderScheduler,
+      this.userStatsStore,
+    );
+    const presentation = presentReminderResult(result);
+    await this.sendMessage(chatId, presentation.message, sender?.mentionId ? { mentions: [sender.mentionId] } : undefined);
+  }
+
   /** Inputs: chat ID, duration text, content arguments, optional quote and sender. Stores and schedules a one-time reminder. Output: confirmation or usage response. */
   async handleAddReminder(chatId, durationText, contentArgs, quotedMessage, sender, messageId) {
     const content = contentArgs.join(" ").trim() || quotedMessage?.body?.trim();
-    const result = reminderService.createReminder(
-      { chatId, text: content, duration: durationText, messageId, senderMentionId: sender?.mentionId },
+    const contents = splitCommandContents(content);
+    const result = (contents.length > 1 ? reminderService.createReminders : reminderService.createReminder)(
+      { chatId, ...(contents.length > 1 ? { contents } : { text: content }), duration: durationText, messageId, senderMentionId: sender?.mentionId },
       this.reminderStore,
       this.reminderScheduler,
       this.userStatsStore,
@@ -450,11 +469,12 @@ class CommandHandler {
   /** Inputs: chat ID, interval text, optional repetition count, content arguments, and optional quote. Creates a recurring reminder. Output: confirmation or usage response. */
   async handleAddRecurringReminder(chatId, intervalText, repetitionCount, contentArgs, quotedMessage, sender, messageId) {
     const content = contentArgs.join(" ").trim() || quotedMessage?.body?.trim();
+    const contents = splitCommandContents(content);
     const remaining = repetitionCount ? Number(repetitionCount) : null;
-    const result = reminderService.createReminder(
+    const result = (contents.length > 1 ? reminderService.createReminders : reminderService.createReminder)(
       {
         chatId,
-        text: content,
+        ...(contents.length > 1 ? { contents } : { text: content }),
         duration: intervalText,
         repeatCount: remaining === null ? undefined : remaining,
         repeatForever: remaining === null,
@@ -648,6 +668,23 @@ function parsePollArguments(args) {
     .split(",")
     .map((value) => value.trim());
   return { title, options: options.filter(Boolean) };
+}
+
+function splitCommandContents(content) {
+  return typeof content === "string" ? content.split(";").map((item) => item.trim()).filter(Boolean) : [];
+}
+
+function parseReminderCommandSegment(segment) {
+  const [duration, recurrence, ...rest] = segment.split(/\s+/);
+  const recurrenceMatch = recurrence?.match(/^x(\d+)$/i);
+  const repeatForever = recurrence?.toLowerCase() === INFINITE_TOKEN;
+  const content = (recurrenceMatch || repeatForever ? rest : [recurrence, ...rest]).filter(Boolean).join(" ");
+  return {
+    content,
+    duration,
+    ...(recurrenceMatch ? { repeatCount: Number(recurrenceMatch[1]) } : {}),
+    ...(repeatForever ? { repeatForever: true } : {}),
+  };
 }
 
 function emptyGroupReport() {

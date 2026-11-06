@@ -41,6 +41,8 @@ const HELP_PAGES = Object.freeze([
     "*Recordatorios*",
     '> Dime *"Recuérdame pagarle a Juan mañana a las 17:00"*.',
     "Como comando relativo desde ahora: `!r 1d pagarle a Juan`",
+    "Puedes crear varios: `!r 1h sacar la ropa; 2h apagar el horno`",
+    "También puedes pedirme varios recordatorios en un solo mensaje o texto pegado.",
     "Para repetirlo: `!r 30m x3 tomar agua`  |  Para repetirlo siempre: `!r 30m inf tomar agua`",
     '> Dime *"Muéstra mis recordatorios"* o *"quita el recordatorio 1 de la lista"*.',
     "Consulta o elimina recordatorios: `!r`  `!r - 1`  `!r - 1 3`",
@@ -49,6 +51,8 @@ const HELP_PAGES = Object.freeze([
     "*Pendientes*",
     '> Dime *"Anota comprar hielo como pendiente"*.',
     "`!p comprar hielo`",
+    "Puedes crear varios con fecha propia: `!p comprar hielo @25/12 10:00; comprar agua @26/12 12:00`",
+    "También puedes pedirme varios pendientes en un solo mensaje o texto pegado.",
     "Puedes añadir fecha y hora, o responder a un mensaje: `!p @25/12 10:00 comprar hielo`  `!p`",
     '> Dime *"Muéstra mis pendientes"* o *"quita el pendiente 1 de la lista"*.',
     "Consulta o elimina pendientes: `!p`  `!p - 1`  `!p - 1 3`",
@@ -156,6 +160,7 @@ const HELP_PAGES = Object.freeze([
     "",
     "*Bloqueos*",
     "Bloquea temporalmente a alguien o retíralos: `!ban @usuario 1h` `!unban @usuario`",
+    "Los administradores no pueden ser bloqueados.",
     `Para un bloqueo indefinido usa: \`!ban @usuario ${INFINITE_TOKEN}\``,
     "Consulta la lista de usuarios bloqueados y administradores: `!config`",
     "",
@@ -183,7 +188,7 @@ function getHelpPage(page) {
 }
 
 function getHelpPageUsage() {
-  return `Uso: ${COMMANDS.HELP} <página del 1 al ${HELP_PAGE_COUNT}>`;
+  return `Uso: ${COMMANDS.HELP} <página del 1 al ${HELP_PAGE_COUNT}>\n\n> Dime *"Muéstrame la ayuda"*.`;
 }
 
 module.exports = { getHelpPage, getHelpPageUsage };

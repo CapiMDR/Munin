@@ -42,11 +42,13 @@ class AdminStore {
     return true;
   }
   ban(chatId, userId, until) {
+    if (this.isAdmin(chatId, userId)) return false;
     this.chat(chatId).bans[userId] = until;
     this.save();
+    return true;
   }
   banIndefinitely(chatId, userId) {
-    this.ban(chatId, userId, INDEFINITE_DURATION);
+    return this.ban(chatId, userId, INDEFINITE_DURATION);
   }
   unban(chatId, userId) {
     const chat = this.chat(chatId);

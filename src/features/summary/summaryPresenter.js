@@ -14,7 +14,7 @@ function presentSummaryResult(result) {
 function getSummaryErrorMessage(result) {
   if (result.code === "SUMMARY_EMPTY") return SUMMARY_EMPTY;
   if (result.code === "SUMMARY_GENERATION_UNAVAILABLE") return SUMMARY_UNAVAILABLE;
-  return `Uso: ${COMMANDS.SUMMARY} <cantidad entre 1 y ${result.data?.maxAmount}>`;
+  return `Uso: ${COMMANDS.SUMMARY} <cantidad entre 1 y ${result.data?.maxAmount}>\n\n> Dime *"Resume los últimos 20 mensajes"*.`;
 }
 
 module.exports = { presentSummaryResult };

@@ -1,8 +1,8 @@
 const { COMMANDS } = require("../../config/commandConstants");
 const { formatMexicoCityDateTime } = require("../../utils/timeUtils");
 
-const SAVED_MESSAGES_USAGE = `Uso:\n${COMMANDS.SAVED_MESSAGES} para ver los mensajes guardados\nResponde a un mensaje con ${COMMANDS.SAVED_MESSAGES} <título> para guardarlo\n${COMMANDS.SAVED_MESSAGES} - <índice1> ... <índiceN> para eliminarlos`;
-const VIEW_SAVED_MESSAGE_USAGE = `Uso: ${COMMANDS.VIEW_SAVED_MESSAGE} <título>`;
+const SAVED_MESSAGES_USAGE = `Uso:\n${COMMANDS.SAVED_MESSAGES} para ver los mensajes guardados\nResponde a un mensaje con ${COMMANDS.SAVED_MESSAGES} <título> para guardarlo\n${COMMANDS.SAVED_MESSAGES} - <índice1> ... <índiceN> para eliminarlos\n\n> Dime *"Guarda este mensaje como reglas"*.`;
+const VIEW_SAVED_MESSAGE_USAGE = `Uso: ${COMMANDS.VIEW_SAVED_MESSAGE} <título>\n\n> Dime *"Muéstrame reglas"*.`;
 
 function presentSavedMessageResult(result, { title } = {}) {
   if (!result.ok) return { ok: false, code: result.code, message: getSavedMessageErrorMessage(result.code, title) };

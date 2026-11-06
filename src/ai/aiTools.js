@@ -73,6 +73,34 @@ const TOOLS = [
   {
     type: "function",
     function: {
+      name: "create_pendings",
+      description:
+        "Create multiple pending items found in one user message, including pasted free text, prose, or unnumbered lines. Each item may have its own optional date and time.",
+      parameters: {
+        type: "object",
+        properties: {
+          pendings: {
+            type: "array",
+            minItems: 2,
+            description: "Every distinct pending found in the message; list markers and numbering are not required.",
+            items: {
+              type: "object",
+              properties: {
+                content: { type: "string", description: "The pending item's text." },
+                date: { type: "string", description: "Optional due date in dd/mm, dd/mm/yyyy, or Spanish relative form." },
+                time: { type: "string", description: "Optional time in HH:mm format." },
+              },
+              required: ["content"],
+            },
+          },
+        },
+        required: ["pendings"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "list_pendings",
       description: "List every pending item in the current group, including its deletion index and optional date.",
       parameters: { type: "object", properties: {} },
@@ -185,6 +213,38 @@ const TOOLS = [
           },
         },
         required: ["content"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_reminders",
+      description:
+        "Create multiple reminders found in one user message, including pasted free text, prose, or unnumbered lines. Every reminder may have its own schedule.",
+      parameters: {
+        type: "object",
+        properties: {
+          reminders: {
+            type: "array",
+            minItems: 2,
+            description: "Every distinct reminder found in the message, with its own schedule; list markers and numbering are not required.",
+            items: {
+              type: "object",
+              properties: {
+                content: { type: "string", description: "The reminder text." },
+                duration: { type: "string", description: "Relative duration using m, h, or d." },
+                due_date: { type: "string", description: "Absolute date in dd/mm or Spanish relative form." },
+                due_time: { type: "string", description: "Absolute time in HH:mm." },
+                repeat_count: { type: "integer", minimum: 1 },
+                repeat_forever: { type: "boolean" },
+                weekly_recurrence: { type: "object", description: "Optional weekly recurrence using the same fields as create_reminder." },
+              },
+              required: ["content"],
+            },
+          },
+        },
+        required: ["reminders"],
       },
     },
   },

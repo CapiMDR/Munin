@@ -10,11 +10,27 @@ function createPending({ chatId, content, date, time }, pendingStore) {
   return success("PENDING_CREATED", { pending, pendings: pendingStore.getAll(chatId) });
 }
 
+function createPendings({ chatId, pendings, contents, date, time }, pendingStore) {
+  const entries = normalizePendingEntries(pendings, contents, date, time);
+  if (!entries) return failure("PENDING_CONTENT_REQUIRED");
+  if (entries.some((entry) => entry.date === null)) return failure("PENDING_DATE_INVALID");
+  if (entries.some((entry) => entry.time === null)) return failure("PENDING_TIME_INVALID");
+
+  const created = entries.map((entry) => pendingStore.add(chatId, entry.content, entry.date, entry.time));
+  return success("PENDINGS_CREATED", { created, pendings: pendingStore.getAll(chatId) });
+}
+
 function listPendings(chatId, pendingStore) {
   return success("PENDINGS_LISTED", { pendings: pendingStore.getAll(chatId) });
 }
 
 function createPendingFromCommand({ chatId, args, quotedContent }, pendingStore) {
+  const segments = args.join(" ").split(";").map((segment) => segment.trim()).filter(Boolean);
+  if (segments.length > 1 || (!args[0]?.startsWith("@") && args.some((argument) => argument.startsWith("@")))) {
+    const pendings = segments.map(parsePendingCommandSegment);
+    if (pendings.some((pending) => !pending)) return failure("PENDING_CONTENT_REQUIRED");
+    return pendings.length > 1 ? createPendings({ chatId, pendings }, pendingStore) : createPending({ chatId, ...pendings[0] }, pendingStore);
+  }
   const { date, argumentCount: dateArgumentCount } = parsePendingDateArguments(args);
   if (args[0]?.startsWith("@") && !date) return failure("PENDING_DATE_INVALID");
 
@@ -27,7 +43,46 @@ function createPendingFromCommand({ chatId, args, quotedContent }, pendingStore)
       .slice((date ? dateArgumentCount : 0) + (time ? 1 : 0))
       .join(" ")
       .trim() || quotedContent?.trim();
-  return createPending({ chatId, content, date, time }, pendingStore);
+  const contents = splitContents(content);
+  return contents.length > 1
+    ? createPendings({ chatId, contents, date, time }, pendingStore)
+    : createPending({ chatId, content, date, time }, pendingStore);
+}
+
+function splitContents(content) {
+  return typeof content === "string" ? content.split(";").map((item) => item.trim()).filter(Boolean) : [];
+}
+
+function normalizePendingEntries(pendings, contents, date, time) {
+  const entries = Array.isArray(pendings)
+    ? pendings
+    : Array.isArray(contents)
+      ? contents.map((content) => ({ content, date, time }))
+      : undefined;
+  if (!entries?.length) return undefined;
+  const normalized = entries.map((entry) => ({
+    content: typeof entry?.content === "string" ? entry.content.trim() : "",
+    date: entry?.date,
+    time: entry?.time,
+  }));
+  return normalized.every((entry) => entry.content) ? normalized : undefined;
+}
+
+function parsePendingCommandSegment(segment) {
+  const tokens = segment.split(/\s+/);
+  const dateIndex = tokens.findIndex((token) => token.startsWith("@"));
+  if (dateIndex === -1) return { content: segment };
+
+  for (const dateArgumentCount of [2, 1]) {
+    const date = parsePendingDate(tokens.slice(dateIndex, dateIndex + dateArgumentCount).join(" "));
+    if (!date) continue;
+    const time = parsePendingTime(tokens[dateIndex + dateArgumentCount]);
+    const hasTimeToken = /^\d{1,2}:\d{2}$/.test(tokens[dateIndex + dateArgumentCount] || "");
+    if (hasTimeToken && !time) return { content: "", time: null };
+    const content = [...tokens.slice(0, dateIndex), ...tokens.slice(dateIndex + dateArgumentCount + (time ? 1 : 0))].join(" ").trim();
+    return { content, date, time };
+  }
+  return { content: "", date: null };
 }
 
 function deletePending(chatId, index, pendingStore) {
@@ -72,4 +127,4 @@ function parsePendingDateArguments(args) {
   return { date: undefined, argumentCount: 0 };
 }
 
-module.exports = { createPending, createPendingFromCommand, deletePending, deletePendings, listPendings, updatePending };
+module.exports = { createPending, createPendings, createPendingFromCommand, deletePending, deletePendings, listPendings, updatePending };

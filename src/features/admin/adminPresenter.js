@@ -23,6 +23,7 @@ const MESSAGES = {
   ADMIN_ADDED: "Administrador agregado para este grupo.",
   ADMIN_REMOVED: "Administrador eliminado de este grupo.",
   GLOBAL_ADMIN_PROTECTED: "El administrador global no puede ser removido.",
+  ADMIN_BAN_PROTECTED: "No se puede bloquear a un administrador.",
   BOT_PAUSED: (duration) => `Bot pausado por ${duration}.`,
   BOT_PAUSED_INDEFINITELY: "Bot pausado indefinidamente.",
   BOT_UNPAUSED: "Bot reanudado en este grupo.",
@@ -80,6 +81,7 @@ function presentAdminResult(result) {
 
 function getAdminErrorMessage(code) {
   if (code === "ADMIN_FORBIDDEN") return MESSAGES.ADMIN_ONLY;
+  if (code === "ADMIN_TARGET_IS_ADMIN") return MESSAGES.ADMIN_BAN_PROTECTED;
   if (code === "ADMIN_BAN_INPUT_INVALID") return MESSAGES.BAN_USAGE;
   if (code === "ADMIN_UNBAN_INPUT_INVALID") return MESSAGES.UNBAN_USAGE;
   if (code === "ADMIN_ADD_INPUT_INVALID") return MESSAGES.ADMIN_USAGE;

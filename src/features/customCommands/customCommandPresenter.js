@@ -1,6 +1,6 @@
 const { COMMANDS } = require("../../config/commandConstants");
 
-const CUSTOM_COMMAND_USAGE = `Uso: ${COMMANDS.CREATE_CUSTOM_COMMAND} !<nombre> <respuesta>`;
+const CUSTOM_COMMAND_USAGE = `Uso: ${COMMANDS.CREATE_CUSTOM_COMMAND} !<nombre> <respuesta>\n\n> Dime *"Cuando diga saluda, di hola"*.`;
 
 function presentCustomCommandResult(result) {
   if (!result.ok) {
@@ -9,7 +9,7 @@ function presentCustomCommandResult(result) {
     if (result.code === "CUSTOM_COMMAND_NOT_FOUND")
       return { ok: false, code: result.code, message: "No existe un comando personalizado con ese índice." };
     if (result.code === "CUSTOM_COMMAND_INDEX_INVALID")
-      return { ok: false, code: result.code, message: `Uso: ${COMMANDS.CREATE_CUSTOM_COMMAND} - <índice>` };
+      return { ok: false, code: result.code, message: `Uso: ${COMMANDS.CREATE_CUSTOM_COMMAND} - <índice>\n\n> Dime *"Elimina el comando 1"*.` };
     return { ok: false, code: result.code, message: CUSTOM_COMMAND_USAGE };
   }
   if (result.code === "CUSTOM_COMMANDS_LISTED") {

@@ -38,7 +38,7 @@ function formatCronometers(cronometers, now = Date.now()) {
 }
 
 function cronometerUsage() {
-  return `Uso: ${COMMANDS.CRONOMETER} <título> para guardar la hora, ${COMMANDS.CRONOMETER} para listar, o ${COMMANDS.CRONOMETER} - <índice> para eliminar.`;
+  return `Uso: ${COMMANDS.CRONOMETER} <título> para guardar la hora, ${COMMANDS.CRONOMETER} para listar, o ${COMMANDS.CRONOMETER} - <índice> para eliminar.\n\n> Dime *"Guarda un cronómetro para la pizza"*.`;
 }
 
 module.exports = { formatCronometers, presentCronometerResult };

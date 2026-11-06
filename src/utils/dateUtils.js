@@ -20,11 +20,11 @@ function resolveMexicoCityDate(input, now = new Date()) {
   const current = getMexicoCityDateParts(now);
   if (Object.hasOwn(RELATIVE_DAY_OFFSETS, normalized)) return addDays(current, RELATIVE_DAY_OFFSETS[normalized]);
 
-  const numeric = normalized.match(/^(\d{1,2})\/(\d{1,2})$/);
+  const numeric = normalized.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?$/);
   if (numeric) {
     const month = Number(numeric[2]);
     const day = Number(numeric[1]);
-    const year = isCalendarDateBefore({ month, day }, current) ? current.year + 1 : current.year;
+    const year = numeric[3] ? Number(numeric[3]) : isCalendarDateBefore({ month, day }, current) ? current.year + 1 : current.year;
     return fromParts(year, month, day);
   }
 

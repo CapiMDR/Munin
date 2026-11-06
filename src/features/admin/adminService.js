@@ -8,6 +8,7 @@ function banUser({ chatId, senderId, userId, argumentCount, durationText }, admi
   const isIndefinite = durationText?.toLowerCase() === INFINITE_TOKEN;
   const duration = parseDuration(durationText);
   if (!userId || argumentCount !== 2 || (!isIndefinite && !duration)) return failure("ADMIN_BAN_INPUT_INVALID");
+  if (adminStore.isAdmin(chatId, userId)) return failure("ADMIN_TARGET_IS_ADMIN");
 
   if (isIndefinite) {
     adminStore.banIndefinitely(chatId, userId);

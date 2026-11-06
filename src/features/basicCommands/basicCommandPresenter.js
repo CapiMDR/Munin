@@ -98,9 +98,9 @@ function presentBasicCommandResult(result, { chatId } = {}) {
 }
 
 function getBasicErrorMessage(code) {
-  if (code === "BASIC_RANDOM_INPUT_INVALID") return `Uso: ${COMMANDS.RANDOM} <opción1>, <opción2> ... , <opciónN>`;
-  if (code === "BASIC_POLL_INPUT_INVALID") return `Uso: ${COMMANDS.POLL} <título>,<opción1>,<opción2>,...,<opciónN>`;
-  if (code === "BASIC_TIMER_INPUT_INVALID") return `Uso: ${COMMANDS.TIMER} <cantidad><s/m/h>`;
+  if (code === "BASIC_RANDOM_INPUT_INVALID") return `Uso: ${COMMANDS.RANDOM} <opción1>, <opción2> ... , <opciónN>\n\n> Dime *"Elige entre pizza y tacos"*.`;
+  if (code === "BASIC_POLL_INPUT_INVALID") return `Uso: ${COMMANDS.POLL} <título>,<opción1>,<opción2>,...,<opciónN>\n\n> Dime *"Crea una encuesta para elegir la cena"*.`;
+  if (code === "BASIC_TIMER_INPUT_INVALID") return `Uso: ${COMMANDS.TIMER} <cantidad><s/m/h>\n\n> Dime *"Pon un temporizador de 10 minutos"*.`;
   if (code === "BASIC_ANIMAL_INVALID") return IMAGE_GENERATION_UNAVAILABLE;
   return "pong";
 }

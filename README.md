@@ -79,8 +79,8 @@ Unlike general-purpose assistants like Meta AI, **Munin lives within the group**
 ### Planning and memory
 
 - Save and retrieve quoted messages without limits (better than WhatsApp pins)
-- Create one-time, absolute, relative, and recurring reminders
-- Maintain dated pending items and receive a daily pending summary
+- Create one-time, absolute, relative, and recurring reminders, including several items from one natural-language request
+- Maintain dated pending items and receive a daily pending summary. Add several pending items at once with a natural-language request
 - Manage a weekly class schedule and optional class-bell alerts
 - Organize events on a specific date or set them to be recurring ones like birthdays
 - Confirm your attendance and be reminded of upcoming events from the group
@@ -109,12 +109,12 @@ Unlike general-purpose assistants like Meta AI, **Munin lives within the group**
 
 ## Technology Stack
 
-| Category      | Technologies                                                                                                                                                                                                                                                                                                                                                                                               |
-| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runtime       | ![Node.js](https://img.shields.io/badge/Node.js-339933?logo=nodedotjs&logoColor=white) ![CommonJS](https://img.shields.io/badge/CommonJS-333333?logo=javascript&logoColor=F7DF1E)                                                                                                                                                                                                                          |
-| WhatsApp      | [![whatsapp-web.js](https://img.shields.io/badge/whatsapp--web.js-25D366?logo=whatsapp&logoColor=white)](https://wwebjs.dev/) ![Puppeteer](https://img.shields.io/badge/Puppeteer-40B5A4?logo=puppeteer&logoColor=white)                                                                                                                                                                                   |
-| AI            | ![Groq](https://img.shields.io/badge/Groq-F55036?logo=groq&logoColor=white) ![Qwen 3.8](https://img.shields.io/badge/Qwen%203.8-Vision-5B4EE5) ![Tool Calling](https://img.shields.io/badge/Tool%20Calling-AI-8A2BE2)                                                                                                                                                                                                                                        |
-| Storage       | ![JSON](https://img.shields.io/badge/JSON-000000?logo=json&logoColor=white)                                                                                                                                                                                                                                                                                                                                |
+| Category      | Technologies                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runtime       | ![Node.js](https://img.shields.io/badge/Node.js-339933?logo=nodedotjs&logoColor=white) ![CommonJS](https://img.shields.io/badge/CommonJS-333333?logo=javascript&logoColor=F7DF1E)                                                                                                                                                                                                                                                                                             |
+| WhatsApp      | [![whatsapp-web.js](https://img.shields.io/badge/whatsapp--web.js-25D366?logo=whatsapp&logoColor=white)](https://wwebjs.dev/) ![Puppeteer](https://img.shields.io/badge/Puppeteer-40B5A4?logo=puppeteer&logoColor=white)                                                                                                                                                                                                                                                      |
+| AI            | ![Groq](https://img.shields.io/badge/Groq-F55036?logo=groq&logoColor=white) ![Qwen 3.8](https://img.shields.io/badge/Qwen%203.8-Vision-5B4EE5) ![Tool Calling](https://img.shields.io/badge/Tool%20Calling-AI-8A2BE2)                                                                                                                                                                                                                                                         |
+| Storage       | ![JSON](https://img.shields.io/badge/JSON-000000?logo=json&logoColor=white)                                                                                                                                                                                                                                                                                                                                                                                                   |
 | External APIs | ![Tavily](https://img.shields.io/badge/Tavily-Web%20Search-5C4EE5) ![Open-Meteo](https://img.shields.io/badge/Open--Meteo-Weather-2196F3) ![Open Trivia DB](https://img.shields.io/badge/Open%20Trivia%20DB-Trivia-7B1FA2) ![TheCatAPI](https://img.shields.io/badge/TheCatAPI-Cats-FF9800) ![TheDogAPI](https://img.shields.io/badge/TheDogAPI-Dogs-795548) ![Cloudflare](https://img.shields.io/badge/Cloudflare-Image%20Generation-F38020?logo=cloudflare&logoColor=white) |
 
 ---
@@ -193,7 +193,7 @@ Administration is scoped per group. Set `GLOBAL_ADMIN_ID` in `.env` to bootstrap
 GLOBAL_ADMIN_ID=1234567898765@c.us
 ```
 
-Use the WhatsApp identifier format shown above—digits plus `@c.us`. The global administrator can manage every group and cannot be removed by group administrators.
+Use the WhatsApp identifier format shown above—digits plus `@c.us`. The global administrator can manage every group and cannot be removed by group administrators. Administrators, including the global administrator, cannot be banned.
 
 ### Group administrators
 
@@ -250,18 +250,18 @@ docs/               # README artwork and screenshots
 
 Use `!ayuda` in a group for the complete, current paginated command list. Common commands include:
 
-| Command                          | Purpose                               |
-| -------------------------------- | ------------------------------------- |
-| `!g`, `!ver`                     | Save, list, and retrieve quoted messages |
-| `!r`                             | Create or manage reminders            |
-| `!p`                             | Create, list, or remove pending items |
-| `!resumen`                       | Summarize recent group messages       |
-| `!clases`                        | View today's class schedule           |
-| `!clima`                         | Get a weather forecast                |
-| `!trivia`                        | Start group trivia                    |
-| `!stats`, `!reporte`             | View personal and group activity      |
-| `!comando`                       | Create a custom fixed-reply command   |
-| `!gato`, `!perro`                | Send a random animal image            |
+| Command              | Purpose                                  |
+| -------------------- | ---------------------------------------- |
+| `!g`, `!ver`         | Save, list, and retrieve quoted messages |
+| `!r`                 | Create or manage reminders               |
+| `!p`                 | Create, list, or remove pending items    |
+| `!resumen`           | Summarize recent group messages          |
+| `!clases`            | View today's class schedule              |
+| `!clima`             | Get a weather forecast                   |
+| `!trivia`            | Start group trivia                       |
+| `!stats`, `!reporte` | View personal and group activity         |
+| `!comando`           | Create a custom fixed-reply command      |
+| `!gato`, `!perro`    | Send a random animal image               |
 
 You can also mention Munin naturally; the LLM can use supported tools when it understands the request.
 For current events, recent news, or facts that may have changed, Munin can search the web through Tavily and answer with the sources it found.

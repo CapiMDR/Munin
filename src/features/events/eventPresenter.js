@@ -163,7 +163,7 @@ function pluralizeFrequency(key, label) {
 function getErrorMessage(code) {
   const errors = {
     EVENT_NOT_FOUND: "No encontré un evento con ese ID en este grupo.",
-    EVENT_DELETE_INDEX_INVALID: "Uso: !e - <índice1> ... <índiceN>",
+    EVENT_DELETE_INDEX_INVALID: "Uso: !e - <índice1> ... <índiceN>\n\n> Dime *\"Elimina el evento 1\"*.",
     EVENT_UPDATE_REQUIRED: "Indica qué dato del evento quieres cambiar.",
     EVENT_RSVP_INVALID: "No entendí tu respuesta al evento. Usa voy, tal vez o no voy.",
     EVENT_LOCATION_INVALID: "La ubicación del evento no es válida.",

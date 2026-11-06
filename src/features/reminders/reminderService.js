@@ -225,6 +225,31 @@ function createReminder(dto, reminderStore, reminderScheduler, userStatsStore) {
   });
 }
 
+function createReminders({ reminders, contents, ...dto }, reminderStore, reminderScheduler, userStatsStore) {
+  const entries = Array.isArray(reminders)
+    ? reminders.map((reminder) => ({ ...dto, ...reminder, text: reminder?.content }))
+    : Array.isArray(contents)
+      ? contents.map((content) => ({ ...dto, text: content }))
+      : undefined;
+  if (!entries?.length || !entries.every((entry) => typeof entry.text === "string" && entry.text.trim())) return failure("REMINDER_CONTENT_REQUIRED");
+
+  const created = [];
+  let lastResult;
+  for (const entry of entries) {
+    const result = createReminder(entry, reminderStore, reminderScheduler, userStatsStore);
+    if (!result.ok) return result;
+    created.push(result.data.reminder);
+    lastResult = result;
+  }
+  return success("REMINDERS_CREATED", {
+    created,
+    reminders: reminderStore.getAll(dto.chatId),
+    kind: lastResult.data.kind,
+    startAt: lastResult.data.startAt,
+    count: lastResult.data.count,
+  });
+}
+
 function createWeeklyReminderFromDto(dto, reminderStore, reminderScheduler, userStatsStore) {
   if (
     dto.duration !== undefined ||
@@ -262,4 +287,4 @@ function createWeeklyReminderFromDto(dto, reminderStore, reminderScheduler, user
   return success("REMINDER_CREATED", { ...result, kind: "weekly", startAt, count });
 }
 
-module.exports = { createReminder, deleteReminder, deleteReminders, listReminders, scheduleReminder, updateReminder };
+module.exports = { createReminder, createReminders, deleteReminder, deleteReminders, listReminders, scheduleReminder, updateReminder };

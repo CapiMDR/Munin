@@ -3,7 +3,7 @@ const { formatDuration, formatMexicoCityDateTime, formatReminder } = require("..
 
 const MESSAGES = {
   MUTATION_WITH_LIST: (confirmation, list) => `${confirmation}\n\n${list}`,
-  REMINDER_USAGE: `Uso: ${COMMANDS.REMINDER} <cantidad><m/h/d> [x<veces> o ${INFINITE_TOKEN}] <contenido>. Responde a un mensaje para usarlo como contenido; ${COMMANDS.REMINDER} - <índice> lo elimina. Los recordatorios repetidos requieren un mínimo de 10m.`,
+  REMINDER_USAGE: `Uso: ${COMMANDS.REMINDER} <cantidad><m/h/d> [x<veces> o ${INFINITE_TOKEN}] <contenido>. Responde a un mensaje para usarlo como contenido; ${COMMANDS.REMINDER} - <índice> lo elimina. Los recordatorios repetidos requieren un mínimo de 10m.\n\n> Dime *"Recuérdame pagar la renta mañana a las 9"*.`,
   REMINDER_INVALID_DURATION:
     "No entendí cuándo quieres el recordatorio. Indica una fecha o un plazo, por ejemplo: mañana, 25/11, 25 de noviembre, en 30 minutos o en 2 días.",
 
@@ -59,6 +59,16 @@ function presentReminderResult(result, { senderTag, duration } = {}) {
       ok: true,
       action: "create_reminder",
       message: MESSAGES.MUTATION_WITH_LIST(confirmation, formatReminders(reminders)),
+      dueAt: formatMexicoCityDateTime(startAt),
+      kind,
+      count,
+    };
+  }
+  if (result.code === "REMINDERS_CREATED") {
+    return {
+      ok: true,
+      action: "create_reminders",
+      message: MESSAGES.MUTATION_WITH_LIST(`Se agregaron ${result.data.created.length} recordatorios.`, formatReminders(reminders)),
       dueAt: formatMexicoCityDateTime(startAt),
       kind,
       count,

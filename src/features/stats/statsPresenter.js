@@ -1,6 +1,6 @@
 const { COMMANDS } = require("../../config/commandConstants");
 
-const STATS_USAGE = `Uso: ${COMMANDS.STATS} [@usuario]`;
+const STATS_USAGE = `Uso: ${COMMANDS.STATS} [@usuario]\n\n> Dime *"Muéstrame mis estadísticas"*.`;
 const STATS_UNAVAILABLE = "No pude encontrar tus estadísticas todavía.";
 
 function presentStatsResult(result) {

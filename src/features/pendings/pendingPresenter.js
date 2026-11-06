@@ -23,6 +23,13 @@ function presentPendingResult(result) {
       ),
     };
   }
+  if (result.code === "PENDINGS_CREATED") {
+    return {
+      ok: true,
+      action: "create_pendings",
+      message: mutationWithList(`Se agregaron ${result.data.created.length} pendientes.`, formatPendings(pendings)),
+    };
+  }
   if (result.code === "PENDING_DELETED") {
     return {
       ok: true,
@@ -54,7 +61,7 @@ function formatPendings(pendings) {
 }
 
 function pendingUsage() {
-  return `Uso: ${COMMANDS.PENDING} [@<dd/mm>] [HH:mm] <pendiente>, responde a un mensaje con ${COMMANDS.PENDING}, o usa ${COMMANDS.PENDING} - <índice> para eliminarlo`;
+  return `Uso: ${COMMANDS.PENDING} [@<dd/mm>] [HH:mm] <pendiente>, responde a un mensaje con ${COMMANDS.PENDING}, o usa ${COMMANDS.PENDING} - <índice> para eliminarlo\n\n> Dime *"Agrega un pendiente para comprar hielo"*.`;
 }
 function mutationWithList(confirmation, list) {
   return `${confirmation}\n\n${list}`;
